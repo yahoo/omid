@@ -297,6 +297,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                         toWAL.writeByte((byte) -2);
                         sharedState.previousLargestDeletedTimestamp = newmax;
                      }
+                     synchronized (sharedMsgBufLock) {
+                        queueCommit(msg.startTimestamp, reply.commitTimestamp);
+                     }
                   }
                }
                if (msg.rows.length > 0) {
@@ -364,7 +367,6 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                queueLargestIncrease(sharedState.largestDeletedTimestamp);
                sharedState.largestDeletedTimestamp = newmax;
             }
-            queueCommit(msg.startTimestamp, reply.commitTimestamp);
          }
       } else if (!reply.committed) {
          synchronized (sharedMsgBufLock) {

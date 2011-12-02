@@ -18,8 +18,8 @@
 ########################################################################
 
 OSTYPE := $(shell uname -s)
-CC = gcc 
-LDSHARED = $(CC) -shared -fPIC
+CC = g++
+LDSHARED = $(CC) -fPIC
 TSO_COMMITHASHMAP_SO = libtso-commithashmap.so
 ifeq ($(OSTYPE),Darwin)
 TSO_COMMITHASHMAP_SO = libtso-commithashmap.jnilib
@@ -32,9 +32,10 @@ else
 INCLUDES=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 endif
 
-LDFLAGS=-lstdc++
-ifneq ($(OSTYPE),Darwin)
-LDFLAGS += -Wl,-soname=$(TSO_COMMITHASHMAP_SO)
+ifeq ($(OSTYPE),Darwin)
+	LDFLAGS=-dynamiclib
+else
+	LDFLAGS=-shared -Wl,-soname=$(TSO_COMMITHASHMAP_SO)
 endif
 
 
