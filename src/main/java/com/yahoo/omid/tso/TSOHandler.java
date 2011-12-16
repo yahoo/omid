@@ -43,7 +43,9 @@ import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelDownstreamHandler;
 import org.jboss.netty.channel.SimpleChannelHandler;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
 
@@ -64,7 +66,7 @@ import com.yahoo.omid.tso.messages.TimestampRequest;
  * @author maysam
  *
  */
-public class TSOHandler extends SimpleChannelHandler implements AddCallback {
+public class TSOHandler extends SimpleChannelUpstreamHandler implements AddCallback {
 
    private static final Log LOG = LogFactory.getLog(TSOHandler.class);
 
@@ -197,8 +199,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                     synchronized (sharedMsgBufLock) {
                         Channel channel = ctx.getChannel();
                         channel.write(new CommittedTransactionReport(sharedState.latestStartTimestamp, sharedState.latestCommitTimestamp));
-                        for (Long halfAborted : sharedState.hashmap.halfAborted) {
-                           channel.write(new AbortedTransactionReport(halfAborted));
+                        synchronized (sharedState.hashmap) {
+                           for (Long halfAborted : sharedState.hashmap.halfAborted) {
+                              channel.write(new AbortedTransactionReport(halfAborted));
+                           }
                         }
                         channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
                         channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
@@ -316,8 +320,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      }
                   }
                   if (toAbort != null) {
-                     for (Long id : toAbort) {
-                        sharedState.hashmap.setHalfAborted(id);
+                     synchronized (sharedState.hashmap) {
+                        for (Long id : toAbort) {
+                           sharedState.hashmap.setHalfAborted(id);
+                        }
                      }
                   }
                }
@@ -326,8 +332,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             }
          } else { // add it to the aborted list
             abortCount++;
-            sharedState.hashmap.setHalfAborted(msg.startTimestamp);
-            sharedState.uncommited.abort(msg.startTimestamp);
+            synchronized (sharedState.hashmap) {
+               sharedState.hashmap.setHalfAborted(msg.startTimestamp);
+               sharedState.uncommited.abort(msg.startTimestamp);
+            }
          }
       }
 
