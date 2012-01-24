@@ -304,9 +304,11 @@ public class ClientHandler extends TSOClient {
 
       boolean readOnly = (rnd.nextFloat() * 100) < percentReads;
 
-      byte size = readOnly ? 0 : (byte) rnd.nextInt(MAX_ROW);
-      final RowKey [] rows = new RowKey[size];
-      for (byte i = 0; i < rows.length; i++) {
+      byte writtenSize = readOnly ? 0 : (byte) rnd.nextInt(MAX_ROW);
+      byte readSize = writtenSize == 0 ? 0 : (byte) rnd.nextInt(MAX_ROW);
+      
+      final RowKey [] writtenRows = new RowKey[writtenSize];
+      for (byte i = 0; i < writtenRows.length; i++) {
          // long l = rnd.nextLong();
          long l = rnd.nextInt(DB_SIZE);
          byte[] b = new byte[8];
@@ -314,12 +316,24 @@ public class ClientHandler extends TSOClient {
             b[7 - iii] = (byte) (l >>> (iii * 8));
          }
          byte[] tableId = new byte[8];
-         rows[i] = new RowKey(b, tableId);
+         writtenRows[i] = new RowKey(b, tableId);
+      }
+
+      final RowKey [] readRows = new RowKey[readSize];
+      for (byte i = 0; i < readRows.length; i++) {
+         // long l = rnd.nextLong();
+         long l = rnd.nextInt(DB_SIZE);
+         byte[] b = new byte[8];
+         for (int iii = 0; iii < 8; iii++) {
+            b[7 - iii] = (byte) (l >>> (iii * 8));
+         }
+         byte[] tableId = new byte[8];
+         readRows[i] = new RowKey(b, tableId);
       }
 
       // send a query once in a while
       totalCommitRequestSent++;
-      if (totalCommitRequestSent % QUERY_RATE == 0 && rows.length > 0) {
+      if (totalCommitRequestSent % QUERY_RATE == 0 && writtenRows.length > 0) {
          long queryTimeStamp = rnd.nextInt(Math.abs((int) timestamp));
          try {
             isCommitted(timestamp, queryTimeStamp, new SyncCommitQueryCallback());
@@ -335,7 +349,7 @@ public class ClientHandler extends TSOClient {
             wallClockTime.put(timestamp, System.nanoTime());
 
             try {
-               commit(timestamp, rows, new SyncCommitCallback());
+               commit(timestamp, writtenRows, readRows, new SyncCommitCallback());
             } catch (IOException e) {
                LOG.error("Couldn't send commit", e);
                e.printStackTrace();

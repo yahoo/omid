@@ -92,7 +92,7 @@ public class TestClientHandler extends TSOClient {
    public void sendMessage(Object msg) throws IOException {
       if (msg instanceof CommitRequest) {
          CommitRequest cr = (CommitRequest) msg;
-         commit(cr.startTimestamp, cr.rows, new SyncCommitCallback());
+         commit(cr.startTimestamp, cr.writtenRows, cr.readRows, new SyncCommitCallback());
       } else if (msg instanceof TimestampRequest) {
          getNewTimestamp(new SyncCreateCallback());
       } else if (msg instanceof CommitQueryRequest) {

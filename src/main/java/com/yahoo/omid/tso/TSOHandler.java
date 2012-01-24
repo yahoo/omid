@@ -251,10 +251,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          } else if (msg.startTimestamp < sharedState.largestDeletedTimestamp) {
             // Too old
             reply.committed = false;//set as abort
-//            LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
-         } else {
-            //1. check the write-write conflicts
-            for (RowKey r: msg.rows) {
+            LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
+         } else if (msg.writtenRows.length > 0){
+            //1. check the read-write conflicts
+            for (RowKey r: msg.readRows) {
                long value;
                value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
                if (value != 0 && value > msg.startTimestamp) {
@@ -268,6 +268,8 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                   break;
                }
             }
+         } else {
+            reply.committed = true;
          }
 
          timeAfter = 0;//System.nanoTime();
@@ -281,11 +283,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
               sharedState.uncommited.commit(commitTimestamp);
               sharedState.uncommited.commit(msg.startTimestamp);
               reply.commitTimestamp = commitTimestamp;
-              if (msg.rows.length > 0) {
+              if (msg.writtenRows.length > 0) {
                   toWAL.writeLong(commitTimestamp);
 //                  toWAL.writeByte(msg.rows.length);
    
-                  for (RowKey r: msg.rows) {
+                  for (RowKey r: msg.writtenRows) {
 //                     toWAL.write(r.getRow(), 0, r.getRow().length);
                      sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(), r.getTable(), commitTimestamp, r.hashCode(), sharedState.largestDeletedTimestamp);
                   }
@@ -294,10 +296,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
-//                     if (!toAbort.isEmpty()) {
-//                         LOG.warn("Slow transactions after raising max: " + toAbort);
-//                         System.out.println("largest deleted ts: " + sharedState.largestDeletedTimestamp);
-//                     }
+                     if (!toAbort.isEmpty()) {
+                         LOG.warn("Slow transactions after raising max: " + toAbort);
+                     }
                      synchronized (sharedMsgBufLock) {
                         for (Long id : toAbort) {
                            sharedState.hashmap.setHalfAborted(id);

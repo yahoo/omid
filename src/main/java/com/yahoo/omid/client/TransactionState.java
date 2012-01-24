@@ -19,17 +19,21 @@ package com.yahoo.omid.client;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.yahoo.omid.tso.RowKey;
+
 public class TransactionState {
    private long startTimestamp;
    private long commitTimestamp;
-   private Set<RowKeyFamily> rows;
+   private Set<RowKeyFamily> writtenRows;
+   private Set<RowKey> readRows;
    
    public TSOClient tsoclient;
 
    TransactionState() {
       startTimestamp = 0;
       commitTimestamp = 0;
-      this.rows = new HashSet<RowKeyFamily>();
+      this.writtenRows = new HashSet<RowKeyFamily>();
+      this.readRows = new HashSet<RowKey>();
    }
 
    TransactionState(long startTimestamp, TSOClient client) {
@@ -51,12 +55,20 @@ public class TransactionState {
       this.commitTimestamp = commitTimestamp;
    }
 
-   RowKeyFamily[] getRows() {
-      return rows.toArray(new RowKeyFamily[0]);
+   RowKeyFamily[] getWrittenRows() {
+      return writtenRows.toArray(new RowKeyFamily[0]);
    }
 
-   void addRow(RowKeyFamily row) {
-      rows.add(row);
+   void addWrittenRow(RowKeyFamily row) {
+      writtenRows.add(row);
+   }
+
+   RowKey[] getReadRows() {
+      return readRows.toArray(new RowKey[0]);
+   }
+
+   void addReadRow(RowKey row) {
+      readRows.add(row);
    }
 
    public String toString() {

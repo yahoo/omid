@@ -40,6 +40,8 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.util.Bytes;
 
+import com.yahoo.omid.tso.RowKey;
+
 /**
  * Provides transactional methods for accessing and modifying a given snapshot of data identified by an opaque
  * {@link TransactionState} object.
@@ -87,6 +89,9 @@ public class TransactionalTable extends HTable {
     */
    public Result get(TransactionState transactionState, final Get get) throws IOException {
       final long readTimestamp = transactionState.getStartTimestamp();
+
+      transactionState.addReadRow(new RowKey(get.getRow(), getTableName()));
+
       final Get tsget = new Get(get.getRow());
       TimeRange timeRange = get.getTimeRange();
       long startTime = timeRange.getMin();
@@ -172,7 +177,7 @@ public class TransactionalTable extends HTable {
          }
       }
 
-      transactionState.addRow(new RowKeyFamily(delete.getRow(), getTableName(), deleteP.getFamilyMap()));
+      transactionState.addWrittenRow(new RowKeyFamily(delete.getRow(), getTableName(), deleteP.getFamilyMap()));
       
       put(deleteP);
    }
@@ -199,7 +204,7 @@ public class TransactionalTable extends HTable {
       }
 
       // should add the table as well
-      transactionState.addRow(new RowKeyFamily(put.getRow(), getTableName(), put.getFamilyMap()));
+      transactionState.addWrittenRow(new RowKeyFamily(put.getRow(), getTableName(), put.getFamilyMap()));
 
       put(tsput);
 //      super.getConnection().getRegionServerWithRetries(
@@ -381,6 +386,9 @@ public class TransactionalTable extends HTable {
             result = super.next();
             filteredResult = filter(state, result, state.getStartTimestamp(), maxVersions);
          } while(result != null && filteredResult == null);
+         if (result != null) {
+            state.addReadRow(new RowKey(result.getRow(), getTableName()));
+         }
          return filteredResult;
       }
       
@@ -389,6 +397,9 @@ public class TransactionalTable extends HTable {
          Result [] results = super.next(nbRows);
          for (int i = 0; i < results.length; i++) {
             results[i] = filter(state, results[i], state.getStartTimestamp(), maxVersions);
+            if (results[i] != null) {
+               state.addReadRow(new RowKey(results[i].getRow(), getTableName()));
+            }
          }
          return results;
       }

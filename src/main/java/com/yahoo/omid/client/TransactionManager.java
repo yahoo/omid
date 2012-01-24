@@ -94,7 +94,8 @@ public class TransactionManager {
       SyncCommitCallback cb = new SyncCommitCallback();
       try {
          tsoclient.commit(transactionState.getStartTimestamp(),
-                          transactionState.getRows(), cb);
+                          transactionState.getWrittenRows(),
+                          transactionState.getReadRows(),cb);
          cb.await();
       } catch (Exception e) {
          throw new TransactionException("Could not commit", e);
@@ -144,7 +145,7 @@ public class TransactionManager {
    private void cleanup(final TransactionState transactionState)
          throws TransactionException {
       Map<byte[], List<Delete>> deleteBatches = new HashMap<byte[], List<Delete>>();
-      for (final RowKeyFamily rowkey : transactionState.getRows()) {
+      for (final RowKeyFamily rowkey : transactionState.getWrittenRows()) {
          List<Delete> batch = deleteBatches.get(rowkey.getTable());
          if (batch == null) {
             batch = new ArrayList<Delete>();

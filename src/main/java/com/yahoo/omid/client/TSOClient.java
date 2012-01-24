@@ -222,12 +222,14 @@ public class TSOClient extends SimpleChannelHandler {
 
    private class CommitOp implements Op  {
       long transactionId;
-      RowKey[] rows;
+      RowKey[] writtenRows;
+      RowKey[] readRows;
       CommitCallback cb;
       
-      CommitOp(long transactionid, RowKey[] rows, CommitCallback cb) throws IOException {
+      CommitOp(long transactionid, RowKey[] writtenRows, RowKey[] readRows, CommitCallback cb) throws IOException {
          this.transactionId = transactionid;
-         this.rows = rows;
+         this.writtenRows = writtenRows;
+         this.readRows = readRows;
          this.cb = cb;
       }
 
@@ -242,7 +244,8 @@ public class TSOClient extends SimpleChannelHandler {
             
             CommitRequest cr = new CommitRequest();
             cr.startTimestamp = transactionId;
-            cr.rows = rows;
+            cr.writtenRows = writtenRows;
+            cr.readRows = readRows;
             ChannelFuture f = channel.write(cr);
             f.addListener(new ChannelFutureListener() {
                   public void operationComplete(ChannelFuture future) {
@@ -394,8 +397,12 @@ public class TSOClient extends SimpleChannelHandler {
        withConnection(new AbortOp(transactionId));
    }
 
-   public void commit(long transactionId, RowKey[] rows, CommitCallback cb) throws IOException {
-      withConnection(new CommitOp(transactionId, rows, cb));
+   private static RowKey[] EMPTY_ROWS = new RowKey[0]; 
+   public void commit(long transactionId, RowKey[] writtenRows, RowKey[] readRows, CommitCallback cb) throws IOException {
+      if (writtenRows.length == 0) {
+         readRows = EMPTY_ROWS;
+      }
+      withConnection(new CommitOp(transactionId, writtenRows, readRows, cb));
    }
 
    public void completeAbort(long transactionId, AbortCompleteCallback cb) throws IOException {

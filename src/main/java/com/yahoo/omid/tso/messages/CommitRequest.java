@@ -41,18 +41,27 @@ public class CommitRequest implements TSOMessage {
 
    public CommitRequest(long startTimestamp) {
       this.startTimestamp = startTimestamp;
-      this.rows = new RowKey[0];
+      this.writtenRows = new RowKey[0];
+      this.readRows = new RowKey[0];
    }
    
-   public CommitRequest(long startTimestamp, RowKey[] rows) {
+   public CommitRequest(long startTimestamp, RowKey[] writtenRows) {
       this.startTimestamp = startTimestamp;
-      this.rows = rows;
+      this.writtenRows = writtenRows;
+      this.readRows = new RowKey[0];
+   }
+   
+   public CommitRequest(long startTimestamp, RowKey[] writtenRows, RowKey[] readRows) {
+      this.startTimestamp = startTimestamp;
+      this.writtenRows = writtenRows;
+      this.readRows = readRows;
    }
 
    /**
     * Modified rows' ids
     */
-   public RowKey[] rows;
+   public RowKey[] writtenRows;
+   public RowKey[] readRows;
 
    @Override
       public String toString() {
@@ -73,9 +82,14 @@ public class CommitRequest implements TSOMessage {
       //LOG.error("tid: " + startTimestamp + " capacity: " + aInputStream.capacity());
       int size = aInputStream.readInt();
       //      LOG.error("size: " + size);
-      rows = new RowKey[size];
+      writtenRows = new RowKey[size];
       for (int i = 0; i < size; i++) {
-         rows[i] = RowKey.readObject(aInputStream);
+         writtenRows[i] = RowKey.readObject(aInputStream);
+      }
+      size = aInputStream.readInt();
+      readRows = new RowKey[size];
+      for (int i = 0; i < size; i++) {
+         readRows[i] = RowKey.readObject(aInputStream);
       }
    }
 
@@ -94,8 +108,12 @@ public class CommitRequest implements TSOMessage {
 //        }
 //       aOutputStream.writeInt(size);
       aOutputStream.writeLong(startTimestamp);
-      aOutputStream.writeInt(rows.length);
-      for (RowKey r: rows) {
+      aOutputStream.writeInt(writtenRows.length);
+      for (RowKey r: writtenRows) {
+         r.writeObject(aOutputStream);
+      }
+      aOutputStream.writeInt(readRows.length);
+      for (RowKey r: readRows) {
          r.writeObject(aOutputStream);
       }
    }
