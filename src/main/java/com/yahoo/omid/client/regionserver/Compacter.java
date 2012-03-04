@@ -103,7 +103,7 @@ public class Compacter extends BaseRegionObserver {
       public CompacterScanner(InternalScanner internalScanner, long minTimestamp) {
          this.minTimestamp = minTimestamp;
          this.internalScanner = internalScanner;
-         System.out.println("Created scanner with " + minTimestamp);
+         //System.out.println("Created scanner with " + minTimestamp);
       }
 
       @Override
@@ -123,7 +123,7 @@ public class Compacter extends BaseRegionObserver {
                if (columnsSeen.add(column) || kv.getTimestamp() > minTimestamp) {
                   result.add(kv);
                } else {
-                  System.out.println("Discarded " + kv);
+                  //System.out.println("Discarded " + kv);
                }
             }
             if (raw.size() < toReceive || toReceive == -1) {
@@ -153,7 +153,7 @@ public class Compacter extends BaseRegionObserver {
          if (message instanceof MinimumTimestamp) {
             Compacter.this.minTimestamp = ((MinimumTimestamp) message).getTimestamp();
          } else {
-            System.out.println("Wtf " + message);
+            //System.out.println("Wtf " + message);
          }
       }
    }

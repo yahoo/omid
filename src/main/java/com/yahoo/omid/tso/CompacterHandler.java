@@ -43,7 +43,7 @@ public class CompacterHandler extends SimpleChannelHandler {
    }
 
    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-      System.out.println("New connection");
+      //System.out.println("New connection");
       channelGroup.add(ctx.getChannel());
    }
 

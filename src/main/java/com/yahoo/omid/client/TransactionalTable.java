@@ -233,6 +233,40 @@ public class TransactionalTable extends HTable {
       return scanner;
    }
 
+   //Added by Maysam Yabandeh
+   //This filter assumes that only one column if feteched
+   //TODO: generalize it
+   private Result filter(TransactionState state, Result result, long startTimestamp, int localVersions) throws IOException {
+      if (result == null || result.list() == null) {
+         return null;
+      }
+      List<KeyValue> kvs = result.list();
+      Long nextFetchMaxTimestamp = startTimestamp;
+      for (KeyValue kv : kvs) {
+         if (state.tsoclient.validRead(kv.getTimestamp(), startTimestamp)) {
+            ArrayList<KeyValue> resultContent = new ArrayList<KeyValue>();
+            resultContent.add(kv);
+            return new Result(resultContent);
+         }
+         nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, kv.getTimestamp());
+      }
+      boolean isMoreLeft = (kvs.size() == localVersions);
+      if (!isMoreLeft)
+         return null;
+      // We need to fetch more versions
+      // I assume there is at least one item
+      KeyValue kv = kvs.get(0);
+      Get get = new Get(kv.getRow());
+      get.addColumn(kv.getFamily(), kv.getQualifier());
+      get.setMaxVersions(localVersions);
+      get.setTimeRange(0, nextFetchMaxTimestamp);
+      extraGetsPerformed++;
+      result = this.get(get);
+      result = filter(state, result, startTimestamp, localVersions);
+      return result;
+   }
+   
+   /*
    private Result filter(TransactionState state, Result result, long startTimestamp, int localVersions) throws IOException {
       if (result == null) {
          return null;
@@ -342,6 +376,7 @@ public class TransactionalTable extends HTable {
       }
       return new Result(filtered);
    }
+   */
    
    private class DeleteTracker {
       Map<ByteArray, Long> deletedRows = new HashMap<ByteArray, Long>();
