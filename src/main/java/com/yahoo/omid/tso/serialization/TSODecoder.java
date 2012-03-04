@@ -37,6 +37,7 @@ import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
@@ -92,6 +93,9 @@ public class TSODecoder extends FrameDecoder {
                 case TSOMessage.FullAbortReportByte:
                     return readFullInteger(type, ostream);
 //                    break;
+                case TSOMessage.ReincarnationReport:
+                    msg = new ReincarnationReport();
+                    break;
                 case TSOMessage.CommitQueryRequest:
                     msg = new CommitQueryRequest();
                     break;

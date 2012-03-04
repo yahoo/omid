@@ -52,6 +52,7 @@ public interface TSOMessage {
    final public byte FullAbortReportByte = (byte) 0xc9;
    final public byte AbortedTransactionReportByte = (byte) 0xca;
    final public byte AbortRequest = (byte) 0xcb;
+   final public byte ReincarnationReport = (byte) 0xcc;
 
    /*
     * Deserialize function

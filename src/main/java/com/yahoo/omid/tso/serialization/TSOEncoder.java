@@ -35,6 +35,7 @@ import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
@@ -61,6 +62,8 @@ public class TSOEncoder extends OneToOneEncoder{
          objWrapper.writeByte(TSOMessage.AbortRequest);
       } else if (msg instanceof FullAbortReport) {
          objWrapper.writeByte(TSOMessage.FullAbortReport);
+      } else if (msg instanceof ReincarnationReport) {
+         objWrapper.writeByte(TSOMessage.ReincarnationReport);
       } else if (msg instanceof CommitQueryRequest) {
          objWrapper.writeByte(TSOMessage.CommitQueryRequest);
       } else if (msg instanceof CommitQueryResponse) {

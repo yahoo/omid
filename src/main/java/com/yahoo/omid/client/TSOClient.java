@@ -60,6 +60,7 @@ import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
@@ -302,6 +303,41 @@ public class TSOClient extends SimpleChannelHandler {
       }
    }
 
+   private class ReincarnationCompleteOp implements Op {
+      long transactionId;
+      ReincarnationCompleteCallback cb;
+
+      ReincarnationCompleteOp(long transactionId, ReincarnationCompleteCallback cb) throws IOException {
+         this.transactionId = transactionId;
+         this.cb = cb;
+      }
+
+      public void execute(Channel channel) {
+         try {
+            ReincarnationReport rr = new ReincarnationReport();
+            rr.startTimestamp = transactionId;
+
+            ChannelFuture f = channel.write(rr);
+            f.addListener(new ChannelFutureListener() {
+               public void operationComplete(ChannelFuture future) {
+                  if (!future.isSuccess()) {
+                     error(new IOException("Error writing to socket"));
+                  } else {
+                     cb.complete();
+                  }
+               }
+            });
+         } catch (Exception e) {
+            error(e);
+         }
+
+      }
+
+      public void error(Exception e) {
+         cb.error(e);
+      }
+   }
+
    private ArrayBlockingQueue<Op> queuedOps;
 
    private State state;
@@ -407,6 +443,12 @@ public class TSOClient extends SimpleChannelHandler {
 
    public void completeAbort(long transactionId, AbortCompleteCallback cb) throws IOException {
       withConnection(new AbortCompleteOp(transactionId, cb));
+   }
+
+   //call this function after the reincarnation is complete
+   //it sends a report to the tso
+   public void completeReincarnation(long transactionId, ReincarnationCompleteCallback cb) throws IOException {
+      withConnection(new ReincarnationCompleteOp(transactionId, cb));
    }
 
    @Override
@@ -535,6 +577,9 @@ public class TSOClient extends SimpleChannelHandler {
       } else if (msg instanceof FullAbortReport) {
          FullAbortReport r = (FullAbortReport) msg;
          aborted.remove(r.startTimestamp);
+      } else if (msg instanceof ReincarnationReport) {
+         ReincarnationReport r = (ReincarnationReport) msg;
+         //TODO: do somthing
       } else if (msg instanceof AbortedTransactionReport) {
          AbortedTransactionReport r = (AbortedTransactionReport) msg;
          aborted.add(r.startTimestamp);

@@ -55,6 +55,7 @@ import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 
@@ -71,7 +72,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Bytes monitor
     */
    public static final AtomicInteger transferredBytes = new AtomicInteger();
-//   public static int transferredBytes = 0;
+   //   public static int transferredBytes = 0;
    public static int abortCount = 0;
    public static int hitCount = 0;
    public static long queries = 0;
@@ -81,9 +82,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     */
    private ChannelGroup channelGroup = null;
    private static ChannelGroup clientChannels = new DefaultChannelGroup("clients");
-   
+
    private Map<Channel, ReadingBuffer> messageBuffersMap = new HashMap<Channel, ReadingBuffer>();
-   
+
    /**
     * Timestamp Oracle
     */
@@ -93,7 +94,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * The wrapper for the shared state of TSO
     */
    private TSOState sharedState;
-   
+
    private FlushThread flushThread;
    private ScheduledExecutorService executor;
    private ScheduledFuture<?> flushFuture;
@@ -143,24 +144,27 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Handle receieved messages
     */
    @Override
-   public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
-      Object msg = e.getMessage();
-      if (msg instanceof TimestampRequest) {
-         // System.out.println("Receive TimestampRequest .......................");
-         handle((TimestampRequest) msg, ctx);
-         return;
-      } else if (msg instanceof CommitRequest) {
-         // System.out.println("Receive CommitRequest .......................");
-         handle((CommitRequest) msg, ctx);
-         return;
-      } else if (msg instanceof FullAbortReport) {
-         handle((FullAbortReport) msg, ctx);
-         return;
-      } else if (msg instanceof CommitQueryRequest) {
-         handle((CommitQueryRequest) msg, ctx);
-         return;
+      public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
+         Object msg = e.getMessage();
+         if (msg instanceof TimestampRequest) {
+            // System.out.println("Receive TimestampRequest .......................");
+            handle((TimestampRequest) msg, ctx);
+            return;
+         } else if (msg instanceof CommitRequest) {
+            // System.out.println("Receive CommitRequest .......................");
+            handle((CommitRequest) msg, ctx);
+            return;
+         } else if (msg instanceof FullAbortReport) {
+            handle((FullAbortReport) msg, ctx);
+            return;
+         } else if (msg instanceof ReincarnationReport) {
+            handle((ReincarnationReport) msg, ctx);
+            return;
+         } else if (msg instanceof CommitQueryRequest) {
+            handle((CommitQueryRequest) msg, ctx);
+            return;
+         }
       }
-   }
 
    public void handle(AbortRequest msg, ChannelHandlerContext ctx) {
       synchronized (sharedState) {
@@ -176,7 +180,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          sharedState.uncommited.abort(msg.startTimestamp);
          synchronized (sharedMsgBufLock) {
             queueHalfAbort(msg.startTimestamp);
-        }
+         }
       }
    }
 
@@ -184,46 +188,46 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Handle the TimestampRequest message
     */
    public void handle(TimestampRequest msg, ChannelHandlerContext ctx) {
-        long timestamp;
-        synchronized (sharedState) {
-            try {
-                timestamp = timestampOracle.next(sharedState.toWAL);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return;
-            }
-        }
+      long timestamp;
+      synchronized (sharedState) {
+         try {
+            timestamp = timestampOracle.next(sharedState.toWAL);
+         } catch (IOException e) {
+            e.printStackTrace();
+            return;
+         }
+      }
 
-        ReadingBuffer buffer;
-        synchronized (messageBuffersMap) {
-            buffer = messageBuffersMap.get(ctx.getChannel());
-            if (buffer == null) {
-                synchronized (sharedState) {
-                    synchronized (sharedMsgBufLock) {
-                        Channel channel = ctx.getChannel();
-                        channel.write(new CommittedTransactionReport(sharedState.latestStartTimestamp, sharedState.latestCommitTimestamp));
-                        for (Long halfAborted : sharedState.hashmap.halfAborted) {
-                           channel.write(new AbortedTransactionReport(halfAborted));
-                        }
-                        channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
-                        channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
-                        channel.write(new LargestDeletedTimestampReport(sharedState.largestDeletedTimestamp));
-                        buffer = sharedState.sharedMessageBuffer.new ReadingBuffer(channel);
-                        messageBuffersMap.put(channel, buffer);
-                        channelGroup.add(channel);
-                        clientChannels.add(channel);
-                        LOG.warn("Channel connected: " + messageBuffersMap.size());
-                    }
-                }
+      ReadingBuffer buffer;
+      synchronized (messageBuffersMap) {
+         buffer = messageBuffersMap.get(ctx.getChannel());
+         if (buffer == null) {
+            synchronized (sharedState) {
+               synchronized (sharedMsgBufLock) {
+                  Channel channel = ctx.getChannel();
+                  channel.write(new CommittedTransactionReport(sharedState.latestStartTimestamp, sharedState.latestCommitTimestamp));
+                  for (Long halfAborted : sharedState.hashmap.halfAborted) {
+                     channel.write(new AbortedTransactionReport(halfAborted));
+                  }
+                  channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
+                  channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
+                  channel.write(new LargestDeletedTimestampReport(sharedState.largestDeletedTimestamp));
+                  buffer = sharedState.sharedMessageBuffer.new ReadingBuffer(channel);
+                  messageBuffersMap.put(channel, buffer);
+                  channelGroup.add(channel);
+                  clientChannels.add(channel);
+                  LOG.warn("Channel connected: " + messageBuffersMap.size());
+               }
             }
-        }
-        synchronized (sharedMsgBufLock) {
-            sharedState.sharedMessageBuffer.writeTimestamp(timestamp);
-            buffer.flush();
-            sharedState.sharedMessageBuffer.rollBackTimestamp();
-        }
+         }
+      }
+      synchronized (sharedMsgBufLock) {
+         sharedState.sharedMessageBuffer.writeTimestamp(timestamp);
+         buffer.flush();
+         sharedState.sharedMessageBuffer.rollBackTimestamp();
+      }
    }
-   
+
    ChannelBuffer cb = ChannelBuffers.buffer(10);
 
    private boolean finish;
@@ -279,16 +283,18 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          if (reply.committed) {
             //2. commit
             try {
-              long commitTimestamp = timestampOracle.next(toWAL);
-              sharedState.uncommited.commit(commitTimestamp);
-              sharedState.uncommited.commit(msg.startTimestamp);
-              reply.commitTimestamp = commitTimestamp;
-              if (msg.writtenRows.length > 0) {
+               long commitTimestamp = timestampOracle.next(toWAL);
+               sharedState.uncommited.commit(commitTimestamp);
+               sharedState.uncommited.commit(msg.startTimestamp);
+               reply.commitTimestamp = commitTimestamp;
+               //2.5 check the write-write conflicts to detect elders
+               checkForWWConflicts(reply, msg);
+               if (msg.writtenRows.length > 0) {
                   toWAL.writeLong(commitTimestamp);
-//                  toWAL.writeByte(msg.rows.length);
-   
+                  //                  toWAL.writeByte(msg.rows.length);
+
                   for (RowKey r: msg.writtenRows) {
-//                     toWAL.write(r.getRow(), 0, r.getRow().length);
+                     //                     toWAL.write(r.getRow(), 0, r.getRow().length);
                      sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(), r.getTable(), commitTimestamp, r.hashCode(), sharedState.largestDeletedTimestamp);
                   }
                   sharedState.largestDeletedTimestamp = sharedState.hashmap.setCommitted(msg.startTimestamp, commitTimestamp, sharedState.largestDeletedTimestamp);
@@ -297,7 +303,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
                      if (!toAbort.isEmpty()) {
-                         LOG.warn("Slow transactions after raising max: " + toAbort);
+                        LOG.warn("Slow transactions after raising max: " + toAbort);
                      }
                      synchronized (sharedMsgBufLock) {
                         for (Long id : toAbort) {
@@ -309,7 +315,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      sharedState.previousLargestDeletedTimestamp = sharedState.largestDeletedTimestamp;
                   }
                   synchronized (sharedMsgBufLock) {
-                      queueCommit(msg.startTimestamp, commitTimestamp);
+                     queueCommit(msg.startTimestamp, commitTimestamp);
                   }
                }
             } catch (IOException e) {
@@ -326,10 +332,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             sharedState.hashmap.setHalfAborted(msg.startTimestamp);
             sharedState.uncommited.abort(msg.startTimestamp);
             synchronized (sharedMsgBufLock) {
-                queueHalfAbort(msg.startTimestamp);
+               queueHalfAbort(msg.startTimestamp);
             }
          }
-         
+
          TSOHandler.transferredBytes.incrementAndGet();
 
          timeAfter = 0;//System.nanoTime();
@@ -348,6 +354,38 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
       }
 
+   }
+
+   //check for write-write conflicts
+   protected void checkForWWConflicts(CommitResponse reply, CommitRequest msg) {
+      for (RowKey r: msg.writtenRows) {
+         long value;
+         value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
+         if (value != 0 && value > msg.startTimestamp) {
+            aWWconflictDetected(reply, msg, r);
+         } else if (value == 0 && sharedState.largestDeletedTimestamp > msg.startTimestamp) {
+            //then it could have been committed after start timestamp but deleted by recycling
+            aWWconflictDetected(reply, msg, r);
+         }
+      }
+      //2. add it to elders list
+      if (reply.wwRowsLength > 0) {
+         RowKey[] wwRows = new RowKey[reply.wwRowsLength];
+         for (int i = 0; i < reply.wwRowsLength; i++)
+            wwRows[i] = reply.wwRows[i];
+         sharedState.elders.addElder(msg.startTimestamp, reply.commitTimestamp, wwRows);
+      }
+   }
+
+   //A write-write conflict is detected and the proper action is taken here
+   protected void aWWconflictDetected(CommitResponse reply, CommitRequest msg, RowKey wwRow) {
+      //Since we abort only for read-write conflicts, here we just keep track of elders (transactions with ww conflict) and tell them to reincarnate themselves by reinserting the items with ww conflict
+      //1. add it to the reply to the lients
+      if (reply.wwRows == null)
+         //I do not know the size, so I create the longest needed
+         reply.wwRows = new RowKey[msg.writtenRows.length];
+      reply.wwRows[reply.wwRowsLength] = wwRow;
+      reply.wwRowsLength++;
    }
 
    /**
@@ -370,11 +408,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          else if (sharedState.uncommited.isUncommited(msg.queryTimestamp))
             reply.committed = false;
          else 
-             reply.retry = true;
-//         else if (sharedState.largestDeletedTimestamp >= msg.queryTimestamp) 
-//            reply.committed = true;
+            reply.retry = true;
+         //         else if (sharedState.largestDeletedTimestamp >= msg.queryTimestamp) 
+         //            reply.committed = true;
          // TODO retry needed? isnt it just fully aborted?
-         
+
          ctx.getChannel().write(reply);
 
          // We send the message directly. If after a failure the state is inconsistent we'll detect it
@@ -395,35 +433,44 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
    public class FlushThread implements Runnable {
       @Override
-      public void run() {
-         if (finish) {
-             return;
-         }
-         if (sharedState.nextBatch.size() > 0) {
-            synchronized (sharedState) {
-               if (sharedState.nextBatch.size() > 0) {
-                  flush();
+         public void run() {
+            if (finish) {
+               return;
+            }
+            if (sharedState.nextBatch.size() > 0) {
+               synchronized (sharedState) {
+                  if (sharedState.nextBatch.size() > 0) {
+                     flush();
+                  }
                }
             }
+            flushFuture = executor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
          }
-         flushFuture = executor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
-      }
    }
-   
+
    private void queueCommit(long startTimestamp, long commitTimestamp) {
-       sharedState.sharedMessageBuffer.writeCommit(startTimestamp, commitTimestamp);
+      sharedState.sharedMessageBuffer.writeCommit(startTimestamp, commitTimestamp);
    }
-   
+
    private void queueHalfAbort(long startTimestamp) {
-       sharedState.sharedMessageBuffer.writeHalfAbort(startTimestamp);
+      sharedState.sharedMessageBuffer.writeHalfAbort(startTimestamp);
    }
-   
+
    private void queueFullAbort(long startTimestamp) {
-       sharedState.sharedMessageBuffer.writeFullAbort(startTimestamp);
+      sharedState.sharedMessageBuffer.writeFullAbort(startTimestamp);
    }
-   
+
    private void queueLargestIncrease(long largestTimestamp) {
-       sharedState.sharedMessageBuffer.writeLargestIncrease(largestTimestamp);
+      sharedState.sharedMessageBuffer.writeLargestIncrease(largestTimestamp);
+   }
+
+   /**
+    * Handle the ReincarnationReport message
+    */
+   public void handle(ReincarnationReport msg, ChannelHandlerContext ctx) {
+      synchronized (sharedState) {
+         sharedState.elders.reincarnateElder(msg.startTimestamp);
+      }
    }
 
    /**
@@ -464,18 +511,18 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Callback of asyncAddEntry from WAL
     */
    @Override
-   public void addComplete(int rc, LedgerHandle lh, long entryId, Object ctx) {
-      // Guarantee that messages sent to the WAL are delivered in order
-      if (lh != sharedState.lh) 
-          return;
-      synchronized (callbackLock) {
-         @SuppressWarnings("unchecked")
-         ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
-         for (ChannelandMessage cam : theBatch) {
-            Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+      public void addComplete(int rc, LedgerHandle lh, long entryId, Object ctx) {
+         // Guarantee that messages sent to the WAL are delivered in order
+         if (lh != sharedState.lh) 
+            return;
+         synchronized (callbackLock) {
+            @SuppressWarnings("unchecked")
+               ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
+            for (ChannelandMessage cam : theBatch) {
+               Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+            }
          }
       }
-   }
 
    @Override
       public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
@@ -483,9 +530,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          Channels.close(e.getChannel());
       }
 
-    public void stop() {
-        finish = true;
-    }
-   
-   
+   public void stop() {
+      finish = true;
+   }
+
+
 }

@@ -92,6 +92,12 @@ public class TSOState {
 
    public Uncommited uncommited;
 
+   // The list of the elders: the committed transactions with write write conflicts
+   public Elders elders;
+
+   // The list of the failed elders: the elders that did not reincarnte in a timely manner
+   public Set<Elder> failedElders;
+
    /**
     * Reference to BookKeeper
     */
@@ -109,6 +115,8 @@ public class TSOState {
    public TSOState(long largestDeletedTimestamp) {
       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = largestDeletedTimestamp;
       this.uncommited = new Uncommited(largestDeletedTimestamp);
+      this.elders = new Elders();
+      this.failedElders = new HashSet<Elder>();
    }
 }
 

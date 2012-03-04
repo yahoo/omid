@@ -41,6 +41,7 @@ import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ExceptionEvent;
 
 import com.yahoo.omid.client.SyncAbortCompleteCallback;
+import com.yahoo.omid.client.SyncReincarnationCompleteCallback;
 import com.yahoo.omid.client.SyncCommitCallback;
 import com.yahoo.omid.client.SyncCommitQueryCallback;
 import com.yahoo.omid.client.SyncCreateCallback;
@@ -250,6 +251,16 @@ public class ClientHandler extends TSOClient {
             lasttotalTx = totalTx;
             lasttotalNanoTime = totalNanoTime;
             lastTimeout = timeout;
+         }
+         //report the reincarnation
+         if (msg.wwRows != null) {
+            for (RowKey r: msg.wwRows)
+               System.out.println("WW " + msg.startTimestamp + " " + msg.commitTimestamp + " row is: ");
+            try {
+               super.completeReincarnation(msg.startTimestamp, new SyncReincarnationCompleteCallback());
+            } catch (IOException e) {
+               LOG.error("Couldn't send reincarnation report", e);
+            }
          }
       } else {// aborted
          try {

@@ -21,6 +21,7 @@ import java.io.IOException;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
+import com.yahoo.omid.tso.RowKey;
 import com.yahoo.omid.tso.TSOMessage;
 
 /**
@@ -45,6 +46,16 @@ public class CommitResponse implements TSOMessage {
     * Commited or not
     */
    public boolean committed = true;
+
+   /**
+    * Rows with write-write conflicts
+    */
+   public RowKey[] wwRows;
+   /**
+    * The actual size of wwRows
+    * (some items might be null when the object is being developped)
+    */
+   public int wwRowsLength = 0;
 
    /**
     * Constructor from startTimestamp
@@ -81,6 +92,13 @@ public class CommitResponse implements TSOMessage {
          l = aInputStream.readLong();
          commitTimestamp = l;
       }
+      //deserialize the rows with write-write conflict
+      int size = aInputStream.readInt();
+      if (size != 0) {
+         wwRows = new RowKey[size];
+         for (int i = 0; i < size; i++)
+            wwRows[i] = RowKey.readObject(aInputStream);
+      }
    }
 
    @Override
@@ -90,5 +108,10 @@ public class CommitResponse implements TSOMessage {
       aOutputStream.writeByte(committed ? 1 : 0);
       if (committed)
          aOutputStream.writeLong(commitTimestamp);
+      //serialize the rows with ww conflict
+      //some items in wwRows might be null, so write as much as exist
+      aOutputStream.writeInt(wwRowsLength);
+      for (int i = 0; i < wwRowsLength; i++)
+         wwRows[i].writeObject(aOutputStream);
    }
 }
