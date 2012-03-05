@@ -51,6 +51,7 @@ import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
 
 import com.yahoo.omid.tso.Committed;
 import com.yahoo.omid.tso.RowKey;
+import com.yahoo.omid.tso.Elder;
 import com.yahoo.omid.tso.TSOMessage;
 import com.yahoo.omid.tso.messages.AbortRequest;
 import com.yahoo.omid.tso.messages.AbortedTransactionReport;
@@ -61,6 +62,7 @@ import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
+import com.yahoo.omid.tso.messages.FailedElderReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
@@ -82,6 +84,7 @@ public class TSOClient extends SimpleChannelHandler {
    
    private Committed committed = new Committed();
    private Set<Long> aborted = Collections.synchronizedSet(new HashSet<Long>(1000));
+   private Set<Elder> failedElders = Collections.synchronizedSet(new HashSet<Elder>(1000));
    private long largestDeletedTimestamp;
    private long connectionTimestamp = 0;
    private boolean hasConnectionTimestamp = false;
@@ -574,12 +577,20 @@ public class TSOClient extends SimpleChannelHandler {
       } else if (msg instanceof CommittedTransactionReport) {
          CommittedTransactionReport ctr = (CommittedTransactionReport) msg;
          committed.commit(ctr.startTimestamp, ctr.commitTimestamp);
+         //Added by Maysam Yabandeh
+         //Always add (Tc, Tc) as well since some transactions might be elders and reinsert their written data
+         committed.commit(ctr.commitTimestamp, ctr.commitTimestamp);
       } else if (msg instanceof FullAbortReport) {
          FullAbortReport r = (FullAbortReport) msg;
          aborted.remove(r.startTimestamp);
+      } else if (msg instanceof FailedElderReport) {
+         FailedElderReport r = (FailedElderReport) msg;
+         failedElders.add(new Elder(r.startTimestamp, r.commitTimestamp));
+         System.out.println("Client: " + r);
       } else if (msg instanceof ReincarnationReport) {
          ReincarnationReport r = (ReincarnationReport) msg;
-         //TODO: do somthing
+         boolean res = failedElders.remove(new Elder(r.startTimestamp));
+         System.out.println("Client: " + res + " " + r);
       } else if (msg instanceof AbortedTransactionReport) {
          AbortedTransactionReport r = (AbortedTransactionReport) msg;
          aborted.add(r.startTimestamp);

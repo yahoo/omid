@@ -34,7 +34,7 @@ public class Elders {
    }
 
    public void addElder(long ts, long tc, RowKey[] wwRows) {
-      Elder e = new Elder(ts);
+      Elder e = new Elder(ts, tc);
       //TODO: store the rest as well
       heapofelders.offer(e);
       setofelders.add(e);
@@ -43,22 +43,26 @@ public class Elders {
    
    public void reincarnateElder(long id) {
       Elder e = new Elder(id);
+      //System.out.println("rrrrrr " + id);
       boolean isStillElder = setofelders.remove(e);
       if (isStillElder) {
          //System.out.println("RRRRRR " + id);
       }
+      //else
+      //System.out.println("nnnnn " + id);
       //do not do anything on heap
    }
    
    public Set<Elder> raiseLargestDeletedTransaction(long id) {
       Set<Elder> failed = new TreeSet<Elder>();
-      while (heapofelders.peek().getId() < id) {
+      while (heapofelders.size() > 0 && heapofelders.peek().getId() < id) {
          Elder e = heapofelders.poll();
+      //System.out.println("mmmmm " + e.getId() + " < " + id);
+      //System.out.flush();
          boolean isStillElder = setofelders.remove(e);
          if (isStillElder)
             failed.add(e);
       }
       return failed;
    }
-   
 }

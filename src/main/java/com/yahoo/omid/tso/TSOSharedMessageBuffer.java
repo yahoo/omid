@@ -257,6 +257,35 @@ public class TSOSharedMessageBuffer {
       _Avg2 += (written - _Avg2) / _Writes;
    }
 
+   public void writeFailedElder(long startTimestamp, long commitTimestamp) {
+      if (writeBuffer.writableBytes() < 30) {
+         nextBuffer();
+      }
+      ++_Writes;
+      int readBefore = writeBuffer.readableBytes();
+
+      writeBuffer.writeByte(TSOMessage.FailedElderReport);
+      writeBuffer.writeLong(startTimestamp);
+      writeBuffer.writeLong(commitTimestamp);
+
+      int written = writeBuffer.readableBytes() - readBefore;
+      _Avg2 += (written - _Avg2) / _Writes;
+   }
+
+   public void writeReincarnatedElder(long startTimestamp) {
+      if (writeBuffer.writableBytes() < 30) {
+         nextBuffer();
+      }
+      ++_Writes;
+      int readBefore = writeBuffer.readableBytes();
+
+      writeBuffer.writeByte(TSOMessage.ReincarnationReport);
+      writeBuffer.writeLong(startTimestamp);
+
+      int written = writeBuffer.readableBytes() - readBefore;
+      _Avg2 += (written - _Avg2) / _Writes;
+   }
+
    public void writeFullAbort(long startTimestamp) {
       if (writeBuffer.writableBytes() < 30) {
          nextBuffer();

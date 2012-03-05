@@ -147,11 +147,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
          Object msg = e.getMessage();
          if (msg instanceof TimestampRequest) {
-            // System.out.println("Receive TimestampRequest .......................");
             handle((TimestampRequest) msg, ctx);
             return;
          } else if (msg instanceof CommitRequest) {
-            // System.out.println("Receive CommitRequest .......................");
             handle((CommitRequest) msg, ctx);
             return;
          } else if (msg instanceof FullAbortReport) {
@@ -301,6 +299,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                   if (sharedState.largestDeletedTimestamp > sharedState.previousLargestDeletedTimestamp) {
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
+                     Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
+                     if (!eldersToBeFailed.isEmpty()) {
+                        LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + sharedState.previousLargestDeletedTimestamp + " to " + sharedState.largestDeletedTimestamp);
+                        sharedState.failedElders.addAll(eldersToBeFailed);
+                     }
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
                      if (!toAbort.isEmpty()) {
                         LOG.warn("Slow transactions after raising max: " + toAbort);
@@ -310,6 +313,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                            sharedState.hashmap.setHalfAborted(id);
                            queueHalfAbort(id);
                         }
+                        //Added by Maysam Yabandeh
+                        //report faileElders to the clients
+                        for (Elder elder : eldersToBeFailed)
+                           queueFailedElder(elder.getId(), elder.getCommitTimestamp());
                         queueLargestIncrease(sharedState.largestDeletedTimestamp);
                      }
                      sharedState.previousLargestDeletedTimestamp = sharedState.largestDeletedTimestamp;
@@ -456,6 +463,14 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       sharedState.sharedMessageBuffer.writeHalfAbort(startTimestamp);
    }
 
+   private void queueReincarnatdElder(long startTimestamp) {
+      sharedState.sharedMessageBuffer.writeReincarnatedElder(startTimestamp);
+   }
+
+   private void queueFailedElder(long startTimestamp, long commitTimestamp) {
+      sharedState.sharedMessageBuffer.writeFailedElder(startTimestamp, commitTimestamp);
+   }
+
    private void queueFullAbort(long startTimestamp) {
       sharedState.sharedMessageBuffer.writeFullAbort(startTimestamp);
    }
@@ -470,6 +485,14 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
    public void handle(ReincarnationReport msg, ChannelHandlerContext ctx) {
       synchronized (sharedState) {
          sharedState.elders.reincarnateElder(msg.startTimestamp);
+         boolean itWasFailed = sharedState.failedElders.remove(new Elder(msg.startTimestamp));
+         if (itWasFailed) {
+            LOG.warn("a failed elder is reincarnated: " + msg.startTimestamp);
+            //tell the clients that the failed elder is reincarnated
+            synchronized (sharedMsgBufLock) {
+               queueReincarnatdElder(msg.startTimestamp);
+            }
+         }
       }
    }
 
@@ -527,6 +550,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
    @Override
       public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
          LOG.warn("TSOHandler: Unexpected exception from downstream.", e.getCause());
+         e.getCause().printStackTrace();
          Channels.close(e.getChannel());
       }
 

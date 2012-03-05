@@ -23,11 +23,21 @@ import java.util.TreeSet;
 public class Elder implements Comparable<Elder> {
    
    protected long startTimestamp;
+   protected long commitTimestamp = -1;
+   //i need this constructor only for search purposes, do not use it to store elders
    public Elder(long id) {
-      startTimestamp = id;
+      this.startTimestamp = id;
+   }
+   public Elder(long id, long commitTimestamp) {
+      this.startTimestamp = id;
+      this.commitTimestamp = commitTimestamp;
    }
    public long getId() {
       return startTimestamp;
+   }
+   public long getCommitTimestamp() {
+      assert(commitTimestamp != -1);//this could happen if it is not set by constructor
+      return commitTimestamp;
    }
    public int compareTo(Elder e) {
       //be careful not to cast long to int (neg to pos complexity ...)
@@ -45,5 +55,9 @@ public class Elder implements Comparable<Elder> {
 
    public int hashCode() {
       return (int)getId();
+   }
+
+   public String toString() {
+      return "Elder id=" + getId();
    }
 }

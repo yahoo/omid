@@ -21,6 +21,7 @@ import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,7 +117,7 @@ public class TSOState {
       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = largestDeletedTimestamp;
       this.uncommited = new Uncommited(largestDeletedTimestamp);
       this.elders = new Elders();
-      this.failedElders = new HashSet<Elder>();
+      this.failedElders = new TreeSet<Elder>();
    }
 }
 
