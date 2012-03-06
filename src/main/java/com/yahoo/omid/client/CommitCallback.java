@@ -17,8 +17,9 @@
 package com.yahoo.omid.client;
 
 import com.yahoo.omid.client.TSOClient.Result;
+import com.yahoo.omid.tso.RowKey;
 
 public interface CommitCallback extends Callback {
-   public void complete(Result res, long commitTimestamp);
+   public void complete(Result res, long commitTimestamp, RowKey[] wwRows);
 }
 

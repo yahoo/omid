@@ -84,7 +84,7 @@ public class TSOClient extends SimpleChannelHandler {
    
    private Committed committed = new Committed();
    private Set<Long> aborted = Collections.synchronizedSet(new HashSet<Long>(1000));
-   private Set<Elder> failedElders = Collections.synchronizedSet(new HashSet<Elder>(1000));
+   public Map<Long, Long> failedElders = Collections.synchronizedMap(new HashMap<Long, Long>(1000));
    private long largestDeletedTimestamp;
    private long connectionTimestamp = 0;
    private boolean hasConnectionTimestamp = false;
@@ -543,7 +543,7 @@ public class TSOClient extends SimpleChannelHandler {
             LOG.error("Received a commit response for a nonexisting commit");
             return;
          }
-         cb.complete(r.committed ? Result.OK : Result.ABORTED, r.commitTimestamp);
+         cb.complete(r.committed ? Result.OK : Result.ABORTED, r.commitTimestamp, r.wwRows);
       } else if (msg instanceof TimestampResponse) {
          CreateCallback cb = createCallbacks.poll();
          long timestamp = ((TimestampResponse)msg).timestamp;
@@ -585,12 +585,13 @@ public class TSOClient extends SimpleChannelHandler {
          aborted.remove(r.startTimestamp);
       } else if (msg instanceof FailedElderReport) {
          FailedElderReport r = (FailedElderReport) msg;
-         failedElders.add(new Elder(r.startTimestamp, r.commitTimestamp));
-         System.out.println("Client: " + r);
+         failedElders.put(r.startTimestamp, r.commitTimestamp);
+         Log.warn("Client: " + r);
       } else if (msg instanceof ReincarnationReport) {
          ReincarnationReport r = (ReincarnationReport) msg;
-         boolean res = failedElders.remove(new Elder(r.startTimestamp));
-         System.out.println("Client: " + res + " " + r);
+         Long Tc = failedElders.remove(r.startTimestamp);
+         boolean res = Tc != null;
+         Log.warn("Client: " + res + " " + r);
       } else if (msg instanceof AbortedTransactionReport) {
          AbortedTransactionReport r = (AbortedTransactionReport) msg;
          aborted.add(r.startTimestamp);

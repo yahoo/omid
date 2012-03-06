@@ -16,6 +16,8 @@
 
 package com.yahoo.omid.client;
 
+import com.yahoo.omid.tso.RowKey;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +30,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.HTable;
 
 /**
@@ -115,6 +118,14 @@ public class TransactionManager {
          throw new CommitUnsuccessfulException();
       }
       transactionState.setCommitTimestamp(cb.getCommitTimestamp());
+      if (cb.isElder()) {
+         reincarnate(transactionState, cb.getWWRows());
+         try {
+            transactionState.tsoclient.completeReincarnation(transactionState.getStartTimestamp(), new SyncReincarnationCompleteCallback());
+         } catch (IOException e) {
+            LOG.error("Couldn't send reincarnation report", e);
+         }
+      }
    }
 
    /**
@@ -140,6 +151,41 @@ public class TransactionManager {
       // Make sure its commit timestamp is 0, so the cleanup does the right job
       transactionState.setCommitTimestamp(0);
       cleanup(transactionState);
+   }
+
+   private void reincarnate(final TransactionState transactionState, RowKey[] wwRows)
+      throws TransactionException {
+      System.out.println("I am reincarnating haha");
+      Map<byte[], List<Put>> putBatches = new HashMap<byte[], List<Put>>();
+      for (final RowKeyFamily rowkey : transactionState.getWrittenRows()) {
+         //TODO: do it only for wwRows
+         List<Put> batch = putBatches.get(rowkey.getTable());
+         if (batch == null) {
+            batch = new ArrayList<Put>();
+            putBatches.put(rowkey.getTable(), batch);
+         }
+         Put put = new Put(rowkey.getRow(), transactionState.getCommitTimestamp());
+         for (Entry<byte[], List<KeyValue>> entry : rowkey.getFamilies().entrySet())
+            for (KeyValue kv : entry.getValue())
+               try {
+                  put.add(new KeyValue(kv.getRow(), kv.getFamily(), kv.getQualifier(), transactionState.getCommitTimestamp(), kv.getValue()));
+               } catch (IOException ioe) {
+                  throw new TransactionException("Could not add put operation in reincarnation " + entry.getKey(), ioe);
+               }
+         batch.add(put);
+      }
+      for (final Entry<byte[], List<Put>> entry : putBatches.entrySet()) {
+         try {
+            HTable table = tableCache.get(entry.getKey());
+            if (table == null) {
+               table = new HTable(conf, entry.getKey());
+               tableCache.put(entry.getKey(), table);
+            }
+            table.put(entry.getValue());
+         } catch (IOException ioe) {
+            throw new TransactionException("Could not reincarnate for table " + entry.getKey(), ioe);
+         }
+      }
    }
 
    private void cleanup(final TransactionState transactionState)

@@ -17,10 +17,12 @@
 package com.yahoo.omid.client;
 
 import com.yahoo.omid.client.TSOClient.Result;
+import com.yahoo.omid.tso.RowKey;
 
 public class SyncCommitCallback extends SyncCallbackBase implements CommitCallback {
    private Result result;
    private long commitTimestamp;
+   private RowKey[] wwRows;
 
    public Result getResult() {
       return result;
@@ -30,10 +32,19 @@ public class SyncCommitCallback extends SyncCallbackBase implements CommitCallba
       return commitTimestamp;
    }
 
+   public boolean isElder() {
+      return wwRows.length != 0;
+   }
+
+   public RowKey[] getWWRows() {
+      return wwRows;
+   }
+
    synchronized
-   public void complete(Result res, long commitTimestamp) {
+   public void complete(Result res, long commitTimestamp, RowKey[] wwRows) {
       this.result = res;
       this.commitTimestamp = commitTimestamp;
+      this.wwRows = wwRows;
       countDown();
    }
 }
