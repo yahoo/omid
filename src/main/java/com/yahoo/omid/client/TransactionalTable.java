@@ -26,6 +26,7 @@ import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.ArrayList;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
@@ -95,13 +96,21 @@ public class TransactionalTable extends HTable {
       final Get tsget = new Get(get.getRow());
       TimeRange timeRange = get.getTimeRange();
       //Added by Maysam Yabandeh
-      long startTime = 0;//for rw case, we need to retrieve all versions
-      //long startTime = timeRange.getMin();
+      final long eldest = transactionState.tsoclient.getEldest();
+      int max = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
+      boolean maxIsSet = false;
+      long startTime = 0;
       long endTime = Math.min(timeRange.getMax(), readTimestamp + 1);
-//      int maxVersions = get.getMaxVersions();
-      //Added by Maysam Yabandeh
-      //for rw case, we need all the versions, no max
-      tsget.setTimeRange(startTime, endTime);
+      if (eldest == -1 || eldest >= endTime) {//-1 means no eldest
+         maxIsSet = true;
+         tsget.setTimeRange(startTime, endTime).setMaxVersions(max);
+      } else {//either from 0, or eldest, fetch all
+         startTime = eldest;
+         //Added by Maysam Yabandeh
+         //for rw case, we need all the versions, no max
+         tsget.setTimeRange(startTime, endTime);
+      }
+      //long startTime = timeRange.getMin();
       //tsget.setTimeRange(startTime, endTime).setMaxVersions((int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
       Map<byte[], NavigableSet<byte[]>> kvs = get.getFamilyMap();
       for (Map.Entry<byte[], NavigableSet<byte[]>> entry : kvs.entrySet()) {
@@ -122,7 +131,7 @@ public class TransactionalTable extends HTable {
 //         filteredResult = filter(super.get(tsget), readTimestamp, maxVersions);
 //      } while (!result.isEmpty() && filteredResult == null);
       getsPerformed++;
-      Result result = filter(transactionState, super.get(tsget), readTimestamp, (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
+      Result result = filter(transactionState, super.get(tsget), readTimestamp, maxIsSet, max);
       return result == null ? new Result() : result;
 //      Scan scan = new Scan(get);
 //      scan.setRetainDeletesInOutput(true);
@@ -241,7 +250,7 @@ public class TransactionalTable extends HTable {
    //Added by Maysam Yabandeh
    //This filter assumes that only one column if feteched
    //TODO: generalize it
-   private Result filter(TransactionState state, Result result, long startTimestamp, int localVersions) throws IOException {
+   private Result filter(TransactionState state, Result result, long startTimestamp, boolean maxIsSet, int max) throws IOException {
       if (result == null || result.list() == null) {
          return null;
       }
@@ -261,8 +270,7 @@ public class TransactionalTable extends HTable {
                mostRecentReorderdCommitTimestamp = getres;
             }
       }
-      if (state.tsoclient.failedElders.size() > 0)
-         //System.out.println("filter: mostRecentfailedEdler = " + mostRecentReorderdCommitTimestamp + " ts = " + startTimestamp);
+      //if (state.tsoclient.failedElders.size() > 0) System.out.println("filter: mostRecentfailedEdler = " + mostRecentReorderdCommitTimestamp + " ts = " + startTimestamp);
       //now compare the retrieved value with the latest one and choose the one that is committed later
       ArrayList<KeyValue> resultContent = new ArrayList<KeyValue>();
       for (KeyValue kv : kvs) {
@@ -279,7 +287,9 @@ public class TransactionalTable extends HTable {
          }
          nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, kv.getTimestamp());
       }
-      boolean isMoreLeft = (kvs.size() == localVersions);
+      boolean isMoreLeft = true;
+      if (maxIsSet && kvs.size() != max)
+         isMoreLeft = false;
       if (!isMoreLeft)
          return null;
       // We need to fetch more versions
@@ -288,11 +298,12 @@ public class TransactionalTable extends HTable {
       Get get = new Get(kv.getRow());
       get.addColumn(kv.getFamily(), kv.getQualifier());
       //Added by Maysam Yabandeh: for the second tries setting max makes sense even for rw
-      get.setMaxVersions(localVersions);
+      maxIsSet = true;
+      get.setMaxVersions(max);
       get.setTimeRange(0, nextFetchMaxTimestamp);
       extraGetsPerformed++;
       result = this.get(get);
-      result = filter(state, result, startTimestamp, localVersions);
+      result = filter(state, result, startTimestamp, maxIsSet, max);
       return result;
    }
    
@@ -449,7 +460,7 @@ public class TransactionalTable extends HTable {
          Result filteredResult;
          do {
             result = super.next();
-            filteredResult = filter(state, result, state.getStartTimestamp(), maxVersions);
+            filteredResult = filter(state, result, state.getStartTimestamp(), true, maxVersions);
          } while(result != null && filteredResult == null);
          if (result != null) {
             state.addReadRow(new RowKey(result.getRow(), getTableName()));
@@ -461,7 +472,7 @@ public class TransactionalTable extends HTable {
       public Result[] next(int nbRows) throws IOException {
          Result [] results = super.next(nbRows);
          for (int i = 0; i < results.length; i++) {
-            results[i] = filter(state, results[i], state.getStartTimestamp(), maxVersions);
+            results[i] = filter(state, results[i], state.getStartTimestamp(), true, maxVersions);
             if (results[i] != null) {
                state.addReadRow(new RowKey(results[i].getRow(), getTableName()));
             }

@@ -62,6 +62,7 @@ import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
+import com.yahoo.omid.tso.messages.EldestUpdate;
 import com.yahoo.omid.tso.messages.FailedElderReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
@@ -86,6 +87,8 @@ public class TSOClient extends SimpleChannelHandler {
    private Set<Long> aborted = Collections.synchronizedSet(new HashSet<Long>(1000));
    public Map<Long, Long> failedElders = Collections.synchronizedMap(new HashMap<Long, Long>(1000));
    private long largestDeletedTimestamp;
+   //the txn id of the in-progress elder with lowest start timestamp
+   private long eldest = 0;//by default, fetch all starting from 0
    private long connectionTimestamp = 0;
    private boolean hasConnectionTimestamp = false;
 
@@ -345,6 +348,9 @@ public class TSOClient extends SimpleChannelHandler {
 
    private State state;
 
+   public final long getEldest() {
+      return eldest;
+   }
    public TSOClient(Configuration conf) throws IOException {
       state = State.DISCONNECTED;
       queuedOps = new ArrayBlockingQueue<Op>(200);
@@ -586,12 +592,16 @@ public class TSOClient extends SimpleChannelHandler {
       } else if (msg instanceof FailedElderReport) {
          FailedElderReport r = (FailedElderReport) msg;
          failedElders.put(r.startTimestamp, r.commitTimestamp);
-         Log.warn("Client: " + r);
+         LOG.warn("Client: " + r);
+      } else if (msg instanceof EldestUpdate) {
+         EldestUpdate r = (EldestUpdate) msg;
+         eldest = r.startTimestamp;
+         LOG.warn("Client: " + r);
       } else if (msg instanceof ReincarnationReport) {
          ReincarnationReport r = (ReincarnationReport) msg;
          Long Tc = failedElders.remove(r.startTimestamp);
          boolean res = Tc != null;
-         Log.warn("Client: " + res + " " + r);
+         LOG.warn("Client: " + res + " " + r);
       } else if (msg instanceof AbortedTransactionReport) {
          AbortedTransactionReport r = (AbortedTransactionReport) msg;
          aborted.add(r.startTimestamp);

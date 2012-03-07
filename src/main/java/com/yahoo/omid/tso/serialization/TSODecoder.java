@@ -38,6 +38,7 @@ import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
 import com.yahoo.omid.tso.messages.FailedElderReport;
+import com.yahoo.omid.tso.messages.EldestUpdate;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
@@ -96,6 +97,9 @@ public class TSODecoder extends FrameDecoder {
 //                    break;
                 case TSOMessage.FailedElderReport:
                     msg = new FailedElderReport();
+                    break;
+                case TSOMessage.EldestUpdate:
+                    msg = new EldestUpdate();
                     break;
                 case TSOMessage.ReincarnationReport:
                     msg = new ReincarnationReport();

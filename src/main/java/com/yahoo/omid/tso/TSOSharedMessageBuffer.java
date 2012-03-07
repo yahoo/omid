@@ -272,6 +272,20 @@ public class TSOSharedMessageBuffer {
       _Avg2 += (written - _Avg2) / _Writes;
    }
 
+   public void writeEldest(long startTimestamp) {
+      if (writeBuffer.writableBytes() < 30) {
+         nextBuffer();
+      }
+      ++_Writes;
+      int readBefore = writeBuffer.readableBytes();
+
+      writeBuffer.writeByte(TSOMessage.EldestUpdate);
+      writeBuffer.writeLong(startTimestamp);
+
+      int written = writeBuffer.readableBytes() - readBefore;
+      _Avg2 += (written - _Avg2) / _Writes;
+   }
+
    public void writeReincarnatedElder(long startTimestamp) {
       if (writeBuffer.writableBytes() < 30) {
          nextBuffer();

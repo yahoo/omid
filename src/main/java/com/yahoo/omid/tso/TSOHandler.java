@@ -55,6 +55,7 @@ import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.EldestUpdate;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
@@ -300,10 +301,8 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
                      Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
-                     if (!eldersToBeFailed.isEmpty()) {
+                     if (eldersToBeFailed != null && !eldersToBeFailed.isEmpty())
                         LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + sharedState.previousLargestDeletedTimestamp + " to " + sharedState.largestDeletedTimestamp);
-                        sharedState.failedElders.addAll(eldersToBeFailed);
-                     }
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
                      if (!toAbort.isEmpty()) {
                         LOG.warn("Slow transactions after raising max: " + toAbort);
@@ -315,8 +314,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                         }
                         //Added by Maysam Yabandeh
                         //report faileElders to the clients
-                        for (Elder elder : eldersToBeFailed)
-                           queueFailedElder(elder.getId(), elder.getCommitTimestamp());
+                        if (eldersToBeFailed != null)
+                           for (Elder elder : eldersToBeFailed)
+                              queueFailedElder(elder.getId(), elder.getCommitTimestamp());
                         queueLargestIncrease(sharedState.largestDeletedTimestamp);
                      }
                      sharedState.previousLargestDeletedTimestamp = sharedState.largestDeletedTimestamp;
@@ -381,6 +381,14 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          for (int i = 0; i < reply.wwRowsLength; i++)
             wwRows[i] = reply.wwRows[i];
          sharedState.elders.addElder(msg.startTimestamp, reply.commitTimestamp, wwRows);
+         if (sharedState.elders.isEldestChangedSinceLastProbe()) {
+            LOG.warn("eldest is changed: " + msg.startTimestamp);
+            synchronized (sharedMsgBufLock) {
+               queueEldestUpdate(sharedState.elders.getEldest());
+            }
+         }
+         else
+            LOG.warn("eldest " + sharedState.elders.getEldest() + " isnt changed by ww " + msg.startTimestamp );
       }
    }
 
@@ -463,6 +471,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       sharedState.sharedMessageBuffer.writeHalfAbort(startTimestamp);
    }
 
+   private void queueEldestUpdate(Elder eldest) {
+      long startTimestamp = eldest == null ? -1 : eldest.getId();
+      sharedState.sharedMessageBuffer.writeEldest(startTimestamp);
+   }
+
    private void queueReincarnatdElder(long startTimestamp) {
       sharedState.sharedMessageBuffer.writeReincarnatedElder(startTimestamp);
    }
@@ -484,8 +497,8 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     */
    public void handle(ReincarnationReport msg, ChannelHandlerContext ctx) {
       synchronized (sharedState) {
-         sharedState.elders.reincarnateElder(msg.startTimestamp);
-         boolean itWasFailed = sharedState.failedElders.remove(new Elder(msg.startTimestamp));
+         LOG.warn("reincarnated: " + msg.startTimestamp);
+         boolean itWasFailed = sharedState.elders.reincarnateElder(msg.startTimestamp);
          if (itWasFailed) {
             LOG.warn("a failed elder is reincarnated: " + msg.startTimestamp);
             //tell the clients that the failed elder is reincarnated
@@ -493,6 +506,14 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                queueReincarnatdElder(msg.startTimestamp);
             }
          }
+         if (sharedState.elders.isEldestChangedSinceLastProbe()) {
+            LOG.warn("eldest is changed: " + msg.startTimestamp);
+            synchronized (sharedMsgBufLock) {
+               queueEldestUpdate(sharedState.elders.getEldest());
+            }
+         }
+         else
+            LOG.warn("eldest " + sharedState.elders.getEldest() + " isnt changed by reincarnated " + msg.startTimestamp );
       }
    }
 
