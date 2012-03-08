@@ -17,6 +17,7 @@
 package com.yahoo.omid.client;
 
 import com.yahoo.omid.tso.RowKey;
+import com.yahoo.omid.Statistics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,6 +92,7 @@ public class TransactionManager {
     */
    public void tryCommit(TransactionState transactionState)
          throws CommitUnsuccessfulException, TransactionException {
+      Statistics.fullReport(Statistics.Tag.COMMIT, 1);
       if (LOG.isTraceEnabled()) {
          LOG.trace("tryCommit " + transactionState.getStartTimestamp());
       }
@@ -126,6 +128,7 @@ public class TransactionManager {
             LOG.error("Couldn't send reincarnation report", e);
          }
       }
+      Statistics.println();
    }
 
    /**
@@ -155,7 +158,8 @@ public class TransactionManager {
 
    private void reincarnate(final TransactionState transactionState, RowKey[] wwRows)
       throws TransactionException {
-      System.out.println("I am reincarnating haha");
+      Statistics.fullReport(Statistics.Tag.REINCARNATION, 1);
+      //System.out.println("I am reincarnating haha");
       Map<byte[], List<Put>> putBatches = new HashMap<byte[], List<Put>>();
       for (final RowKeyFamily rowkey : transactionState.getWrittenRows()) {
          //TODO: do it only for wwRows

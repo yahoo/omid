@@ -105,6 +105,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * @param channelGroup
     */
    public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
+      System.out.println("This is rwcimbo with eldest");
       this.channelGroup = channelGroup;
       this.timestampOracle = to;
       this.sharedState = state;

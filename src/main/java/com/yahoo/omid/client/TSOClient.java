@@ -69,6 +69,7 @@ import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 import com.yahoo.omid.tso.serialization.TSODecoder;
 import com.yahoo.omid.tso.serialization.TSOEncoder;
+import com.yahoo.omid.Statistics;
 
 public class TSOClient extends SimpleChannelHandler {
    private static final Log LOG = LogFactory.getLog(TSOClient.class);
@@ -505,6 +506,34 @@ public class TSOClient extends SimpleChannelHandler {
       }
    }
 
+   public long commitTimestamp(long transaction, long startTimestamp) throws IOException {
+      if (aborted.contains(transaction)) 
+         return -2;//invalid read
+      long commitTimestamp = committed.getCommit(transaction);
+      if (commitTimestamp != -1 && commitTimestamp > startTimestamp)
+         return -2;//invalid read
+      if (commitTimestamp != -1 && commitTimestamp <= startTimestamp)
+         return commitTimestamp;
+
+      if (hasConnectionTimestamp && transaction > connectionTimestamp)
+         return transaction <= largestDeletedTimestamp ? -1 : -2;
+      if (transaction <= largestDeletedTimestamp)
+         return -1;//committed but the tc is lost
+
+      Statistics.partialReport(Statistics.Tag.ASKTSO, 1);
+      askedTSO++;
+      SyncCommitQueryCallback cb = new SyncCommitQueryCallback();
+      isCommitted(startTimestamp, transaction, cb);
+      try {
+         cb.await();
+      } catch (InterruptedException e) {
+         throw new IOException("Commit query didn't complete", e);
+      }
+      return cb.isCommitted() ? -1 : -2;
+      //TODO: this is wrong. we should ask tso about Tc and then use that to decide
+   }
+   
+
    public boolean validRead(long transaction, long startTimestamp) throws IOException {
       if (transaction == startTimestamp)
          return true;
@@ -596,7 +625,7 @@ public class TSOClient extends SimpleChannelHandler {
       } else if (msg instanceof EldestUpdate) {
          EldestUpdate r = (EldestUpdate) msg;
          eldest = r.startTimestamp;
-         LOG.warn("Client: " + r);
+         //LOG.warn("Client: " + r);
       } else if (msg instanceof ReincarnationReport) {
          ReincarnationReport r = (ReincarnationReport) msg;
          Long Tc = failedElders.remove(r.startTimestamp);

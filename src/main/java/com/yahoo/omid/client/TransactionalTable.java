@@ -42,6 +42,7 @@ import org.apache.hadoop.hbase.io.TimeRange;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import com.yahoo.omid.tso.RowKey;
+import com.yahoo.omid.Statistics;
 
 /**
  * Provides transactional methods for accessing and modifying a given snapshot of data identified by an opaque
@@ -97,18 +98,19 @@ public class TransactionalTable extends HTable {
       TimeRange timeRange = get.getTimeRange();
       //Added by Maysam Yabandeh
       final long eldest = transactionState.tsoclient.getEldest();
-      int max = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
-      boolean maxIsSet = false;
+      int nVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
+      //is not used anymore
+      boolean nVersionsIsSet = false;
       long startTime = 0;
       long endTime = Math.min(timeRange.getMax(), readTimestamp + 1);
       if (eldest == -1 || eldest >= endTime) {//-1 means no eldest
-         maxIsSet = true;
-         tsget.setTimeRange(startTime, endTime).setMaxVersions(max);
+         nVersionsIsSet = true;
+         tsget.setTimeRange(startTime, endTime).setMaxVersions(nVersions);
       } else {//either from 0, or eldest, fetch all
          startTime = eldest;
          //Added by Maysam Yabandeh
          //for rw case, we need all the versions, no max
-         tsget.setTimeRange(startTime, endTime);
+         tsget.setFilter(new MinVersionsFilter(startTime, endTime, nVersions));
       }
       //long startTime = timeRange.getMin();
       //tsget.setTimeRange(startTime, endTime).setMaxVersions((int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
@@ -131,7 +133,10 @@ public class TransactionalTable extends HTable {
 //         filteredResult = filter(super.get(tsget), readTimestamp, maxVersions);
 //      } while (!result.isEmpty() && filteredResult == null);
       getsPerformed++;
-      Result result = filter(transactionState, super.get(tsget), readTimestamp, maxIsSet, max);
+      Result result = filter(transactionState, super.get(tsget), readTimestamp, nVersionsIsSet, nVersions);
+      Statistics.partialReportOver(Statistics.Tag.VSN_PER_CLIENT_GET);
+      Statistics.partialReportOver(Statistics.Tag.GET_PER_CLIENT_GET);
+      Statistics.partialReportOver(Statistics.Tag.ASKTSO);
       return result == null ? new Result() : result;
 //      Scan scan = new Scan(get);
 //      scan.setRetainDeletesInOutput(true);
@@ -250,45 +255,73 @@ public class TransactionalTable extends HTable {
    //Added by Maysam Yabandeh
    //This filter assumes that only one column if feteched
    //TODO: generalize it
-   private Result filter(TransactionState state, Result result, long startTimestamp, boolean maxIsSet, int max) throws IOException {
+   private Result filter(TransactionState state, Result result, long startTimestamp, boolean nVersionsIsSet, int nVersions) throws IOException {
+      Statistics.partialReport(Statistics.Tag.GET_PER_CLIENT_GET, 1);
       if (result == null || result.list() == null) {
+         Statistics.fullReport(Statistics.Tag.EMPTY_GET, 1);
          return null;
       }
       List<KeyValue> kvs = result.list();
-      Long nextFetchMaxTimestamp = startTimestamp;
-      KeyValue mostRecentReorderdCommitKeyValue = null;
-      long mostRecentReorderdCommitTimestamp = 0;//do not use this value if mostRecentReorderdCommitKeyValue is null
-      //first retrives the kv that belongs to an elder and has the highest commit tiemstamp
-      if (state.tsoclient.failedElders.size() > 0)
-         //System.out.println("filter: failedEdler size = " + state.tsoclient.failedElders.size());
-      for (KeyValue kv : kvs) {
-         Long getres = state.tsoclient.failedElders.get(kv.getTimestamp());
-         if (getres == null) continue;
-         if (getres < startTimestamp)//if it could be a valid read
-            if (mostRecentReorderdCommitKeyValue == null || mostRecentReorderdCommitTimestamp < getres) {
-               mostRecentReorderdCommitKeyValue = kv;
-               mostRecentReorderdCommitTimestamp = getres;
-            }
-      }
-      //if (state.tsoclient.failedElders.size() > 0) System.out.println("filter: mostRecentfailedEdler = " + mostRecentReorderdCommitTimestamp + " ts = " + startTimestamp);
-      //now compare the retrieved value with the latest one and choose the one that is committed later
+      Statistics.fullReport(Statistics.Tag.VSN_PER_HBASE_GET, kvs.size());
+      Statistics.partialReport(Statistics.Tag.VSN_PER_CLIENT_GET, kvs.size());
+      if (kvs.size() == 0)
+         Statistics.fullReport(Statistics.Tag.EMPTY_GET, 1);
       ArrayList<KeyValue> resultContent = new ArrayList<KeyValue>();
+      Long nextFetchMaxTimestamp = startTimestamp;
+      KeyValue mostRecentKeyValueOfFailedElders = null;
+      long mostRecentKeyValueOfFailedElders_Tc = 0;//do not use this value if mostRecentKeyValueOfFailedElders is null
+      KeyValue mostRecentKeyValueWithLostTc = null;
+      KeyValue mostRecentKeyValueWithTc = null;
+      long mostRecentKeyValueWithTc_Tc = 0;
+      //we have three kind of values 1) normal with tc, 2) failedElder with tc, 3) normal with lost Tc (due to Tmax increase).
+      //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax). Then choose from it and the failedElder with highest Tc
       for (KeyValue kv : kvs) {
-         //if Ts < Tc(elder) => Tc < Tc(elder)
-         //this is bacause otherwise tso would have detected the other txn as elder too
-         if (mostRecentReorderdCommitKeyValue != null && kv.getTimestamp() < mostRecentReorderdCommitTimestamp) {//then the elder is the most recent valid read
-            resultContent.add(kv);
-            //System.out.println("filter: choose an elder = " + mostRecentReorderdCommitTimestamp + " normal= " + kv.getTimestamp() + " ts = " + startTimestamp);
-            return new Result(resultContent);
-            //otherwise give kv a chance
-         } else if (state.tsoclient.validRead(kv.getTimestamp(), startTimestamp)) {
+         long Ts = kv.getTimestamp();
+         if (Ts == startTimestamp) {//if it is my own write, return it
             resultContent.add(kv);
             return new Result(resultContent);
          }
-         nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, kv.getTimestamp());
+         nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, Ts);
+         Long getres = state.tsoclient.failedElders.get(kv.getTimestamp());
+         if (getres != null && getres < startTimestamp)//if it could be a valid read
+            if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < getres) {
+               mostRecentKeyValueOfFailedElders = kv;
+               mostRecentKeyValueOfFailedElders_Tc = getres;
+            }
+         if (getres != null) continue;//if is is a failedElder, we are done with kv
+         if (mostRecentKeyValueWithLostTc != null) continue;// the rest of values do not matter if they are normal. if they are not normal, they must have been in failedElder list
+         long Tc = state.tsoclient.commitTimestamp(Ts, startTimestamp);
+         if (Tc == -2) continue;//invalid read
+         if (Tc == -1) {//valid read with lost Tc
+            mostRecentKeyValueWithLostTc = kv;
+            continue;
+            //a value with lost Tc could also be a failedElder, be careful to do this check after failedEdler check
+         }
+         if (mostRecentKeyValueWithTc == null || mostRecentKeyValueWithTc_Tc < Tc) {//note to always do this check as some kv might be from elders
+            mostRecentKeyValueWithTc = kv;
+            mostRecentKeyValueWithTc_Tc = Tc;
+         }
       }
+      if (mostRecentKeyValueWithTc != null)
+         if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < mostRecentKeyValueWithTc_Tc) {
+            resultContent.add(mostRecentKeyValueWithTc);
+            return new Result(resultContent);
+         }
+      if (mostRecentKeyValueOfFailedElders != null)
+         if (mostRecentKeyValueWithLostTc == null || mostRecentKeyValueWithLostTc.getTimestamp() < mostRecentKeyValueOfFailedElders_Tc) {
+            //if Ts < Tc(elder) => Tc < Tc(elder)
+            //this is bacause otherwise tso would have detected the other txn as elder too
+            resultContent.add(mostRecentKeyValueOfFailedElders);
+            return new Result(resultContent);
+         }
+      if (mostRecentKeyValueWithLostTc != null) {
+         resultContent.add(mostRecentKeyValueWithLostTc);
+         return new Result(resultContent);
+      }
+
+
       boolean isMoreLeft = true;
-      if (maxIsSet && kvs.size() != max)
+      if (kvs.size() != nVersions)
          isMoreLeft = false;
       if (!isMoreLeft)
          return null;
@@ -298,12 +331,12 @@ public class TransactionalTable extends HTable {
       Get get = new Get(kv.getRow());
       get.addColumn(kv.getFamily(), kv.getQualifier());
       //Added by Maysam Yabandeh: for the second tries setting max makes sense even for rw
-      maxIsSet = true;
-      get.setMaxVersions(max);
+      nVersionsIsSet = true;
+      get.setMaxVersions(nVersions);
       get.setTimeRange(0, nextFetchMaxTimestamp);
       extraGetsPerformed++;
       result = this.get(get);
-      result = filter(state, result, startTimestamp, maxIsSet, max);
+      result = filter(state, result, startTimestamp, nVersionsIsSet, nVersions);
       return result;
    }
    
