@@ -33,7 +33,7 @@ public class SyncCommitCallback extends SyncCallbackBase implements CommitCallba
    }
 
    public boolean isElder() {
-      return wwRows.length != 0;
+      return wwRows != null && wwRows.length != 0;
    }
 
    public RowKey[] getWWRows() {

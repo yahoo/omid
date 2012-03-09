@@ -92,12 +92,12 @@ public class TransactionalTable extends HTable {
    public Result get(TransactionState transactionState, final Get get) throws IOException {
       final long readTimestamp = transactionState.getStartTimestamp();
 
-      transactionState.addReadRow(new RowKey(get.getRow(), getTableName()));
+      //transactionState.addReadRow(new RowKey(get.getRow(), getTableName()));
 
       final Get tsget = new Get(get.getRow());
       TimeRange timeRange = get.getTimeRange();
       //Added by Maysam Yabandeh
-      final long eldest = transactionState.tsoclient.getEldest();
+      final long eldest = -1;//transactionState.tsoclient.getEldest();
       int nVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
       //is not used anymore
       boolean nVersionsIsSet = false;
@@ -294,13 +294,14 @@ public class TransactionalTable extends HTable {
          if (Tc == -2) continue;//invalid read
          if (Tc == -1) {//valid read with lost Tc
             mostRecentKeyValueWithLostTc = kv;
-            continue;
+            break;
             //a value with lost Tc could also be a failedElder, be careful to do this check after failedEdler check
          }
          if (mostRecentKeyValueWithTc == null || mostRecentKeyValueWithTc_Tc < Tc) {//note to always do this check as some kv might be from elders
             mostRecentKeyValueWithTc = kv;
             mostRecentKeyValueWithTc_Tc = Tc;
          }
+         break;
       }
       if (mostRecentKeyValueWithTc != null)
          if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < mostRecentKeyValueWithTc_Tc) {

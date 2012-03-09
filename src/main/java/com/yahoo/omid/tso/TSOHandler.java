@@ -105,7 +105,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * @param channelGroup
     */
    public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
-      System.out.println("This is rwcimbo with eldest");
+      System.out.println("This is crcimbo");
+      //System.out.println("This is rwcimbo with eldest filter");
+      //System.out.println("This is rwcimbo with elders - no filter is installed");
+      //System.out.println("This is buggy rwcimbo");
       this.channelGroup = channelGroup;
       this.timestampOracle = to;
       this.sharedState = state;
@@ -258,7 +261,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
          } else if (msg.writtenRows.length > 0){
             //1. check the read-write conflicts
-            for (RowKey r: msg.readRows) {
+            for (RowKey r: msg.writtenRows) {
                long value;
                value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
                if (value != 0 && value > msg.startTimestamp) {
@@ -288,7 +291,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                sharedState.uncommited.commit(msg.startTimestamp);
                reply.commitTimestamp = commitTimestamp;
                //2.5 check the write-write conflicts to detect elders
-               checkForWWConflicts(reply, msg);
+               //checkForWWConflicts(reply, msg);
                if (msg.writtenRows.length > 0) {
                   toWAL.writeLong(commitTimestamp);
                   //                  toWAL.writeByte(msg.rows.length);
