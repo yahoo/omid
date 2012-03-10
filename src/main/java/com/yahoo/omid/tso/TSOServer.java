@@ -47,32 +47,53 @@ import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
 
 import com.yahoo.omid.tso.serialization.TSODecoder;
 import com.yahoo.omid.tso.serialization.TSOEncoder;
+import com.yahoo.omid.tso.persistence.BookKeeperStateBuilder;
+import com.yahoo.omid.tso.persistence.StateBuilder;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * TSO Server with serialization
  */
 public class TSOServer implements Runnable {
+    
+    private static final Log LOG = LogFactory.getLog(BookKeeperStateBuilder.class);
 
     private TSOState state;
     private int port;
     private int batch;
     private int ensemble;
     private int quorum;
-    private String[] zkservers;
+    private String zkservers;
     private boolean finish;
     private Object lock;
 
-    public TSOServer(int port, int batch, int ensemble, int quorum, String[] zkservers) {
+    public TSOServer(int port, int batch, int ensemble, int quorum, String zkservers) {
         super();
         this.port = port;
         this.batch = batch;
         this.ensemble = ensemble;
         this.quorum = quorum;
         this.zkservers = zkservers;
+        System.setProperty("ZKSERVERS", zkservers);
+        
         this.finish = false;
         this.lock = new Object();
     }
 
+    public TSOServer(int port, int batch) {
+        super();
+        this.port = port;
+        this.batch = batch;
+        this.ensemble = -1;
+        this.quorum = -1;
+        this.zkservers = "";
+        
+        this.finish = false;
+        this.lock = new Object();
+    }
+    
     public TSOState getState() {
         return state;
     }
@@ -96,9 +117,9 @@ public class TSOServer implements Runnable {
         int port = Integer.parseInt(args[0]);
         int batch = Integer.parseInt(args[1]);
         int ensSize = Integer.parseInt(args[2]), qSize = Integer.parseInt(args[3]);
-        String[] bookies = Arrays.copyOfRange(args, 4, args.length);
+        String zkservers = args[4];
 
-        new TSOServer(port, batch, ensSize, qSize, bookies).run();
+        new TSOServer(port, batch, ensSize, qSize, zkservers).run();
     }
 
     @Override
@@ -120,29 +141,21 @@ public class TSOServer implements Runnable {
 
         // This is the only object of timestamp oracle
         // TODO: make it singleton
-        TimestampOracle timestampOracle = new TimestampOracle();
+        //TimestampOracle timestampOracle = new TimestampOracle();
         // The wrapper for the shared state of TSO
-        state = new TSOState(timestampOracle.get());
+        state = BookKeeperStateBuilder.getState();
+        
+        if(state == null){
+            LOG.error("Couldn't build state");
+            return;
+        }
         TSOState.BATCH_SIZE = batch;
         System.out.println("PARAM MAX_ITEMS: " + TSOState.MAX_ITEMS);
         System.out.println("PARAM BATCH_SIZE: " + TSOState.BATCH_SIZE);
         System.out.println("PARAM LOAD_FACTOR: " + TSOState.LOAD_FACTOR);
         System.out.println("PARAM MAX_THREADS: " + maxThreads);
 
-        // BookKeeper stuff
-        String servers = StringUtils.join(zkservers, ',');
-        try {
-            state.bookkeeper = new BookKeeper(servers);
-            state.lh = state.bookkeeper.createLedger(ensemble, quorum, BookKeeper.DigestType.CRC32, new byte[] { 'a',
-                    'b' });
-            System.out.println("Ledger handle: " + state.lh.getId());
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-
-        final TSOHandler handler = new TSOHandler(channelGroup, timestampOracle, state);
+        final TSOHandler handler = new TSOHandler(channelGroup, state);
 
         bootstrap.setPipelineFactory(new TSOPipelineFactory(pipelineExecutor, handler));
         bootstrap.setOption("tcpNoDelay", false);
@@ -197,9 +210,10 @@ public class TSOServer implements Runnable {
             }
         }
 
-        timestampOracle.stop();
+        //timestampOracle.stop();
         handler.stop();
         comHandler.stop();
+        state.stop();
 
         // *** Start the Netty shutdown ***
 
@@ -217,27 +231,6 @@ public class TSOServer implements Runnable {
         System.out.println("End of resources");
         factory.releaseExternalResources();
         comFactory.releaseExternalResources();
-    }
-    
-    private void recoverState() throws BKException, InterruptedException, KeeperException, IOException {
-        String servers = StringUtils.join(zkservers, ',');
-        ZooKeeper zooKeeper = new ZooKeeper(servers, 1000, null);
-        BookKeeper bookKeeper = new BookKeeper(servers);
-
-        List<String> children = zooKeeper.getChildren("/ledgers", false);
-        children.remove("available");
-        if (!children.isEmpty()) {
-            Collections.sort(children);
-            String ledgerName = children.get(children.size());
-            
-            long ledgerId = Long.parseLong(ledgerName.substring(1));
-        
-            LedgerHandle handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32, new byte[] { 'a', 'b' });
-            long lastEntryId = handle.getLastAddConfirmed();
-            
-            
-        }
-        state.lh = bookKeeper.createLedger(BookKeeper.DigestType.CRC32, new byte[] { 'a', 'b' });
     }
 
     public void stop() {

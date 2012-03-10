@@ -57,13 +57,17 @@ import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
+import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+import com.yahoo.omid.tso.persistence.LoggerException;
+import com.yahoo.omid.tso.persistence.LoggerException.Code;
+import com.yahoo.omid.tso.persistence.LoggerProtocol;
 
 /**
  * ChannelHandler for the TSO Server
  * @author maysam
  *
  */
-public class TSOHandler extends SimpleChannelHandler implements AddCallback {
+public class TSOHandler extends SimpleChannelHandler {
 
    private static final Log LOG = LogFactory.getLog(TSOHandler.class);
 
@@ -102,9 +106,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Constructor
     * @param channelGroup
     */
-   public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
+   public TSOHandler(ChannelGroup channelGroup, TSOState state) {
       this.channelGroup = channelGroup;
-      this.timestampOracle = to;
+      this.timestampOracle = state.getSO();
       this.sharedState = state;
       this.flushThread = new FlushThread();
       this.executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -166,14 +170,13 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       synchronized (sharedState) {
          DataOutputStream toWAL  = sharedState.toWAL;
          try {
-            toWAL.writeByte((byte)-3);
+            toWAL.writeByte(LoggerProtocol.ABORT);
             toWAL.writeLong(msg.startTimestamp);
          } catch (IOException e) {
             e.printStackTrace();
          }
          abortCount++;
-         sharedState.hashmap.setHalfAborted(msg.startTimestamp);
-         sharedState.uncommited.abort(msg.startTimestamp);
+         sharedState.processAbort(msg.startTimestamp);
          synchronized (sharedMsgBufLock) {
             queueHalfAbort(msg.startTimestamp);
         }
@@ -231,6 +234,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
    public static long waitTime = 0;
    public static long commitTime = 0;
    public static long checkTime = 0;
+   
+   private Object sharedMsgBufLock = new Object();
+   private Object callbackLock = new Object();
+   
    /**
     * Handle the CommitRequest message
     */
@@ -244,7 +251,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          timeAfter = 0;//System.nanoTime();
          waitTime += (timeAfter - time);
          time = timeAfter;
-         //0. check if it sould abort
+         //0. check if it should abort
          if (msg.startTimestamp < timestampOracle.first()) {
             reply.committed = false;
             LOG.warn("Aborting transaction after restarting TSO");
@@ -282,16 +289,26 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
               sharedState.uncommited.commit(msg.startTimestamp);
               reply.commitTimestamp = commitTimestamp;
               if (msg.rows.length > 0) {
+                  if(LOG.isDebugEnabled()){
+                      LOG.debug("Adding commit to WAL");
+                  }
+                  toWAL.writeByte(LoggerProtocol.COMMIT);
+                  toWAL.writeLong(msg.startTimestamp);
                   toWAL.writeLong(commitTimestamp);
 //                  toWAL.writeByte(msg.rows.length);
    
                   for (RowKey r: msg.rows) {
 //                     toWAL.write(r.getRow(), 0, r.getRow().length);
-                     sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(), r.getTable(), commitTimestamp, r.hashCode(), sharedState.largestDeletedTimestamp);
+                     sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(), 
+                                                     r.getTable(), 
+                                                     commitTimestamp, 
+                                                     r.hashCode(), 
+                                                     sharedState.largestDeletedTimestamp);
                   }
-                  sharedState.largestDeletedTimestamp = sharedState.hashmap.setCommitted(msg.startTimestamp, commitTimestamp, sharedState.largestDeletedTimestamp);
+
+                  sharedState.processCommit(msg.startTimestamp, commitTimestamp);
                   if (sharedState.largestDeletedTimestamp > sharedState.previousLargestDeletedTimestamp) {
-                     toWAL.writeByte((byte)-2);
+                     toWAL.writeByte(LoggerProtocol.LARGESTDELETEDTIMESTAMP);
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
 //                     if (!toAbort.isEmpty()) {
@@ -317,13 +334,13 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          } else { //add it to the aborted list
             abortCount++;
             try {
-               toWAL.writeByte((byte)-3);
+               toWAL.writeByte(LoggerProtocol.ABORT);
                toWAL.writeLong(msg.startTimestamp);
             } catch (IOException e) {
                e.printStackTrace();
             }
-            sharedState.hashmap.setHalfAborted(msg.startTimestamp);
-            sharedState.uncommited.abort(msg.startTimestamp);
+            sharedState.processAbort(msg.startTimestamp);
+            
             synchronized (sharedMsgBufLock) {
                 queueHalfAbort(msg.startTimestamp);
             }
@@ -335,12 +352,33 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          commitTime += (timeAfter - time);
          time = timeAfter;
 
-         //async write into WAL, callback function is addComplete
          ChannelandMessage cam = new ChannelandMessage(ctx, reply);
 
          sharedState.nextBatch.add(cam);
          if (sharedState.baos.size() >= TSOState.BATCH_SIZE) {
-            sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
+             if(LOG.isDebugEnabled()){
+                 LOG.debug("Going to add record of size " + sharedState.baos.size());
+             }
+            //sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
+            sharedState.addRecord(baos.toByteArray(), 
+                                            new AddRecordCallback() {
+                @Override
+                public void addRecordComplete(int rc, Object ctx) {
+                    if (rc != Code.OK) {
+                        LOG.warn("Write failed: " + LoggerException.getMessage(rc));
+                        
+                    } else {
+                        synchronized (callbackLock) {
+                           @SuppressWarnings("unchecked")
+                           ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
+                           for (ChannelandMessage cam : theBatch) {
+                              Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+                           }
+                        }
+                        
+                    }
+                }
+            }, sharedState.nextBatch);
             sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
             sharedState.baos.reset();
          }
@@ -383,7 +421,25 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
    public void flush() {
       synchronized (sharedState) {
-         sharedState.lh.asyncAddEntry(sharedState.baos.toByteArray(), this, sharedState.nextBatch);
+          LOG.info("Adding record");
+         sharedState.addRecord(sharedState.baos.toByteArray(), new AddRecordCallback() {
+             @Override
+             public void addRecordComplete(int rc, Object ctx) {
+                 if (rc != Code.OK) {
+                     LOG.warn("Write failed: " + LoggerException.getMessage(rc));
+                     
+                 } else {
+                     synchronized (callbackLock) {
+                        @SuppressWarnings("unchecked")
+                        ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
+                        for (ChannelandMessage cam : theBatch) {
+                           Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+                        }
+                     }
+                     
+                 }
+             }
+         }, sharedState.nextBatch);
          sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
          sharedState.baos.reset();
          if (flushFuture.cancel(false)) {
@@ -401,6 +457,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          if (sharedState.nextBatch.size() > 0) {
             synchronized (sharedState) {
                if (sharedState.nextBatch.size() > 0) {
+                   if(LOG.isDebugEnabled()){
+                       LOG.debug("Flushing log batch.");
+                   }
                   flush();
                }
             }
@@ -432,12 +491,12 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       synchronized (sharedState) {
          DataOutputStream toWAL  = sharedState.toWAL;
          try {
-            toWAL.writeByte((byte)-4);
+            toWAL.writeByte(LoggerProtocol.FULLABORT);
             toWAL.writeLong(msg.startTimestamp);
          } catch (IOException e) {
             e.printStackTrace();
          }
-         sharedState.hashmap.setFullAborted(msg.startTimestamp);
+         sharedState.processFullAbort(msg.startTimestamp);
       }
       synchronized (sharedMsgBufLock) {
          queueFullAbort(msg.startTimestamp);
@@ -456,25 +515,6 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       }
    }
 
-   private Object sharedMsgBufLock = new Object();
-   private Object callbackLock = new Object();
-
-   /*
-    * Callback of asyncAddEntry from WAL
-    */
-   @Override
-   public void addComplete(int rc, LedgerHandle lh, long entryId, Object ctx) {
-      // Guarantee that messages sent to the WAL are delivered in order
-      if (lh != sharedState.lh) 
-          return;
-      synchronized (callbackLock) {
-         @SuppressWarnings("unchecked")
-         ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
-         for (ChannelandMessage cam : theBatch) {
-            Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
-         }
-      }
-   }
 
    @Override
       public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {

@@ -98,6 +98,8 @@ public class TSOTestBase {
       channelFactory.releaseExternalResources();
    }
 
+   static LocalBookKeeper localBK;
+   
    @BeforeClass
    public static void setupBookkeeper() throws Exception {
       System.out.println("PATH : "
@@ -111,7 +113,7 @@ public class TSOTestBase {
                   String[] args = new String[1];
                   args[0] = "5";
                   LOG.info("Starting bk");
-                  LocalBookKeeper.main(args);
+                  localBK.main(args);
                } catch (InterruptedException e) {
                   // go away quietly
                } catch (Exception e) {
@@ -121,10 +123,6 @@ public class TSOTestBase {
          };
    
          bkthread.start();
-   
-         if (!LocalBookKeeper.waitForServerUp("localhost:2181", 10000)) {
-            throw new Exception("Error starting zookeeper/bookkeeper");
-         }
       }
    }
 
@@ -143,9 +141,17 @@ public class TSOTestBase {
    
    @Before
    public void setupTSO() throws Exception {
-      Thread.sleep(10);
+       if (!LocalBookKeeper.waitForServerUp("localhost:2181", 10000)) {
+           throw new Exception("Error starting zookeeper/bookkeeper");
+        }
       
-      tso = new TSOServer(1234, 0, 4, 2, new String[] {"localhost:2181"});
+       /*
+        * TODO: Fix LocalBookKeeper to wait until the bookies are up
+        * instead of waiting only until the zookeeper server is up.
+        */
+       Thread.sleep(500);
+       
+      tso = new TSOServer(1234, 0, 4, 2, new String("localhost:2181"));
       tsothread = new Thread(tso);
       
       LOG.info("Starting TSO");
