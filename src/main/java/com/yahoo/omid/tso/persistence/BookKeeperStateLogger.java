@@ -46,6 +46,7 @@ import org.apache.zookeeper.ZooKeeper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import com.yahoo.omid.tso.TSOHandler;
+import com.yahoo.omid.tso.TSOServerConfig;
 import com.yahoo.omid.tso.persistence.StateLogger;
 import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.LoggerInitCallback;
 import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.BuilderInitCallback;
@@ -159,6 +160,8 @@ class BookKeeperStateLogger implements StateLogger {
     @Override
     public void initialize(final LoggerInitCallback cb, Object ctx) 
     throws LoggerException {
+        TSOServerConfig config = TSOServerConfig.configFactory();
+        
         /*
          * Create new ledger for adding records
          */
@@ -169,7 +172,8 @@ class BookKeeperStateLogger implements StateLogger {
             throw new LoggerException.BKOpFailedException();  
         } 
         
-        bk.asyncCreateLedger(3, 2,
+        bk.asyncCreateLedger(config.getEnsembleSize(), 
+                                        config.getQuorumSize(),
                                         BookKeeper.DigestType.CRC32, 
                                         "flavio was here".getBytes(),
                                         new CreateCallback(){            

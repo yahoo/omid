@@ -421,7 +421,9 @@ public class TSOHandler extends SimpleChannelHandler {
 
    public void flush() {
       synchronized (sharedState) {
-          LOG.info("Adding record");
+          if(LOG.isDebugEnabled()){
+              LOG.debug("Adding record, size: " + sharedState.baos.size());
+          }
          sharedState.addRecord(sharedState.baos.toByteArray(), new AddRecordCallback() {
              @Override
              public void addRecordComplete(int rc, Object ctx) {

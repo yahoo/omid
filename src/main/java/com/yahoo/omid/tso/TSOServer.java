@@ -61,34 +61,21 @@ public class TSOServer implements Runnable {
     private static final Log LOG = LogFactory.getLog(BookKeeperStateBuilder.class);
 
     private TSOState state;
-    private int port;
-    private int batch;
-    private int ensemble;
-    private int quorum;
-    private String zkservers;
+    private TSOServerConfig config;
     private boolean finish;
     private Object lock;
 
-    public TSOServer(int port, int batch, int ensemble, int quorum, String zkservers) {
+    public TSOServer() {
         super();
-        this.port = port;
-        this.batch = batch;
-        this.ensemble = ensemble;
-        this.quorum = quorum;
-        this.zkservers = zkservers;
-        System.setProperty("ZKSERVERS", zkservers);
+        this.config = TSOServerConfig.configFactory();
         
         this.finish = false;
         this.lock = new Object();
     }
-
-    public TSOServer(int port, int batch) {
+    
+    public TSOServer(TSOServerConfig config) {
         super();
-        this.port = port;
-        this.batch = batch;
-        this.ensemble = -1;
-        this.quorum = -1;
-        this.zkservers = "";
+        this.config = config;
         
         this.finish = false;
         this.lock = new Object();
@@ -119,7 +106,7 @@ public class TSOServer implements Runnable {
         int ensSize = Integer.parseInt(args[2]), qSize = Integer.parseInt(args[3]);
         String zkservers = args[4];
 
-        new TSOServer(port, batch, ensSize, qSize, zkservers).run();
+        new TSOServer(TSOServerConfig.configFactory(port, batch, (zkservers != null), ensSize, qSize, zkservers)).run();
     }
 
     @Override
@@ -149,7 +136,7 @@ public class TSOServer implements Runnable {
             LOG.error("Couldn't build state");
             return;
         }
-        TSOState.BATCH_SIZE = batch;
+        TSOState.BATCH_SIZE = config.getBatchSize();
         System.out.println("PARAM MAX_ITEMS: " + TSOState.MAX_ITEMS);
         System.out.println("PARAM BATCH_SIZE: " + TSOState.BATCH_SIZE);
         System.out.println("PARAM LOAD_FACTOR: " + TSOState.LOAD_FACTOR);
@@ -170,7 +157,7 @@ public class TSOServer implements Runnable {
         // Create the monitor
         ThroughputMonitor monitor = new ThroughputMonitor(state);
         // Add the parent channel to the group
-        Channel channel = bootstrap.bind(new InetSocketAddress(port));
+        Channel channel = bootstrap.bind(new InetSocketAddress(config.getPort())));
         channelGroup.add(channel);
         
         // Compacter handler
@@ -196,7 +183,7 @@ public class TSOServer implements Runnable {
         comBootstrap.setOption("child.reuseAddress", true);
         comBootstrap.setOption("child.connectTimeoutMillis", 100);
         comBootstrap.setOption("readWriteFair", true);
-        channel = comBootstrap.bind(new InetSocketAddress(port + 1));
+        channel = comBootstrap.bind(new InetSocketAddress(config.getPort() + 1));
 
         // Starts the monitor
         monitor.start();
