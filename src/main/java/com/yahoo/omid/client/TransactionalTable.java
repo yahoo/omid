@@ -43,6 +43,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import com.yahoo.omid.tso.RowKey;
 import com.yahoo.omid.Statistics;
+import com.yahoo.omid.IsolationLevel;
 
 /**
  * Provides transactional methods for accessing and modifying a given snapshot of data identified by an opaque
@@ -92,12 +93,14 @@ public class TransactionalTable extends HTable {
    public Result get(TransactionState transactionState, final Get get) throws IOException {
       final long readTimestamp = transactionState.getStartTimestamp();
 
-      //transactionState.addReadRow(new RowKey(get.getRow(), getTableName()));
+      if (IsolationLevel.checkForReadWriteConflicts)
+         transactionState.addReadRow(new RowKey(get.getRow(), getTableName()));
 
       final Get tsget = new Get(get.getRow());
       TimeRange timeRange = get.getTimeRange();
       //Added by Maysam Yabandeh
-      final long eldest = -1;//transactionState.tsoclient.getEldest();
+      final long eldest = IsolationLevel.checkForWriteWriteConflicts ? -1 : //-1 means no eldest, i.e., do not worry about it
+         transactionState.tsoclient.getEldest();//if we do not check for ww conflicts, we should take elders into account
       int nVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
       //is not used anymore
       boolean nVersionsIsSet = false;
@@ -294,14 +297,18 @@ public class TransactionalTable extends HTable {
          if (Tc == -2) continue;//invalid read
          if (Tc == -1) {//valid read with lost Tc
             mostRecentKeyValueWithLostTc = kv;
-            break;
+            if (IsolationLevel.checkForWriteWriteConflicts)//then everything is in order, and the first version is enough
+               break;
+            else //move to next versions
+               continue;
             //a value with lost Tc could also be a failedElder, be careful to do this check after failedEdler check
          }
          if (mostRecentKeyValueWithTc == null || mostRecentKeyValueWithTc_Tc < Tc) {//note to always do this check as some kv might be from elders
             mostRecentKeyValueWithTc = kv;
             mostRecentKeyValueWithTc_Tc = Tc;
          }
-         break;
+         if (IsolationLevel.checkForWriteWriteConflicts)//then everything is in order, and the first version is enough
+            break;
       }
       if (mostRecentKeyValueWithTc != null)
          if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < mostRecentKeyValueWithTc_Tc) {

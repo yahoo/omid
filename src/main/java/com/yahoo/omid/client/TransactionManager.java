@@ -159,6 +159,7 @@ public class TransactionManager {
    private void reincarnate(final TransactionState transactionState, RowKey[] wwRows)
       throws TransactionException {
       Statistics.fullReport(Statistics.Tag.REINCARNATION, 1);
+      //System.out.println("I am reincarnating haha");
       Map<byte[], List<Put>> putBatches = new HashMap<byte[], List<Put>>();
       for (final RowKeyFamily rowkey : transactionState.getWrittenRows()) {
          //TODO: do it only for wwRows

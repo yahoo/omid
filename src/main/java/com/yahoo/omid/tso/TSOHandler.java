@@ -59,6 +59,7 @@ import com.yahoo.omid.tso.messages.EldestUpdate;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
+import com.yahoo.omid.IsolationLevel;
 
 /**
  * ChannelHandler for the TSO Server
@@ -105,8 +106,13 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * @param channelGroup
     */
    public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
-      System.out.println("This is crcimbo");
-      //System.out.println("This is rwcimbo with eldest filter");
+      if (IsolationLevel.checkForReadWriteConflicts)
+         System.out.println("This is rwcimbo with eldest filter");
+      else if (IsolationLevel.checkForWriteWriteConflicts)
+         System.out.println("This is crcimbo");
+      else
+         System.out.println("ERROR: I do not know which version it is");
+
       //System.out.println("This is rwcimbo with elders - no filter is installed");
       //System.out.println("This is buggy rwcimbo");
       this.channelGroup = channelGroup;
@@ -261,20 +267,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
          } else if (msg.writtenRows.length > 0){
             //1. check the read-write conflicts
-            for (RowKey r: msg.writtenRows) {
-               long value;
-               value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
-               if (value != 0 && value > msg.startTimestamp) {
-                  //System.out.println("Abort...............");
-                  reply.committed = false;//set as abort
-                  break;
-               } else if (value == 0 && sharedState.largestDeletedTimestamp > msg.startTimestamp) {
-                  //then it could have been committed after start timestamp but deleted by recycling
-                  System.out.println("Old............... " + sharedState.largestDeletedTimestamp + " " + msg.startTimestamp);
-                  reply.committed = false;//set as abort
-                  break;
-               }
-            }
+            if (IsolationLevel.checkForReadWriteConflicts)
+               checkForConflictsIn(msg.readRows, msg, reply);
+            if (IsolationLevel.checkForWriteWriteConflicts)
+               checkForConflictsIn(msg.writtenRows, msg, reply);
          } else {
             reply.committed = true;
          }
@@ -291,7 +287,8 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                sharedState.uncommited.commit(msg.startTimestamp);
                reply.commitTimestamp = commitTimestamp;
                //2.5 check the write-write conflicts to detect elders
-               //checkForWWConflicts(reply, msg);
+               if (!IsolationLevel.checkForWriteWriteConflicts)
+                  checkForElders(reply, msg);
                if (msg.writtenRows.length > 0) {
                   toWAL.writeLong(commitTimestamp);
                   //                  toWAL.writeByte(msg.rows.length);
@@ -367,8 +364,27 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
    }
 
+   protected void checkForConflictsIn(RowKey[] rows, CommitRequest msg, CommitResponse reply) {
+      if (!reply.committed)//already aborted
+         return;
+      for (RowKey r: rows) {
+         long value;
+         value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
+         if (value != 0 && value > msg.startTimestamp) {
+            //System.out.println("Abort...............");
+            reply.committed = false;//set as abort
+            break;
+         } else if (value == 0 && sharedState.largestDeletedTimestamp > msg.startTimestamp) {
+            //then it could have been committed after start timestamp but deleted by recycling
+            System.out.println("Old............... " + sharedState.largestDeletedTimestamp + " " + msg.startTimestamp);
+            reply.committed = false;//set as abort
+            break;
+         }
+      }
+   }
+
    //check for write-write conflicts
-   protected void checkForWWConflicts(CommitResponse reply, CommitRequest msg) {
+   protected void checkForElders(CommitResponse reply, CommitRequest msg) {
       for (RowKey r: msg.writtenRows) {
          long value;
          value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
