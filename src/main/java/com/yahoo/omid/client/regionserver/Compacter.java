@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
@@ -88,6 +91,9 @@ public class Compacter extends BaseRegionObserver {
    @Override
    public InternalScanner preCompact(ObserverContext<RegionCoprocessorEnvironment> e, Store store,
          InternalScanner scanner) {
+      DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+      Calendar cal = Calendar.getInstance();
+      System.out.println("preCompact: " + dateFormat.format(cal.getTime()));
       if (e.getEnvironment().getRegion().getRegionInfo().isMetaTable()) {
          return scanner;
       } else {
@@ -120,10 +126,10 @@ public class Compacter extends BaseRegionObserver {
             moreRows = internalScanner.next(raw, toReceive);
             for (KeyValue kv : raw) {
                ByteArray column = new ByteArray(kv.getFamily(), kv.getQualifier());
-               if (columnsSeen.add(column) || kv.getTimestamp() > minTimestamp) {
+               if (!columnsSeen.contains(column)) {
                   result.add(kv);
-               } else {
-                  //System.out.println("Discarded " + kv);
+                  if (kv.getTimestamp() < minTimestamp) 
+                     columnsSeen.add(column);
                }
             }
             if (raw.size() < toReceive || toReceive == -1) {

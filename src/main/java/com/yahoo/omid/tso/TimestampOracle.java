@@ -104,6 +104,9 @@ public class TimestampOracle {
                     LOG.error("Error closing file: " + e);
                 }
             }
+            if (last == 0)
+               last = 1;//to bypass the bug in HBase with version 0, I load the db with version 1
+            first = last;
             maxTimestamp = first + TIMESTAMP_BATCH;
         }
 
