@@ -106,13 +106,6 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * @param channelGroup
     */
    public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
-      if (IsolationLevel.checkForReadWriteConflicts)
-         System.out.println("This is rwcimbo with eldest filter");
-      else if (IsolationLevel.checkForWriteWriteConflicts)
-         System.out.println("This is crcimbo");
-      else
-         System.out.println("ERROR: I do not know which version it is");
-
       //System.out.println("This is rwcimbo with elders - no filter is installed");
       //System.out.println("This is buggy rwcimbo");
       this.channelGroup = channelGroup;
