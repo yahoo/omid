@@ -105,6 +105,7 @@ public class Compacter extends BaseRegionObserver {
       private InternalScanner internalScanner;
       private long minTimestamp;
       private Set<ByteArray> columnsSeen = new HashSet<ByteArray>();
+      private ByteArray lastRowId = null; 
       
       public CompacterScanner(InternalScanner internalScanner, long minTimestamp) {
          this.minTimestamp = minTimestamp;
@@ -124,6 +125,13 @@ public class Compacter extends BaseRegionObserver {
          while (limit == -1 || result.size() < limit) {
             int toReceive = limit == -1 ? -1 : limit - result.size();
             moreRows = internalScanner.next(raw, toReceive);
+            if (raw.size() > 0) {
+               ByteArray currentRowId = new ByteArray(raw.get(0).getRow());
+               if (!currentRowId.equals(lastRowId)) {
+                  columnsSeen.clear();
+                  lastRowId = currentRowId;
+               }
+            }
             for (KeyValue kv : raw) {
                ByteArray column = new ByteArray(kv.getFamily(), kv.getQualifier());
                if (!columnsSeen.contains(column)) {
