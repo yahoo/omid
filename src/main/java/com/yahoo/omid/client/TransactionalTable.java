@@ -136,7 +136,16 @@ public class TransactionalTable extends HTable {
 //         filteredResult = filter(super.get(tsget), readTimestamp, maxVersions);
 //      } while (!result.isEmpty() && filteredResult == null);
       getsPerformed++;
-      Result result = filter(transactionState, super.get(tsget), readTimestamp, nVersionsIsSet, nVersions);
+      Result firstResult = super.get(tsget);
+      //this if is for debugging
+      if (firstResult == null || firstResult.list() == null || firstResult.list().size() == 0) {
+         System.out.println("FFFFFFF row: " + Bytes.toString(get.getRow()) + " eldest= " + eldest + " start: " + startTime + " end: " + endTime);
+         for(byte[] col : (NavigableSet<byte[]>)new ArrayList(get.getFamilyMap().values()).get(0)) 
+            System.out.println(" c-col: " + Bytes.toString(col));
+         for(byte[] col : (NavigableSet<byte[]>)new ArrayList(tsget.getFamilyMap().values()).get(0)) 
+            System.out.println(" col(tsget): " + Bytes.toString(col) + " start " + eldest + " " + endTime + " " + " vs " + nVersions);
+      }
+      Result result = filter(transactionState, firstResult, readTimestamp, nVersionsIsSet, nVersions);
       Statistics.partialReportOver(Statistics.Tag.VSN_PER_CLIENT_GET);
       Statistics.partialReportOver(Statistics.Tag.GET_PER_CLIENT_GET);
       Statistics.partialReportOver(Statistics.Tag.ASKTSO);
