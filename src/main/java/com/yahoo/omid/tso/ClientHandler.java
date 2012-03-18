@@ -49,6 +49,7 @@ import com.yahoo.omid.client.TSOClient;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 
+import com.yahoo.omid.IsolationLevel;
 /**
  * Example of ChannelHandler for the Transaction Client
  * 
@@ -162,11 +163,11 @@ public class ClientHandler extends TSOClient {
    @Override
    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
       super.channelConnected(ctx, e);
-      try {
-         Thread.sleep(15000);
-      } catch (InterruptedException e1) {
-         //ignore
-      }
+      //try {
+         //Thread.sleep(15000);
+      //} catch (InterruptedException e1) {
+         ////ignore
+      //}
       startDate = new Date();
       channel = e.getChannel();
       startTransaction();
@@ -317,6 +318,8 @@ public class ClientHandler extends TSOClient {
 
       byte writtenSize = readOnly ? 0 : (byte) rnd.nextInt(MAX_ROW);
       byte readSize = writtenSize == 0 ? 0 : (byte) rnd.nextInt(MAX_ROW);
+      if (!IsolationLevel.checkForReadWriteConflicts)
+         readSize = 0;
       
       final RowKey [] writtenRows = new RowKey[writtenSize];
       for (byte i = 0; i < writtenRows.length; i++) {

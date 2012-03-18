@@ -19,8 +19,7 @@
 ########################################################################
 
 
-BUFFERSIZE=1000;
-BATCHSIZE=0;
+BATCHSIZE=1000;
 
 SCRIPTDIR=`dirname $0`
 cd $SCRIPTDIR;
@@ -41,11 +40,20 @@ fi
 
 tso() {
     export LD_LIBRARY_PATH=`$READLINK -f ../src/main/native`
-    exec java -Xmx1024m -cp $CLASSPATH -Djava.library.path=$LD_LIBRARY_PATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TSOServer 1234 $BATCHSIZE 4 2 localhost:2181
+    exec java -Xmx1024m -cp $CLASSPATH -Domid.maxItems=1000000 -Domid.maxCommits=30000000 -Djava.library.path=$LD_LIBRARY_PATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TSOServer 1234 $BATCHSIZE 4 2 localhost:2181
 }
 
 tsobench() {
-    exec java -Xmx1024m -cp $CLASSPATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TransactionClient localhost 1234 100000 10 5
+NMSG=$1
+NCLIENTS=$2
+if [ $# -lt 1 ]; then
+NMSG=10
+fi
+if [ $# -lt 2 ]; then
+NCLIENTS=5
+fi
+echo running with $NMSG outstanding messages and $NCLIENTS clients
+    exec java -Xmx1024m -cp $CLASSPATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TransactionClient localhost 1234 1000000 $NMSG $NCLIENTS
 }
 
 bktest() {
@@ -83,7 +91,8 @@ COMMAND=$1
 if [ "$COMMAND" = "tso" ]; then
     tso;
 elif [ "$COMMAND" = "tsobench" ]; then
-    tsobench;
+  shift
+    tsobench $*;
 elif [ "$COMMAND" = "bktest" ]; then
     bktest;
 elif [ "$COMMAND" = "tran-hbase" ]; then
