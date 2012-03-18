@@ -252,7 +252,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       if (IsolationLevel.checkForReadWriteConflicts) {
          for (RowKey r : msg.readRows)
             r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
-         Arrays.sort(msg.readRows);//to avoid deadlocks
+         //Arrays.sort(msg.readRows);//for reads I just need atomic access and do not need to hold the locks
       }
       for (RowKey r : msg.writtenRows)
          r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
@@ -269,21 +269,22 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
          } else if (msg.writtenRows.length > 0){
             //1. check the read-write conflicts
-
-            // lock the index if it is not already locked
+            //for reads just need atomic access, no need to hold the locks
+            //do this check befor locking the write rows, otherwise in case of conflict we will face deadlocks
             if (IsolationLevel.checkForReadWriteConflicts)
-               for (RowKey r: msg.readRows)
-                  if (lockedSet.add(r.index))//do not lock twice
-                     sharedState.hashmap.lock(r.index);
+               checkForConflictsIn(msg.readRows, msg, reply, false);
             //always lock writes, since gonna update them anyway
             for (RowKey r: msg.writtenRows)
-               if (lockedSet.add(r.index))//do not lock twice
-                  sharedState.hashmap.lock(r.index);
-
-            if (IsolationLevel.checkForReadWriteConflicts)
-               checkForConflictsIn(msg.readRows, msg, reply);
-            if (IsolationLevel.checkForWriteWriteConflicts)
-               checkForConflictsIn(msg.writtenRows, msg, reply);
+               if (lockedSet.add(r.index)) {//do not lock twice
+                  long tmaxForConflictChecking = sharedState.hashmap.lock(r.index);
+                  if (tmaxForConflictChecking > msg.startTimestamp) {
+                     reply.committed = false;
+                     break;
+                  }
+               }
+            if (reply.committed != false)
+               if (IsolationLevel.checkForWriteWriteConflicts)
+                  checkForConflictsIn(msg.writtenRows, msg, reply, true);
          } else {
             reply.committed = true;
          }
@@ -294,53 +295,63 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          if (reply.committed) {
             //2. commit
             try {
-               long commitTimestamp;
-               synchronized (sharedState) {
-                  newmax = oldmax = sharedState.largestDeletedTimestamp;
-                  commitTimestamp = timestampOracle.next(toWAL);
-                  sharedState.uncommited.commit(commitTimestamp);
-                  sharedState.uncommited.commit(msg.startTimestamp);
-               }
-               reply.commitTimestamp = commitTimestamp;
-               //2.5 check the write-write conflicts to detect elders
-               if (!IsolationLevel.checkForWriteWriteConflicts)
-                  checkForElders(reply, msg);
+               reply.commitTimestamp = msg.startTimestamp;//default: Tc=Ts for read-only
                if (msg.writtenRows.length > 0) {
-                  toWAL.writeLong(commitTimestamp);
-                  for (RowKey r: msg.writtenRows)
-                     newmax = sharedState.hashmap.put(r.getRow(), r.getTable(), commitTimestamp, r.hashCode(), newmax);
-                  newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, commitTimestamp, newmax);
-                  if (newmax != oldmax) {//I caused a raise in Tmax
-                     synchronized (sharedState) {
-                        if (newmax > sharedState.largestDeletedTimestamp)
-                           sharedState.largestDeletedTimestamp = newmax;
+                  Set<Long> toAbort = null;
+                  //2.5 check the write-write conflicts to detect elders
+                  if (!IsolationLevel.checkForWriteWriteConflicts)
+                     checkForElders(reply, msg);
+                  //The following steps must be synchronized
+                  synchronized (sharedState) {
+                     newmax = oldmax = sharedState.largestDeletedTimestamp;
+                     //a) obtaining a commit timestamp
+                     reply.commitTimestamp = timestampOracle.next(toWAL);
+                     //b) make sure that it will not be aborted concurrently
+                     sharedState.uncommited.commit(reply.commitTimestamp);
+                     sharedState.uncommited.commit(msg.startTimestamp);
+                     //c) commit the transaction
+                     newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, reply.commitTimestamp, newmax);
+                     //d) report the commit to the immdediate next txn
+                     synchronized (sharedMsgBufLock) {
+                        queueCommit(msg.startTimestamp, reply.commitTimestamp);
                      }
+                     //e) report eldest if it is changed by this commit
+                     reportEldestIfChanged(reply, msg);
+                     //f) report Tmax if it is changed
+                     if (newmax > oldmax) {//I caused a raise in Tmax
+                        sharedState.largestDeletedTimestamp = newmax;
+                        toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(newmax);
+                        if (!toAbort.isEmpty())
+                           LOG.warn("Slow transactions after raising max: " + toAbort);
+                        synchronized (sharedMsgBufLock) {
+                           for (Long id : toAbort)
+                              queueHalfAbort(id);
+                           queueLargestIncrease(sharedState.largestDeletedTimestamp);
+                        }
+                     }
+                  }
+                  //now do the rest out of sync block to allow more concurrency
+                  toWAL.writeLong(reply.commitTimestamp);
+                  if (newmax > oldmax) {//I caused a raise in Tmax
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(newmax);
-                     Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(newmax);
-                     if (eldersToBeFailed != null && !eldersToBeFailed.isEmpty())
-                        LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + oldmax + " to " + newmax);
-                     Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(newmax);
-                     if (!toAbort.isEmpty())
-                        LOG.warn("Slow transactions after raising max: " + toAbort);
                      synchronized (sharedState.hashmap) {
                         for (Long id : toAbort)
                            sharedState.hashmap.setHalfAborted(id);
                      }
-                     synchronized (sharedMsgBufLock) {
-                        for (Long id : toAbort)
-                           queueHalfAbort(id);
-                        //Added by Maysam Yabandeh
-                        //report failedElders to the clients
-                        if (eldersToBeFailed != null)
+                     Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(newmax);
+                     if (eldersToBeFailed != null && !eldersToBeFailed.isEmpty()) {
+                        LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + oldmax + " to " + newmax);
+                        synchronized (sharedMsgBufLock) {
+                           //report failedElders to the clients
                            for (Elder elder : eldersToBeFailed)
                               queueFailedElder(elder.getId(), elder.getCommitTimestamp());
-                        queueLargestIncrease(sharedState.largestDeletedTimestamp);
+                        }
                      }
                   }
-                  synchronized (sharedMsgBufLock) {
-                     queueCommit(msg.startTimestamp, commitTimestamp);
-                  }
+                  for (RowKey r: msg.writtenRows)
+                     sharedState.hashmap.put(r.getRow(), r.getTable(), reply.commitTimestamp, r.hashCode());
+
                }
             } catch (IOException e) {
                e.printStackTrace();
@@ -362,10 +373,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             }
          }
 
-         if (IsolationLevel.checkForReadWriteConflicts)
-            for (RowKey r: msg.readRows)
-               if (lockedSet.remove(r.index))//unlock only if it's locked
-                  sharedState.hashmap.unlock(r.index);
+         //for reads just need atomic access, no need to hold the locks
+         //if (IsolationLevel.checkForReadWriteConflicts)
+            //for (RowKey r: msg.readRows)
+               //if (lockedSet.remove(r.index))//unlock only if it's locked
+                  //sharedState.hashmap.unlock(r.index);
          for (RowKey r: msg.writtenRows)
             if (lockedSet.remove(r.index))//unlock only if it's locked
                sharedState.hashmap.unlock(r.index);
@@ -388,12 +400,15 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
    }
 
-   protected void checkForConflictsIn(RowKey[] rows, CommitRequest msg, CommitResponse reply) {
+   protected void checkForConflictsIn(RowKey[] rows, CommitRequest msg, CommitResponse reply, boolean isAlreadyLocked) {
       if (!reply.committed)//already aborted
          return;
       for (RowKey r: rows) {
          long value;
-         value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
+         if (isAlreadyLocked)
+            value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
+         else//perform an atomic read that acquires the lock and releases it afterwards
+            value = sharedState.hashmap.atomicget(r.getRow(), r.getTable(), r.hashCode(), r.index, msg.startTimestamp);
          if (value != 0 && value > msg.startTimestamp) {
             //System.out.println("Abort...............");
             reply.committed = false;//set as abort
@@ -401,6 +416,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          } else if (value == 0 && sharedState.largestDeletedTimestamp > msg.startTimestamp) {
             //then it could have been committed after start timestamp but deleted by recycling
             System.out.println("Old............... " + sharedState.largestDeletedTimestamp + " " + msg.startTimestamp);
+            reply.committed = false;//set as abort
+            break;
+         } else if (value == -1) {//means that tmaxForConflictChecking > msg.startTimestamp
+            System.out.println("Old....-1......... " + sharedState.largestDeletedTimestamp + " " + msg.startTimestamp);
             reply.committed = false;//set as abort
             break;
          }
@@ -419,6 +438,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             aWWconflictDetected(reply, msg, r);
          }
       }
+   }
+
+   protected void reportEldestIfChanged(CommitResponse reply, CommitRequest msg) {
       //2. add it to elders list
       if (reply.wwRowsLength > 0) {
          RowKey[] wwRows = new RowKey[reply.wwRowsLength];

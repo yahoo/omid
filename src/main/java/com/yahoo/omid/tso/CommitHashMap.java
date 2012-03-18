@@ -106,6 +106,10 @@ class CommitHashMap {
     * @see #put(int, Object)
     */
    native long get(byte[] rowId, byte[] tableId, int hash);
+   /**
+    * like get but wrap it by lock and unlock
+    */
+   native long atomicget(byte[] rowId, byte[] tableId, int hash, int index, long ts);
 
    /**
     * Maps the specified <code>key</code> to the specified <code>value</code> in
@@ -125,7 +129,7 @@ class CommitHashMap {
     *            if the key is <code>null</code>. return true if the vlaue is
     *            replaced
     */
-   native long put(byte[] rowId, byte[] tableId, long value, int hash, long largestDeletedTimestamp);
+   native void put(byte[] rowId, byte[] tableId, long value, int hash);
 
    /**
     * Returns the commit timestamp 

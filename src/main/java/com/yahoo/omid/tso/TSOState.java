@@ -74,9 +74,11 @@ public class TSOState {
    static final public float LOAD_FACTOR = 0.5f;
 
    /**
-    * Largest Deleted Timestamp
+    * Largest Deleted Timestamp from the hashmap.committed list
+    * this timestmap must be reported to the client
     */
    public long largestDeletedTimestamp = 0;
+
    public long latestCommitTimestamp = 0;
    public long latestStartTimestamp = 0;
    public long latestHalfAbortTimestamp = 0;

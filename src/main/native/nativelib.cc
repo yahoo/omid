@@ -47,7 +47,15 @@ struct StartCommit;
 LargeEntry (*table);
 StartCommit (*commitTable);
 
-
+//for evicted item from the lastcommit hashmap, I just need to maintain it locally
+   /**
+    * Largest Deleted Timestamp from the hashmap.lastcommit list
+    * This timestamp does not have to be reported to the client
+    * this is because the lastcommit list is not replicated to the client
+    * this is used for internal consistency only
+    */
+jlong tmaxForConflictChecking = 0;
+pthread_mutex_t  tmaxMutex;
 
 int tableLength;
 /**
@@ -183,6 +191,8 @@ JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_init
    for (int i = 0; i < maxCommits; i++) {
       pthread_mutex_init(&commitTable[i].mutex, NULL);
    }
+   pthread_mutex_init(&tmaxMutex, NULL);
+
    printf("MEMORY initialization end\n");
    fflush(stdout);
 }
@@ -208,7 +218,7 @@ JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_init
 JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_lock
 (JNIEnv * env , jobject jobj, jint index) {
    int rc = pthread_mutex_lock(&table[index].mutex);
-   return 0;
+   return tmaxForConflictChecking;
 }
 
 
@@ -218,6 +228,16 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_unlock
    return 0;
 }
 
+JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_atomicget
+(JNIEnv * env , jobject jobj, jbyteArray rowId, jbyteArray tableId, jint hash, jint index, jlong ts) {
+   jlong tmax = Java_com_yahoo_omid_tso_CommitHashMap_lock(env, jobj, index);
+   jlong res = Java_com_yahoo_omid_tso_CommitHashMap_get(env, jobj, rowId, tableId, hash);
+   //if tmaxForConflictChecking is larger than the start timestamp, then return -1 to indicate abort
+   if (tmax > ts)//assme(ts >= 0)
+      res = -1;
+   Java_com_yahoo_omid_tso_CommitHashMap_unlock(env, jobj, index);
+   return res;
+}
 
 jbyte keyarray[MAX_KEY_SIZE];
 JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_get
@@ -251,8 +271,8 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_get
  * Method:    put
  * Signature: (JJJI)Z
  */
-JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
-(JNIEnv * env , jobject jobj, jbyteArray rowId, jbyteArray tableId, jlong value, jint hash, jlong largestDeletedTimestamp) {
+JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
+(JNIEnv * env , jobject jobj, jbyteArray rowId, jbyteArray tableId, jlong value, jint hash) {
    totalput++;
    int index = (hash & 0x7FFFFFFF) % tableLength;
    Entry* firstBucket = &(table[index].e1);
@@ -276,13 +296,12 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
       //usleep(1);
 
       if (isOld) {
-         if (e->value > largestDeletedTimestamp) {
-            //if (e->order != po) {
-               //printf("MMM %ld(%ld) %d(%d) %d(%d) %d(%d) %d %d MMM\n", e->order, po, largestOrder, pl, threshold, pt, index, hash, e->value, largestDeletedTimestamp);
-               //fflush(stdout);
-            //}
-            largestDeletedTimestamp = e->value;
+
+         int rc = pthread_mutex_lock(&tmaxMutex);
+         if (e->value > tmaxForConflictChecking) {
+            tmaxForConflictChecking = e->value;
          }
+         rc = pthread_mutex_unlock(&tmaxMutex);
 
          if (keyarrayloaded == false) {
             rowidsize  = env->GetArrayLength(rowId);
@@ -306,7 +325,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
          e->value = value;
          e->order = ++largestOrder;
    //rc = pthread_mutex_unlock(&table[index].mutex);
-         return largestDeletedTimestamp;
+         return;// largestDeletedTimestamp;
       }
 
       if (keyarrayloaded == false) {
@@ -323,7 +342,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
             e->value = value;
             e->order = ++largestOrder;
    //rc = pthread_mutex_unlock(&table[index].mutex);
-            return largestDeletedTimestamp;
+            return; //largestDeletedTimestamp;
          }
       }
    }
@@ -356,7 +375,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
    }
    count++;
    //rc = pthread_mutex_unlock(&table[index].mutex);
-   return largestDeletedTimestamp;
+   return; // largestDeletedTimestamp;
 }
 
 
