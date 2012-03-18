@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.commons.lang.StringUtils;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooKeeper;
@@ -112,7 +113,7 @@ public class TSOServer implements Runnable {
         // Create the global ChannelGroup
         ChannelGroup channelGroup = new DefaultChannelGroup(TSOServer.class.getName());
         // threads max
-        // int maxThreads = Runtime.getRuntime().availableProcessors() *2 + 1;
+//         int maxThreads = Runtime.getRuntime().availableProcessors() *2 + 1;
         int maxThreads = 5;
         // Memory limitation: 1MB by channel, 1GB global, 100 ms of timeout
         ThreadPoolExecutor pipelineExecutor = new OrderedMemoryAwareThreadPoolExecutor(maxThreads, 1048576, 1073741824,
@@ -222,7 +223,8 @@ public class TSOServer implements Runnable {
     private void recoverState() throws BKException, InterruptedException, KeeperException, IOException {
         String servers = StringUtils.join(zkservers, ',');
         ZooKeeper zooKeeper = new ZooKeeper(servers, 1000, null);
-        BookKeeper bookKeeper = new BookKeeper(servers);
+        ClientConfiguration conf = new ClientConfiguration();
+        BookKeeper bookKeeper = new BookKeeper(conf, zooKeeper);
 
         List<String> children = zooKeeper.getChildren("/ledgers", false);
         children.remove("available");

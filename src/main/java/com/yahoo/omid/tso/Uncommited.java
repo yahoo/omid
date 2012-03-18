@@ -74,7 +74,7 @@ public class Uncommited {
       return bucket.isUncommited(id);
    }
    
-   public Set<Long> raiseLargestDeletedTransaction(long id) {
+   public synchronized Set<Long> raiseLargestDeletedTransaction(long id) {
       if (firstUncommitedAbsolute > getAbsolutePosition(id))
          return Collections.emptySet();
       int maxBucket = getRelativePosition(id);

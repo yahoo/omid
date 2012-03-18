@@ -24,10 +24,13 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.MurmurHash;
 import org.jboss.netty.buffer.ChannelBuffer;
 
-public class RowKey {
+public class RowKey implements Comparable<RowKey> {
    private byte[] rowId;
    private byte[] tableId;
    private int hash = 0;
+   //these are not to be serialized, just used for lock-based impl
+   public boolean isLocked = false;
+   public int index;//the index on hashmap
 
    public RowKey() {
       rowId = new byte[0];
@@ -110,6 +113,12 @@ public class RowKey {
        //return MurmurHash3.MurmurHash3_x64_32(rowId, 0xDEADBEEF);
       //	    return (31*Arrays.hashCode(tableId)) + Arrays.hashCode(rowId);
        return hash;
+   }
+
+   //This is used to access the hashmap
+   //no need to serialize
+   public int compareTo(RowKey rk) {
+      return index - rk.index;
    }
 }
 

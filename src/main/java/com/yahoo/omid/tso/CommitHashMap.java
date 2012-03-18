@@ -135,7 +135,10 @@ class CommitHashMap {
     */
    native long getCommittedTimestamp(long startTimestamp);
    native long setCommitted(long startTimestamp, long commitTimestamp, long largestDeletedTimestamp);
-   
+
+   native long lock(int hash);
+   native long unlock(int hash);
+
    // set of half aborted transactions
    // TODO: set the initial capacity in a smarter way
    java.util.HashSet<Long> halfAborted = new java.util.HashSet<Long>(10000);

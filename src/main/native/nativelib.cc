@@ -18,6 +18,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#define _MULTI_THREADED
+#include <pthread.h>
 
 #include "com_yahoo_omid_tso_CommitHashMap.h"
 
@@ -99,6 +101,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_gettotalwalkforget
  * Each item that stores the start timestamp and commit timestamp
  */
 struct StartCommit {
+   pthread_mutex_t  mutex;
    jlong start;//which is the start timestamp;
    jlong commit;//which is commit timestamp
 };
@@ -135,6 +138,7 @@ struct Entry {
 };
 
 struct LargeEntry {
+   pthread_mutex_t  mutex;
    Entry e1;
    Entry e2;
    Entry e3;
@@ -166,6 +170,7 @@ JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_init
    printf("Entry* %p %%8 %lu ...\n", table, ((size_t)table)%8);
    printf("MEMORY initialization start ...\n");
    for (int i = 0; i < initialCapacity; i++) {
+      pthread_mutex_init(&table[i].mutex, NULL);
       if (i%1000000==0) {
          printf("MEMORY i=%d\n", i);
          fflush(stdout);
@@ -174,6 +179,9 @@ JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_init
       //Entry* e3 = new Entry();
       //table[i].next = e2;
       //e2->next = e3;
+   }
+   for (int i = 0; i < maxCommits; i++) {
+      pthread_mutex_init(&commitTable[i].mutex, NULL);
    }
    printf("MEMORY initialization end\n");
    fflush(stdout);
@@ -197,6 +205,20 @@ JNIEXPORT void JNICALL Java_com_yahoo_omid_tso_CommitHashMap_init
  * Signature: (JI)J
  */
 
+JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_lock
+(JNIEnv * env , jobject jobj, jint index) {
+   int rc = pthread_mutex_lock(&table[index].mutex);
+   return 0;
+}
+
+
+JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_unlock
+(JNIEnv * env , jobject jobj, jint index) {
+   int rc = pthread_mutex_unlock(&table[index].mutex);
+   return 0;
+}
+
+
 jbyte keyarray[MAX_KEY_SIZE];
 JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_get
 (JNIEnv * env , jobject jobj, jbyteArray rowId, jbyteArray tableId, jint hash) {
@@ -207,14 +229,20 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_get
    env->GetByteArrayRegion(tableId,0,tableidsize,keyarray + rowidsize * sizeof(jbyte));
    char keyarraysize = (rowidsize + tableidsize) * sizeof(jbyte);
    int index = (hash & 0x7FFFFFFF) % tableLength;
+
+   //int   rc;
+   //rc = pthread_mutex_lock(&table[index].mutex);
    for (Entry* e = &(table[index].e1); e != NULL; e = e->next) {
       totalwalkforget++;
       if (e->order == 0)//empty
          break;
       if (e->hash == hash && e->rowidsize == rowidsize && e->tableidsize == tableidsize)
-         if (memcmp(e->key, keyarray, keyarraysize)==0)
+         if (memcmp(e->key, keyarray, keyarraysize)==0) {
+            //rc = pthread_mutex_unlock(&table[index].mutex);
             return e->value;
+         }
    }
+   //rc = pthread_mutex_unlock(&table[index].mutex);
    return 0;
 }
 
@@ -232,15 +260,27 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
    jsize rowidsize, tableidsize;
    unsigned int keyarraysize;
 
+   int   rc;
+   //rc = pthread_mutex_lock(&table[index].mutex);
+
    Entry* lastEntry = NULL;//after the loop, it points to the last entry
    for (Entry* e = firstBucket; e != NULL; lastEntry = e, e = e->next) {
       totalwalkforput++;
 
+      //int pl = largestOrder;
+      //long po = e->order;
+      //int pt = threshold;
       bool isOld = e->order == 0 ? 
          true :
          largestOrder - e->order > threshold;
+      //usleep(1);
+
       if (isOld) {
          if (e->value > largestDeletedTimestamp) {
+            //if (e->order != po) {
+               //printf("MMM %ld(%ld) %d(%d) %d(%d) %d(%d) %d %d MMM\n", e->order, po, largestOrder, pl, threshold, pt, index, hash, e->value, largestDeletedTimestamp);
+               //fflush(stdout);
+            //}
             largestDeletedTimestamp = e->value;
          }
 
@@ -265,6 +305,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
          //e->tag = tag;
          e->value = value;
          e->order = ++largestOrder;
+   //rc = pthread_mutex_unlock(&table[index].mutex);
          return largestDeletedTimestamp;
       }
 
@@ -281,6 +322,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
             //e->tag = tag;
             e->value = value;
             e->order = ++largestOrder;
+   //rc = pthread_mutex_unlock(&table[index].mutex);
             return largestDeletedTimestamp;
          }
       }
@@ -313,6 +355,7 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
       fflush(stdout);
    }
    count++;
+   //rc = pthread_mutex_unlock(&table[index].mutex);
    return largestDeletedTimestamp;
 }
 
@@ -320,19 +363,27 @@ JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_put
 JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_getCommittedTimestamp(JNIEnv *, jobject, jlong startTimestamp) {
    int key = startTimestamp % gmaxCommits;
    StartCommit& entry = commitTable[key];
-   if (entry.start == startTimestamp)
+   int   rc;
+   rc = pthread_mutex_lock(&entry.mutex);
+   if (entry.start == startTimestamp) {
+      rc = pthread_mutex_unlock(&entry.mutex);
       return entry.commit;
+   }
+   rc = pthread_mutex_unlock(&entry.mutex);
    return 0;//which means that there is not such entry in the array, either deleted or never entered
 }
 
 JNIEXPORT jlong JNICALL Java_com_yahoo_omid_tso_CommitHashMap_setCommitted(JNIEnv * env , jobject jobj, jlong startTimestamp, jlong commitTimestamp, jlong largestDeletedTimestamp) {
    int key = startTimestamp % gmaxCommits;
    StartCommit& entry = commitTable[key];
+   int   rc;
+   rc = pthread_mutex_lock(&entry.mutex);
    //assume(entry.start != startTimestamp);
    if (entry.start != startTimestamp && entry.commit > largestDeletedTimestamp)
       largestDeletedTimestamp = entry.commit;
    entry.start = startTimestamp;
    entry.commit = commitTimestamp;
+   rc = pthread_mutex_unlock(&entry.mutex);
    return largestDeletedTimestamp;
 }
 

@@ -44,8 +44,11 @@ public class Elders {
    }
 
    public boolean isEldestChangedSinceLastProbe() {
-      boolean res = eldestChangedSinceLastProbe;
-      eldestChangedSinceLastProbe = false;
+      boolean res;
+      synchronized (this) {
+         res = eldestChangedSinceLastProbe;
+         eldestChangedSinceLastProbe = false;
+      }
       return res;
    }
 
@@ -80,36 +83,43 @@ public class Elders {
    }
 
    public void addElder(long ts, long tc, RowKey[] wwRows) {
-      Elder e = new Elder(ts, tc);
-      //TODO: store the rest as well
-      heapofelders.offer(e);
-      setofelders.add(e);
-      updateEldest(e);
-      //System.out.println("WWWWWW " + ts);
+      synchronized (this) {
+         Elder e = new Elder(ts, tc);
+         //TODO: store the rest as well
+         heapofelders.offer(e);
+         setofelders.add(e);
+         updateEldest(e);
+         //System.out.println("WWWWWW " + ts);
+      }
    }
 
    public boolean reincarnateElder(long id) {
-      assert(eldest == null || eldest.getId() < id);
-      Elder e = new Elder(id);
-      boolean isStillElder = setofelders.remove(e);
-      boolean itWasFailed = false;
-      if (!isStillElder)//then it is a failed elder
-         itWasFailed = failedElders.remove(e);
-      //do not do anything on heap
-      if (eldest != null && eldest.getId() == id)
-         setEldest();
+      boolean itWasFailed;
+      synchronized (this) {
+         assert(eldest == null || eldest.getId() < id);
+         Elder e = new Elder(id);
+         boolean isStillElder = setofelders.remove(e);
+         itWasFailed = false;
+         if (!isStillElder)//then it is a failed elder
+            itWasFailed = failedElders.remove(e);
+         //do not do anything on heap
+         if (eldest != null && eldest.getId() == id)
+            setEldest();
+      }
       return itWasFailed;
    }
    
    public Set<Elder> raiseLargestDeletedTransaction(long id) {
       Set<Elder> failed = null;
-      while (heapofelders.size() > 0 && heapofelders.peek().getId() < id) {
-         Elder e = heapofelders.poll();
-         boolean isStillElder = setofelders.remove(e);
-         if (isStillElder) {
-            if (failed == null)
-               failed = new TreeSet<Elder>();
-            failed.add(e);
+      synchronized (this) {
+         while (heapofelders.size() > 0 && heapofelders.peek().getId() < id) {
+            Elder e = heapofelders.poll();
+            boolean isStillElder = setofelders.remove(e);
+            if (isStillElder) {
+               if (failed == null)
+                  failed = new TreeSet<Elder>();
+               failed.add(e);
+            }
          }
       }
       return failed;

@@ -77,7 +77,6 @@ public class TSOState {
     * Largest Deleted Timestamp
     */
    public long largestDeletedTimestamp = 0;
-   public long previousLargestDeletedTimestamp = 0;
    public long latestCommitTimestamp = 0;
    public long latestStartTimestamp = 0;
    public long latestHalfAbortTimestamp = 0;
@@ -111,7 +110,7 @@ public class TSOState {
    public List<TSOHandler.ChannelandMessage> nextBatch = new ArrayList<TSOHandler.ChannelandMessage>();
    
    public TSOState(long largestDeletedTimestamp) {
-      this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = largestDeletedTimestamp;
+      this.largestDeletedTimestamp = largestDeletedTimestamp;
       this.uncommited = new Uncommited(largestDeletedTimestamp);
       this.elders = new Elders();
    }
