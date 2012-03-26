@@ -30,7 +30,7 @@ public class RowKey implements Comparable<RowKey> {
    private int hash = 0;
    //these are not to be serialized, just used for lock-based impl
    public boolean isLocked = false;
-   public int index;//the index on hashmap
+   public int index = -1;//the index on hashmap
 
    public RowKey() {
       rowId = new byte[0];
@@ -55,6 +55,7 @@ public class RowKey implements Comparable<RowKey> {
 
    public static RowKey readObject(ChannelBuffer aInputStream) 
          throws IOException {
+      //int index = aInputStream.readInt();
       int hash = aInputStream.readInt();
       short len = aInputStream.readByte();
 //      byte[] rowId = RowKeyBuffer.nextRowKey(len);
@@ -66,12 +67,15 @@ public class RowKey implements Comparable<RowKey> {
       aInputStream.readBytes(tableId, 0, len);
       RowKey rk = new RowKey(rowId, tableId);
       rk.hash = hash;
+      //rk.index = index;
       return rk;
    }
 
    public void writeObject(DataOutputStream aOutputStream)
          throws IOException {
       hashCode();
+      //assert(index != -1);
+      //aOutputStream.writeInt(index);
       aOutputStream.writeInt(hash);
       aOutputStream.writeByte(rowId.length);
       aOutputStream.write(rowId,0,rowId.length);

@@ -247,12 +247,12 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       ByteArrayOutputStream baos = sharedState.baos;
       DataOutputStream toWAL  = sharedState.toWAL;
       reply.committed = true;
-      HashSet<Integer> lockedSet = new HashSet();
+      //HashSet<Integer> lockedSet = new HashSet();
 
       if (IsolationLevel.checkForReadWriteConflicts) {
          for (RowKey r : msg.readRows)
             r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
-         //Arrays.sort(msg.readRows);//for reads I just need atomic access and do not need to hold the locks
+         Arrays.sort(msg.readRows);//for reads I just need atomic access and do not need to hold the locks
       }
       for (RowKey r : msg.writtenRows)
          r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
@@ -274,8 +274,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             if (IsolationLevel.checkForReadWriteConflicts)
                checkForConflictsIn(msg.readRows, msg, reply, false);
             //always lock writes, since gonna update them anyway
+            int li = -1;
             for (RowKey r: msg.writtenRows)
-               if (lockedSet.add(r.index)) {//do not lock twice
+               if (li != r.index) { //lockedSet.add(r.index)) {//do not lock twice
+                  li = r.index;
                   long tmaxForConflictChecking = sharedState.hashmap.lock(r.index);
                   if (tmaxForConflictChecking > msg.startTimestamp) {
                      reply.committed = false;
@@ -339,13 +341,15 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                         for (Long id : toAbort)
                            sharedState.hashmap.setHalfAborted(id);
                      }
-                     Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(newmax);
-                     if (eldersToBeFailed != null && !eldersToBeFailed.isEmpty()) {
-                        LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + oldmax + " to " + newmax);
-                        synchronized (sharedMsgBufLock) {
-                           //report failedElders to the clients
-                           for (Elder elder : eldersToBeFailed)
-                              queueFailedElder(elder.getId(), elder.getCommitTimestamp());
+                     if (!IsolationLevel.checkForWriteWriteConflicts) {
+                        Set<Elder> eldersToBeFailed = sharedState.elders.raiseLargestDeletedTransaction(newmax);
+                        if (eldersToBeFailed != null && !eldersToBeFailed.isEmpty()) {
+                           LOG.warn("failed elder transactions after raising max: " + eldersToBeFailed + " from " + oldmax + " to " + newmax);
+                           synchronized (sharedMsgBufLock) {
+                              //report failedElders to the clients
+                              for (Elder elder : eldersToBeFailed)
+                                 queueFailedElder(elder.getId(), elder.getCommitTimestamp());
+                           }
                         }
                      }
                   }
@@ -378,9 +382,14 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             //for (RowKey r: msg.readRows)
                //if (lockedSet.remove(r.index))//unlock only if it's locked
                   //sharedState.hashmap.unlock(r.index);
+         int li = -1;
          for (RowKey r: msg.writtenRows)
-            if (lockedSet.remove(r.index))//unlock only if it's locked
+            //if (lockedSet.remove(r.index))//unlock only if it's locked
+               if (li != r.index) {
                sharedState.hashmap.unlock(r.index);
+               li = r.index;
+               }
+
 
          TSOHandler.transferredBytes.incrementAndGet();
 

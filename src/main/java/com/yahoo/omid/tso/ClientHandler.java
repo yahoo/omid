@@ -50,6 +50,7 @@ import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 
 import com.yahoo.omid.IsolationLevel;
+//import java.util.Arrays;
 /**
  * Example of ChannelHandler for the Transaction Client
  * 
@@ -344,6 +345,16 @@ public class ClientHandler extends TSOClient {
          byte[] tableId = new byte[8];
          readRows[i] = new RowKey(b, tableId);
       }
+      //
+      //TODO: what if the client and servers are fed with different MAX_ITEMS?
+      //for (RowKey r : writtenRows)
+         //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
+      //Arrays.sort(writtenRows);//to avoid deadlocks
+      //if (IsolationLevel.checkForReadWriteConflicts) {
+         //for (RowKey r : readRows)
+            //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
+         //Arrays.sort(readRows);//to avoid deadlocks
+      //}
 
       // send a query once in a while
       totalCommitRequestSent++;
