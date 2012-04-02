@@ -64,7 +64,7 @@ public class ClientHandler extends TSOClient {
    /**
     * Maximum number of modified rows in each transaction
     */
-   static final int MAX_ROW = 20;
+   static int MAX_ROW = 20;
 
    /**
     * The number of rows in database
@@ -81,12 +81,12 @@ public class ClientHandler extends TSOClient {
    /**
     * Number of message to do
     */
-   private final int nbMessage;
+   private final long nbMessage;
 
    /**
     * Current rank (decreasing, 0 is the end of the game)
     */
-   private int curMessage;
+   private long curMessage;
 
    /**
     * number of outstanding commit requests
@@ -145,7 +145,7 @@ public class ClientHandler extends TSOClient {
     * @param inflight
     * @throws IOException
     */
-   public ClientHandler(Configuration conf, int nbMessage, int inflight, boolean pauseClient, 
+   public ClientHandler(Configuration conf, long nbMessage, int inflight, boolean pauseClient, 
          float percentReads) throws IOException {
       super(conf);
       if (nbMessage < 0) {
@@ -317,13 +317,13 @@ public class ClientHandler extends TSOClient {
 
       boolean readOnly = (rnd.nextFloat() * 100) < percentReads;
 
-      byte writtenSize = readOnly ? 0 : (byte) rnd.nextInt(MAX_ROW);
-      byte readSize = writtenSize == 0 ? 0 : (byte) rnd.nextInt(MAX_ROW);
+      int writtenSize = MAX_ROW == 0 ? 0 : rnd.nextInt(MAX_ROW);
+      int readSize = writtenSize == 0 ? 0 : rnd.nextInt(MAX_ROW);
       if (!IsolationLevel.checkForReadWriteConflicts)
          readSize = 0;
       
       final RowKey [] writtenRows = new RowKey[writtenSize];
-      for (byte i = 0; i < writtenRows.length; i++) {
+      for (int i = 0; i < writtenRows.length; i++) {
          // long l = rnd.nextLong();
          long l = rnd.nextInt(DB_SIZE);
          byte[] b = new byte[8];
@@ -335,7 +335,7 @@ public class ClientHandler extends TSOClient {
       }
 
       final RowKey [] readRows = new RowKey[readSize];
-      for (byte i = 0; i < readRows.length; i++) {
+      for (int i = 0; i < readRows.length; i++) {
          // long l = rnd.nextLong();
          long l = rnd.nextInt(DB_SIZE);
          byte[] b = new byte[8];

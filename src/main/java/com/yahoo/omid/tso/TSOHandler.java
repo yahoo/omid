@@ -356,6 +356,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                   for (RowKey r: msg.writtenRows)
                      sharedState.hashmap.put(r.getRow(), r.getTable(), reply.commitTimestamp, r.hashCode());
 
+               } else {//at least clean uncommited list
+                  synchronized (sharedState.hashmap) {
+                     sharedState.uncommited.commit(msg.startTimestamp);
+                  }
                }
             } catch (IOException e) {
                e.printStackTrace();

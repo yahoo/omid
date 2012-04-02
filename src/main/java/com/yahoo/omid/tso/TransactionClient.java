@@ -57,10 +57,10 @@ public class TransactionClient {
         // Parse options.
         String host = args[0];
         int port = Integer.parseInt(args[1]);
-        int nbMessage;
+        long nbMessage;
 
         if (args.length >= 3) {
-            nbMessage = Integer.parseInt(args[2]);
+            nbMessage = Long.parseLong(args[2]);
         } else {
             nbMessage = 256;
         }
@@ -74,14 +74,18 @@ public class TransactionClient {
            runs = Integer.parseInt(args[4]);
         }
 
-        boolean pauseClient = false;
         if (args.length >= 6) {
-           pauseClient = Boolean.parseBoolean(args[5]);
+           ClientHandler.MAX_ROW = Integer.parseInt(args[5]);
+        }
+
+        boolean pauseClient = false;
+        if (args.length >= 7) {
+           pauseClient = Boolean.parseBoolean(args[6]);
         }
         
         float percentRead = 0;
-        if (args.length >= 7) {
-           percentRead = Float.parseFloat(args[6]);
+        if (args.length >= 8) {
+           percentRead = Float.parseFloat(args[7]);
         }
 
         // *** Start the Netty configuration ***
@@ -109,6 +113,7 @@ public class TransactionClient {
    
            System.out.println("PARAM MAX_ROW: " + ClientHandler.MAX_ROW);
            System.out.println("PARAM DB_SIZE: " + ClientHandler.DB_SIZE);
+           System.out.println("PARAM inflight: " + inflight);
            System.out.println("pause " + pauseClient);
            System.out.println("readPercent " + percentRead);
    

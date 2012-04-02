@@ -44,16 +44,22 @@ tso() {
 }
 
 tsobench() {
-NMSG=$1
-NCLIENTS=$2
-if [ $# -lt 1 ]; then
 NMSG=10
-fi
-if [ $# -lt 2 ]; then
 NCLIENTS=5
+MAX_ROWS=20
+if [ $# -ge 1 ]; then
+NMSG=$1
 fi
+if [ $# -ge 2 ]; then
+NCLIENTS=$2
+fi
+if [ $# -ge 3 ]; then
+MAX_ROWS=$3
+fi
+
 echo running with $NMSG outstanding messages and $NCLIENTS clients
-    exec java -Xmx1024m -cp $CLASSPATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TransactionClient localhost 1234 1000000 $NMSG $NCLIENTS
+echo MAX_ROWS = $MAX_ROWS
+    exec java -Xmx1024m -cp $CLASSPATH -Dlog4j.configuration=log4j.properties com.yahoo.omid.tso.TransactionClient localhost 1234 1000000 $NMSG $NCLIENTS $MAX_ROWS
 }
 
 bktest() {
