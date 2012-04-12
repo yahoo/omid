@@ -115,7 +115,7 @@ public class TSOServer implements Runnable {
         // TODO: make it singleton
         //TimestampOracle timestampOracle = new TimestampOracle();
         // The wrapper for the shared state of TSO
-        state = BookKeeperStateBuilder.getState();
+        state = BookKeeperStateBuilder.getState(this.config);
         
         if(state == null){
             LOG.error("Couldn't build state");

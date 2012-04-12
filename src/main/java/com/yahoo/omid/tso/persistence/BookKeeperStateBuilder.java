@@ -44,6 +44,8 @@ import org.apache.zookeeper.ZooDefs.Ids;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import com.yahoo.omid.tso.TSOServerConfig;
 import com.yahoo.omid.tso.TSOState;
 import com.yahoo.omid.tso.TimestampOracle;
 import com.yahoo.omid.tso.persistence.BookKeeperStateLogger.LedgerIdCreateCallback;
@@ -72,13 +74,13 @@ public class BookKeeperStateBuilder extends StateBuilder {
      */
     private static final long BKREADBATCHSIZE = 50;
 
-    public static TSOState getState(){
+    public static TSOState getState(TSOServerConfig config){
         TSOState returnValue;
-        if(System.getProperty("ZKSERVERS") == null){
+        if(config.getZkServers() == null){
             LOG.warn("Logger is disabled");
             returnValue = new TSOState(new TimestampOracle());
         } else {
-            BookKeeperStateBuilder builder = new BookKeeperStateBuilder();
+            BookKeeperStateBuilder builder = new BookKeeperStateBuilder(config);
             
             try{
                 returnValue = builder.buildState();
@@ -97,9 +99,11 @@ public class BookKeeperStateBuilder extends StateBuilder {
     ZooKeeper zk;
     LoggerProtocol lp;
     boolean enabled;
+    TSOServerConfig config;
     
-    BookKeeperStateBuilder() {
-        this.timestampOracle = new TimestampOracle(); 
+    BookKeeperStateBuilder(TSOServerConfig config) {
+        this.timestampOracle = new TimestampOracle();
+        this.config = config;
     }
 
     /**
@@ -225,7 +229,7 @@ public class BookKeeperStateBuilder extends StateBuilder {
         try{
             CountDownLatch latch = new CountDownLatch(1);
             
-            this.zk = new ZooKeeper(System.getProperty("ZKSERVERS"), 
+            this.zk = new ZooKeeper(config.getZkServers(), 
                                             Integer.parseInt(System.getProperty("SESSIONTIMEOUT", Integer.toString(10000))), 
                                             new LoggerWatcher(latch));
             

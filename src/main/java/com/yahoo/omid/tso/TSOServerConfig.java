@@ -59,10 +59,10 @@ public class TSOServerConfig {
     TSOServerConfig(int port, int batch, boolean recoveryEnabled, int ensemble, int quorum, String zkServers){
         this.port = port;
         this.batch = batch;
-        this.recoveryEnabled = Boolean.parseBoolean(System.getProperty("RECOVERABLE", "false"));
-        this.zkServers = System.getProperty("ZKSERVERS");
-        this.ensemble = Integer.parseInt(System.getProperty("ENSEMBLE", "3"));
-        this.quorum = Integer.parseInt(System.getProperty("QUORUM", "2"));
+        this.recoveryEnabled = recoveryEnabled;
+        this.zkServers = zkServers;
+        this.ensemble = ensemble;
+        this.quorum = quorum;
     }
     
     public int getPort(){
