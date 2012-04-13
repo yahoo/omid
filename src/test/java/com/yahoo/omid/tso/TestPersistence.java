@@ -16,7 +16,10 @@
 
 package com.yahoo.omid.tso;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.number.OrderingComparison.greaterThan;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import org.apache.commons.logging.Log;
@@ -70,8 +73,40 @@ public class TestPersistence extends TSOTestBase {
        assertTrue(cr2.committed);
        assertTrue(cr2.commitTimestamp > tr2.timestamp);       
        assertEquals(tr2.timestamp, cr2.startTimestamp);
-       assertTrue(tr2.timestamp > tr1.timestamp);
+       assertThat(tr2.timestamp, is(greaterThan(tr1.timestamp)));
       
+   }
+
+   @Test
+   public void testBigLog() throws Exception {
+      clientHandler.sendMessage(new TimestampRequest());
+      clientHandler.receiveBootstrap();
+      clientHandler.receiveMessage(TimestampResponse.class);
+
+      clientHandler.sendMessage(new TimestampRequest());
+      for (int i = 0; i < 10000; ++i) {
+         Object msg;
+         while (!((msg = clientHandler.receiveMessage()) instanceof TimestampResponse))
+            // iterate until we get a TimestampResponse
+            ;
+
+         TimestampResponse tr1 = (TimestampResponse) msg;
+
+         clientHandler.sendMessage(new CommitRequest(tr1.timestamp, new RowKey[] { r1, r2 }));
+         clientHandler.receiveMessage(CommitResponse.class);
+         clientHandler.sendMessage(new TimestampRequest());
+      }
+      clientHandler.clearMessages();
+
+      LOG.info("Going to shut down TSO");
+      teardownTSO();
+
+      LOG.info("Going to restart TSO");
+      setupTSO();
+
+      clientHandler.sendMessage(new TimestampRequest());
+      clientHandler.receiveBootstrap();
+      clientHandler.receiveMessage(TimestampResponse.class);
    }
    
 }

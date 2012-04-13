@@ -213,7 +213,7 @@ public class BookKeeperStateBuilder extends StateBuilder {
                     LedgerEntry le = entries.nextElement();
                     lp.execute(ByteBuffer.wrap(le.getEntry()));
                                        
-                    if(le.getEntryId() == lh.getLastAddConfirmed()){
+                    if(le.getEntryId() == 0){
                         ((BookKeeperStateBuilder.Context) ctx).setState(lp.getState());
                     }
                 }
@@ -344,8 +344,8 @@ public class BookKeeperStateBuilder extends StateBuilder {
                     ((BookKeeperStateBuilder.Context) ctx).setState(null);
                 } else {
                     long counter = lh.getLastAddConfirmed();
-                    while(counter > 0){
-                        long nextBatch = Math.max(counter - BKREADBATCHSIZE, 0);
+                    while(counter >= 0){
+                        long nextBatch = Math.max(counter - BKREADBATCHSIZE + 1, 0);
                         lh.asyncReadEntries(nextBatch, counter, new LoggerExecutor(), ctx);
                         counter -= BKREADBATCHSIZE;
                     }
