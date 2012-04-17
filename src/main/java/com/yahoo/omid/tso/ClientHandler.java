@@ -71,7 +71,8 @@ public class ClientHandler extends TSOClient {
     */
    static final int DB_SIZE = 20000000;
 
-   private static final long PAUSE_LENGTH = 50; // in ms
+   //private static final long PAUSE_LENGTH = 50; // in ms
+   private static final long PAUSE_LENGTH = 50000; // in micro sec
 
    /**
     * Maximum number if outstanding message
@@ -164,11 +165,11 @@ public class ClientHandler extends TSOClient {
    @Override
    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
       super.channelConnected(ctx, e);
-      //try {
-         //Thread.sleep(15000);
-      //} catch (InterruptedException e1) {
-         ////ignore
-      //}
+      try {
+         Thread.sleep(15000);
+      } catch (InterruptedException e1) {
+         //ignore
+      }
       startDate = new Date();
       channel = e.getChannel();
       startTransaction();
@@ -367,6 +368,19 @@ public class ClientHandler extends TSOClient {
          }
       }
 
+      //if (slowchance == -1) {
+         //slowchance = rnd.nextInt(10);
+         //if (slowchance == 0)
+            //System.out.println("I am slow");
+      //}
+
+      long randompausetime = pauseClient ? PAUSE_LENGTH : 0; //this is the average
+      double uniformrandom = rnd.nextDouble(); //[0,1)
+      //double geometricrandom = -1 * java.lang.Math.log(uniformrandom);
+      //randompausetime = (long) (randompausetime * geometricrandom);
+      randompausetime = (long) (randompausetime * 2 * uniformrandom);
+      //if (slowchance == 0)
+         //randompausetime = 1000 * randompausetime;
       executor.schedule(new Runnable() {
          @Override
          public void run() {
@@ -380,9 +394,11 @@ public class ClientHandler extends TSOClient {
                e.printStackTrace();
             }
          }
-      }, pauseClient ? PAUSE_LENGTH : 0, TimeUnit.MILLISECONDS);
+      }, randompausetime, TimeUnit.MICROSECONDS);
 
    }
+
+   //static int slowchance = -1;
 
    private static ScheduledExecutorService executor = Executors.newScheduledThreadPool(20);
 

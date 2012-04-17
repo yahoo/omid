@@ -74,10 +74,13 @@ public class TSOSharedMessageBuffer {
           flush(true, false);
        }
        
+       //if deleteRef is false, the flush is forced due lack of space
        private void flush(boolean deleteRef, final boolean clearPast) {
           int readable = readBuffer.readableBytes() - readerIndex;
 
           ++_flushes;
+          if (!deleteRef) _forcedflushes++;
+
           _flSize += readable;
           if (readable == 0 && readingBuffer != pastBuffer) {
              _emptyFlushes++;
@@ -360,6 +363,7 @@ public class TSOSharedMessageBuffer {
       writeBuffer = currentBuffer.buffer;
    }
 
+   static long _forcedflushes = 0;
    static long _flushes = 0;
    static long _flSize = 0;
    

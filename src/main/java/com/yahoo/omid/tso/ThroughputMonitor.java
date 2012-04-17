@@ -58,6 +58,7 @@ public class ThroughputMonitor extends Thread {
          long oldtotalwalkforput = CommitHashMap.gettotalwalkforput(); 
          long oldfull = TSOMessageBuffer.itWasFull;
          long oldflushes = TSOSharedMessageBuffer._flushes;
+         long oldforcedflushes = TSOSharedMessageBuffer._forcedflushes;
          long oldflusheSize = TSOSharedMessageBuffer._flSize;
          long oldwaited = TSOMessageBuffer.waited;
          long old1B = TSOSharedMessageBuffer._1B;
@@ -93,6 +94,7 @@ public class ThroughputMonitor extends Thread {
 
             long newfull = TSOMessageBuffer.itWasFull;
             long newflushes = TSOSharedMessageBuffer._flushes;
+            long newforcedflushes = TSOSharedMessageBuffer._forcedflushes;
             long newflusheSize = TSOSharedMessageBuffer._flSize;
             long newwaited = TSOMessageBuffer.waited;
             
@@ -163,7 +165,7 @@ public class ThroughputMonitor extends Thread {
             LOG.trace(String.format("SERVER: %4.3f TPS, %4.6f Abort/s  "
                     + "Co: %2.2f Ha: %2.2f Fa: %2.2f Li: %2.2f Avg commit: %2.4f Avg flush: %5.2f "
                     + "Avg write: %5.2f Tot overflows: %d Tot flushes: %d Tot empty flu: %d "
-                    + "Queries: %d CurrentBuffers: %d ExtraGets: %d AskedTSO: %d",
+                    + "Queries: %d CurrentBuffers: %d ExtraGets: %d AskedTSO: %d Tot fflushes: %d",
                     (newCounter - oldCounter) / (float)(endTime - startTime) * 1000,
                     (newAbortCount - oldAbortCount) / (float)(endTime - startTime) * 1000,
                     (newComs - oldComs) / (float)(newWrites - oldWrites) * 100,
@@ -180,7 +182,9 @@ public class ThroughputMonitor extends Thread {
                     newQueries - oldQueries,
                     TSOBuffer.nBuffers,
                     newExtraGetsPerformed - oldExtraGetsPerformed,
-                    newAskedTSO - oldAskedTSO)
+                    newAskedTSO - oldAskedTSO,
+                    (newforcedflushes - oldforcedflushes)
+                    )
               );
 //            if (TSOPipelineFactory.bwhandler != null) {
 //                TSOPipelineFactory.bwhandler.reset();
@@ -205,6 +209,7 @@ public class ThroughputMonitor extends Thread {
             oldtotalwalkforput = newtotalwalkforput;
             oldfull = newfull;
             oldflushes = newflushes;
+            oldforcedflushes = newforcedflushes;
             oldflusheSize = newflusheSize;
             oldwaited = newwaited;
             oldOverflow = newOverflow;
