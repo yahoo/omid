@@ -35,6 +35,8 @@ public class LoggerProtocol extends TSOState{
     public final static byte LARGESTDELETEDTIMESTAMP = (byte) -3;
     public final static byte ABORT = (byte) -4;
     public final static byte FULLABORT = (byte) -5;
+    public final static byte LOGSTART = (byte) -6;
+    public final static byte SNAPSHOT = (byte) -7;
     
     
     /**
@@ -48,8 +50,20 @@ public class LoggerProtocol extends TSOState{
         super(timestampOracle);
     }
     
-    void execute(ByteBuffer bb){
-        boolean done = false;
+    private boolean commits;
+    private boolean oracle;
+    private boolean aborts;
+    private boolean consumed;
+    private boolean hasSnapshot;
+    private int snapshot = -1;
+
+    /**
+     * Execute a logged entry (several logged ops)
+     * @param bb Serialized operations
+     * @return true if the recovery is finished
+     */
+    synchronized boolean execute(ByteBuffer bb){
+        boolean done = !bb.hasRemaining();
         while(!done){
             byte op = bb.get();
             long timestamp, startTimestamp, commitTimestamp;
@@ -60,12 +74,16 @@ public class LoggerProtocol extends TSOState{
             case TIMESTAMPORACLE:
                 timestamp = bb.getLong();
                 this.getSO().initialize(timestamp);
+                this.initialize();
+                oracle = true;
                 break;
             case COMMIT:
                 startTimestamp = bb.getLong();
                 commitTimestamp = bb.getLong();
                 processCommit(startTimestamp, commitTimestamp);
-                
+                if (commitTimestamp < largestDeletedTimestamp) {
+                   commits = true;
+                }
                 break;
             case LARGESTDELETEDTIMESTAMP:
                 timestamp = bb.getLong();
@@ -82,9 +100,23 @@ public class LoggerProtocol extends TSOState{
                 processFullAbort(timestamp);
                 
                 break;
+            case LOGSTART:
+                consumed = true;
+                break;
+            case SNAPSHOT:
+                int snapshot = (int) bb.getLong();
+                if (snapshot > this.snapshot) {
+                   this.snapshot = snapshot;
+                   this.hasSnapshot = true;
+                }
+                if (hasSnapshot && snapshot < this.snapshot) {
+                   this.aborts = true;
+                }
+                break;
             }
             if(bb.remaining() == 0) done = true;
         }
+        return (oracle && commits && aborts) || consumed;
     }
     
     /**

@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import com.yahoo.omid.tso.RowKey;
 import com.yahoo.omid.tso.messages.AbortedTransactionReport;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;

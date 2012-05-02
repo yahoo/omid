@@ -131,7 +131,6 @@ public class TSOTestBase {
          bkthread.interrupt();
          bkthread.join();
       }
-      teardownClient();
       waitForSocketNotListening("localhost", 1234);
       
       Thread.sleep(10);
@@ -149,7 +148,7 @@ public class TSOTestBase {
         */
        Thread.sleep(500);
        
-      tso = new TSOServer(TSOServerConfig.configFactory(1234, 0, false, 4, 2, new String("localhost:2181")));
+      tso = new TSOServer(TSOServerConfig.configFactory(1234, 0, recoveryEnabled(), 4, 2, new String("localhost:2181")));
       tsothread = new Thread(tso);
       
       LOG.info("Starting TSO");
@@ -184,11 +183,15 @@ public class TSOTestBase {
          tsothread.interrupt();
          tsothread.join();
       }
-      
       teardownClient();
+
       waitForSocketNotListening("localhost", 1234);
       
       Thread.sleep(10);
+   }
+
+   protected boolean recoveryEnabled() {
+      return false;
    }
 
    private static void waitForSocketListening(String host, int port) throws UnknownHostException, IOException,

@@ -35,6 +35,11 @@ import com.yahoo.omid.tso.messages.TimestampResponse;
 public class TestPersistence extends TSOTestBase {
     private static final Log LOG = LogFactory.getLog(TestPersistence.class);
    
+   @Override
+   protected boolean recoveryEnabled() {
+      return true;
+   }
+    
    @Test
    public void testCommit() throws Exception {
         
@@ -81,9 +86,7 @@ public class TestPersistence extends TSOTestBase {
    public void testBigLog() throws Exception {
       clientHandler.sendMessage(new TimestampRequest());
       clientHandler.receiveBootstrap();
-      clientHandler.receiveMessage(TimestampResponse.class);
 
-      clientHandler.sendMessage(new TimestampRequest());
       for (int i = 0; i < 10000; ++i) {
          Object msg;
          while (!((msg = clientHandler.receiveMessage()) instanceof TimestampResponse))
@@ -91,9 +94,12 @@ public class TestPersistence extends TSOTestBase {
             ;
 
          TimestampResponse tr1 = (TimestampResponse) msg;
+         LOG.info("trt " + msg);
 
          clientHandler.sendMessage(new CommitRequest(tr1.timestamp, new RowKey[] { r1, r2 }));
-         clientHandler.receiveMessage(CommitResponse.class);
+         CommitResponse cr = clientHandler.receiveMessage(CommitResponse.class);
+         assertTrue(cr.committed);
+         LOG.info("cr " + cr);
          clientHandler.sendMessage(new TimestampRequest());
       }
       clientHandler.clearMessages();
@@ -104,6 +110,7 @@ public class TestPersistence extends TSOTestBase {
       LOG.info("Going to restart TSO");
       setupTSO();
 
+      clientHandler.clearMessages();
       clientHandler.sendMessage(new TimestampRequest());
       clientHandler.receiveBootstrap();
       clientHandler.receiveMessage(TimestampResponse.class);

@@ -16,6 +16,12 @@
 
 package com.yahoo.omid.tso;
 
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.jboss.netty.util.internal.ConcurrentHashMap;
+
 /**
  * A hash map that uses byte[] for the key rather than longs.
  * 
@@ -138,21 +144,27 @@ class CommitHashMap {
    
    // set of half aborted transactions
    // TODO: set the initial capacity in a smarter way
-   java.util.HashSet<Long> halfAborted = new java.util.HashSet<Long>(10000);
+   Set<AbortedTransaction> halfAborted = Collections.newSetFromMap(new ConcurrentHashMap<AbortedTransaction, Boolean>(10000));
+
+   private AtomicLong abortedSnapshot = new AtomicLong();
+
+   long getAndIncrementAbortedSnapshot() {
+      return abortedSnapshot.getAndIncrement();
+   }
 
    // add a new half aborted transaction
    void setHalfAborted(long startTimestamp) {
-      halfAborted.add(startTimestamp);
+      halfAborted.add(new AbortedTransaction(startTimestamp, abortedSnapshot.get()));
    }
 
    // call when a half aborted transaction is fully aborted
    void setFullAborted(long startTimestamp) {
-      halfAborted.remove(startTimestamp);
+      halfAborted.remove(new AbortedTransaction(startTimestamp, 0));
    }
 
    // query to see if a transaction is half aborted
    boolean isHalfAborted(long startTimestamp) {
-      return halfAborted.contains(startTimestamp);
+      return halfAborted.contains(new AbortedTransaction(startTimestamp, 0));
    }
 }
 

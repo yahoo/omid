@@ -43,7 +43,7 @@ public class TimestampOracle {
 
     private static final long TIMESTAMP_BATCH = 100000;
 
-    private long maxTimestamp;
+    private long maxTimestamp = 1;
 
     /**
      * the last returned timestamp
@@ -60,10 +60,13 @@ public class TimestampOracle {
      */
     public long next(DataOutputStream toWal) throws IOException {
         last++;
-        if (last >= maxTimestamp) {
-            toWal.writeByte(LoggerProtocol.TIMESTAMPORACLE);
-            toWal.writeLong(last);
+        if (last == maxTimestamp) {
             maxTimestamp += TIMESTAMP_BATCH;
+            toWal.writeByte(LoggerProtocol.TIMESTAMPORACLE);
+            toWal.writeLong(maxTimestamp);
+            if (LOG.isTraceEnabled()) {
+               LOG.trace("Logging TimestampOracle " + maxTimestamp);
+            }
         }
         if(LOG.isTraceEnabled()){
             LOG.trace("Next timestamp: " + last);
@@ -106,79 +109,12 @@ public class TimestampOracle {
      */
     public void initialize(long timestamp){
         LOG.info("Initializing timestamp oracle");
-        this.last = this.first = Math.max(this.last, TIMESTAMP_BATCH);
-        maxTimestamp = this.first;
+        this.last = this.first = Math.max(this.last, timestamp + TIMESTAMP_BATCH);
+        maxTimestamp = this.first + 1; // max timestamp will be persisted
         LOG.info("First: " + this.first + ", Last: " + this.last);
         initialize();
     }
-    
-    /**
-     * Constructor initialize the last timestamp TODO: initialize from the last
-     * persisted timestamp + wallclock time
-     */
- /*   public TimestampOracle() {
-        BufferedReader reader = null;
-        try {
-            reader = new BufferedReader(new FileReader(PERSIST));
-            first = last = Long.parseLong(reader.readLine()) + TIMESTAMP_BATCH;
-        } catch (FileNotFoundException e) {
-            LOG.error("Couldn't read persisted timestamp from /tmp/tso-persist.txt");
-        } catch (NumberFormatException e) {
-            LOG.error("File /tmp/tso-persist.txt doesn't contain a number");
-        } catch (IOException e) {
-            LOG.error("Couldn't read persisted timestamp from /tmp/tso-persist.txt");
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (IOException e) {
-                    LOG.error("Error closing file: " + e);
-                }
-            }
-            maxTimestamp = first + TIMESTAMP_BATCH;
-        }
 
-        Thread flusher = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (!finish) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    BufferedWriter writer = null;
-                    try {
-                        writer = new BufferedWriter(new FileWriter(BACKUP));
-                        writer.write(Long.toString(last));
-                    } catch (IOException e) {
-                        LOG.error("Couldn't overwrite persisted timestamp");
-                        return;
-                    } finally {
-                        if (writer != null)
-                            try {
-                                writer.close();
-                            } catch (IOException e) {
-                                LOG.error("Couldn't overwrite persisted timestamp");
-                            }
-                    }
-
-                    File backup = new File(BACKUP);
-                    File persist = new File(PERSIST);
-                    if (!backup.renameTo(persist))
-                        LOG.error("Couldn't overwrite persisted timestamp");
-
-                    if (Thread.interrupted()) {
-                        return;
-                    }
-                }
-
-            }
-        });
-        flusher.start();
-    }
-*/    
     public void stop() {
         this.enabled = false;
     }

@@ -160,7 +160,7 @@ class BookKeeperStateLogger implements StateLogger {
     @Override
     public void initialize(final LoggerInitCallback cb, Object ctx) 
     throws LoggerException {
-        TSOServerConfig config = TSOServerConfig.configFactory();
+        TSOServerConfig config = ((BookKeeperStateBuilder.Context)ctx).config;
         
         /*
          * Create new ledger for adding records

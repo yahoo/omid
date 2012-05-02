@@ -22,22 +22,12 @@ package com.yahoo.omid.tso;
  */
 public class TSOServerConfig {
     
-    private static TSOServerConfig config;
-    
     static public TSOServerConfig configFactory(){
-        if(config == null){
-            config = new TSOServerConfig();
-        }
-        
-        return config;
+        return new TSOServerConfig();
     }
     
     static public TSOServerConfig configFactory(int port, int batch, boolean recoveryEnabled, int ensSize, int qSize, String zkservers){
-        if(config == null){
-            config = new TSOServerConfig(port, batch, recoveryEnabled, ensSize, qSize, zkservers);
-        }
-        
-        return config;
+        return new TSOServerConfig(port, batch, recoveryEnabled, ensSize, qSize, zkservers);
     }
     
     private int port;

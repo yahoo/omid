@@ -35,6 +35,7 @@ import org.junit.Test;
 import com.yahoo.omid.client.TransactionManager;
 import com.yahoo.omid.client.TransactionState;
 import com.yahoo.omid.client.TransactionalTable;
+import com.yahoo.omid.tso.TSOState;
 
 public class TestCompaction extends OmidTestBase {
    private static final Log LOG = LogFactory.getLog(TestCompaction.class);
