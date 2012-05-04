@@ -304,10 +304,9 @@ public class ClientHandler extends TSOClient {
 
       boolean readOnly = (rnd.nextFloat() * 100) < percentReads;
 
-      byte size = readOnly ? 0 : (byte) rnd.nextInt(MAX_ROW);
+      int size = readOnly ? 0 : rnd.nextInt(MAX_ROW);
       final RowKey [] rows = new RowKey[size];
       for (byte i = 0; i < rows.length; i++) {
-         // long l = rnd.nextLong();
          long l = rnd.nextInt(DB_SIZE);
          byte[] b = new byte[8];
          for (int iii = 0; iii < 8; iii++) {
