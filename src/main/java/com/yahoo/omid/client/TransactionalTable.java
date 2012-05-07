@@ -264,9 +264,48 @@ public class TransactionalTable extends HTable {
       return scanner;
    }
 
+   //a wrapper for KeyValue and the corresponding Tc
+   private class KeyValueTc {
+      KeyValue kv = null;
+      long Tc;
+      //update kv if the new one is more recent
+      void update(KeyValue newkv, long newTc) {
+         if (kv == null || Tc < newTc) {
+            kv = newkv;
+            Tc = newTc;
+         }
+      }
+      boolean isMoreRecentThan(long otherTc) {
+         if (kv == null)
+            return false;
+         return (Tc > otherTc);
+      }
+      //Here I compare Tc with Ts of another keyvalue
+      boolean isMoreRecentThan(KeyValue kvwithTs) {
+         if (kv == null)
+            return false;
+         if (kvwithTs == null)
+            return true;
+         return (Tc > kvwithTs.getTimestamp());
+      }
+      boolean isMoreRecentThan(KeyValueTc other) {
+         if (kv == null)
+            return false;
+         if (other.kv == null)
+            return true;
+         return (Tc > other.Tc);
+      }
+   }
+
    //Added by Maysam Yabandeh
-   //This filter assumes that only one column if feteched
+   //This filter assumes that only one column is feteched
    //TODO: generalize it
+   //Assume: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
+   //There are three kinds of committed values:
+   //1: Normal values for which I have the commit timestamp Tc
+   //2: Normal values for which the Tc is lost (Tc < Tmax)
+   //3: Values written by failed elders, i.e., (i) elder, (ii) Tc < Tmax, (iii) Tc is retrivable form the failedElders list
+   //The normal values could be read in order of Ts (since Ts order and Tc order is the same), but the all the values of elders must be read since Ts and Tc orders are not the same.
    private Result filter(TransactionState state, Result result, long startTimestamp, boolean nVersionsIsSet, int nVersions) throws IOException {
       Statistics.partialReport(Statistics.Tag.GET_PER_CLIENT_GET, 1);
       if (result == null || result.list() == null) {
@@ -280,13 +319,10 @@ public class TransactionalTable extends HTable {
          Statistics.fullReport(Statistics.Tag.EMPTY_GET, 1);
       ArrayList<KeyValue> resultContent = new ArrayList<KeyValue>();
       Long nextFetchMaxTimestamp = startTimestamp;
-      KeyValue mostRecentKeyValueOfFailedElders = null;
-      long mostRecentKeyValueOfFailedElders_Tc = 0;//do not use this value if mostRecentKeyValueOfFailedElders is null
+      KeyValueTc mostRecentFailedElder = new KeyValueTc();
       KeyValue mostRecentKeyValueWithLostTc = null;
-      KeyValue mostRecentKeyValueWithTc = null;
-      long mostRecentKeyValueWithTc_Tc = 0;
-      //we have three kind of values 1) normal with tc, 2) failedElder with tc, 3) normal with lost Tc (due to Tmax increase).
-      //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax). Then choose from it and the failedElder with highest Tc
+      KeyValueTc mostRecentValueWithTc = new KeyValueTc();
+      //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax) or valid Tc. Then read the rest of the list to make sure that values of elders are also read. Then among the normal value and the failedElder with highest Tc, choose one.
       for (KeyValue kv : kvs) {
          long Ts = kv.getTimestamp();
          if (Ts == startTimestamp) {//if it is my own write, return it
@@ -294,43 +330,37 @@ public class TransactionalTable extends HTable {
             return new Result(resultContent);
          }
          nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, Ts);
-         Long getres = state.tsoclient.failedElders.get(kv.getTimestamp());
-         if (getres != null && getres < startTimestamp)//if it could be a valid read
-            if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < getres) {
-               mostRecentKeyValueOfFailedElders = kv;
-               mostRecentKeyValueOfFailedElders_Tc = getres;
+         if (!IsolationLevel.checkForWriteWriteConflicts) {
+            //Case 3: Check for failed elder
+            Long failedElderTc = state.tsoclient.failedElders.get(Ts);
+            if (failedElderTc != null) {
+               if (failedElderTc < startTimestamp)//if it could be a valid read
+                  mostRecentFailedElder.update(kv, failedElderTc);
+               continue;//if is is a failedElder, we are done with probing this kv
             }
-         if (getres != null) continue;//if is is a failedElder, we are done with kv
-         if (mostRecentKeyValueWithLostTc != null) continue;// the rest of values do not matter if they are normal. if they are not normal, they must have been in failedElder list
+         }
+         if (mostRecentKeyValueWithLostTc != null) continue;//if it is an elder and we have already seen one with lost Tc, then it was in failedEdler as well.
          long Tc = state.tsoclient.commitTimestamp(Ts, startTimestamp);
          if (Tc == -2) continue;//invalid read
-         if (Tc == -1) {//valid read with lost Tc
-            mostRecentKeyValueWithLostTc = kv;
-            if (IsolationLevel.checkForWriteWriteConflicts)//then everything is in order, and the first version is enough
-               break;
-            else //move to next versions
-               continue;
-            //a value with lost Tc could also be a failedElder, be careful to do this check after failedEdler check
-         }
-         if (mostRecentKeyValueWithTc == null || mostRecentKeyValueWithTc_Tc < Tc) {//note to always do this check as some kv might be from elders
-            mostRecentKeyValueWithTc = kv;
-            mostRecentKeyValueWithTc_Tc = Tc;
-         }
+         if (Tc == -1) // means valid read with lost Tc
+            //Case 2: Normal value with lost Tc
+            mostRecentKeyValueWithLostTc = kv; //Note: a value with lost Tc could also be a failedElder, so do this check after failedEdler check
+         else
+            //Case 1: Normal with with Tc
+            mostRecentValueWithTc.update(kv, Tc); //some kv might be from elders
          if (IsolationLevel.checkForWriteWriteConflicts)//then everything is in order, and the first version is enough
             break;
       }
-      if (mostRecentKeyValueWithTc != null)
-         if (mostRecentKeyValueOfFailedElders == null || mostRecentKeyValueOfFailedElders_Tc < mostRecentKeyValueWithTc_Tc) {
-            resultContent.add(mostRecentKeyValueWithTc);
-            return new Result(resultContent);
-         }
-      if (mostRecentKeyValueOfFailedElders != null)
-         if (mostRecentKeyValueWithLostTc == null || mostRecentKeyValueWithLostTc.getTimestamp() < mostRecentKeyValueOfFailedElders_Tc) {
-            //if Ts < Tc(elder) => Tc < Tc(elder)
-            //this is bacause otherwise tso would have detected the other txn as elder too
-            resultContent.add(mostRecentKeyValueOfFailedElders);
-            return new Result(resultContent);
-         }
+      if (mostRecentValueWithTc.isMoreRecentThan(mostRecentFailedElder)) {
+         resultContent.add(mostRecentValueWithTc.kv);
+         return new Result(resultContent);
+      }
+      if (mostRecentFailedElder.isMoreRecentThan(mostRecentKeyValueWithLostTc)) {
+         //if Ts < Tc(elder) => Tc < Tc(elder)
+         //this is bacause otherwise tso would have detected the other txn as elder too
+         resultContent.add(mostRecentFailedElder.kv);
+         return new Result(resultContent);
+      }
       if (mostRecentKeyValueWithLostTc != null) {
          resultContent.add(mostRecentKeyValueWithLostTc);
          return new Result(resultContent);
