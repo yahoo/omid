@@ -27,29 +27,27 @@ import org.apache.hadoop.hbase.filter.*;
 
 /**
  * Filter that sets both minTimestamp and minVersions
- * It assumes a single row but works with more than one column family/qualifier
- * It also assumes the following order <column family, column qualifier, timestamp>
+ * Assumes that there is only one column in the output
  * @maysam
  */
-public class MinVersionsFilter extends FilterBase {
+public class MinVersionsSingleColumnFilter extends FilterBase {
 
    //read at least minVersions and go till reach startTime
    long startTime = 0;
    long endTime = Long.MAX_VALUE;
    int minVersions;
 
-   //keep track of included versions for each column qualifier of each column family
-   int includedVersionsForLastColumn;
-   ColumnFamilyAndQuantifier lastColumn;
+   int includedVersions;
+
 
    /**
     * Used during deserialization. Do not use otherwise.
     */
-   public MinVersionsFilter() {
+   public MinVersionsSingleColumnFilter() {
       super();
    }
 
-   public MinVersionsFilter(long startTime, long endTime, int minVersions) {
+   public MinVersionsSingleColumnFilter(long startTime, long endTime, int minVersions) {
       this.startTime = startTime;
       this.endTime = endTime;
       this.minVersions = minVersions;
@@ -57,20 +55,7 @@ public class MinVersionsFilter extends FilterBase {
    }
 
    private void init() {
-      includedVersionsForLastColumn = 0;
-      lastColumn = null;
-   }
-
-   private int getIncludedVersions(ColumnFamilyAndQuantifier column) {
-      if (lastColumn == null || !lastColumn.equals(column)) {
-         lastColumn = column;
-         includedVersionsForLastColumn = 0;
-      }
-      return includedVersionsForLastColumn;
-   }
-
-   private void setIncludedVersions(ColumnFamilyAndQuantifier column, int versions) {
-      includedVersionsForLastColumn = versions;
+      includedVersions = 0;
    }
 
    @Override
@@ -78,11 +63,8 @@ public class MinVersionsFilter extends FilterBase {
          long version = v.getTimestamp();
          if (version >= endTime)
             return ReturnCode.SKIP;
-         ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(v.getFamily(), v.getQualifier());
-         int includedVersions = getIncludedVersions(column);
          if (includedVersions < minVersions || version > startTime) {
             includedVersions++;
-            setIncludedVersions(column, includedVersions);
             return ReturnCode.INCLUDE;
          }
          return ReturnCode.NEXT_COL;

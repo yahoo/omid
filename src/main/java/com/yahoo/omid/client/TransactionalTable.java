@@ -102,12 +102,9 @@ public class TransactionalTable extends HTable {
       final long eldest = IsolationLevel.checkForWriteWriteConflicts ? -1 : //-1 means no eldest, i.e., do not worry about it
          transactionState.tsoclient.getEldest();//if we do not check for ww conflicts, we should take elders into account
       int nVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
-      //is not used anymore
-      boolean nVersionsIsSet = false;
       long startTime = 0;
       long endTime = Math.min(timeRange.getMax(), readTimestamp + 1);
       if (eldest == -1 || eldest >= endTime) {//-1 means no eldest
-         nVersionsIsSet = true;
          tsget.setTimeRange(startTime, endTime).setMaxVersions(nVersions);
       } else {//either from 0, or eldest, fetch all
          startTime = eldest;
@@ -145,7 +142,7 @@ public class TransactionalTable extends HTable {
          for(byte[] col : (NavigableSet<byte[]>)new ArrayList(tsget.getFamilyMap().values()).get(0)) 
             System.out.println(" col(tsget): " + Bytes.toString(col) + " start " + eldest + " " + endTime + " " + " vs " + nVersions);
       }
-      Result result = filter(transactionState, firstResult, readTimestamp, nVersionsIsSet, nVersions);
+      Result result = filter(transactionState, firstResult, readTimestamp, nVersions);
       Statistics.partialReportOver(Statistics.Tag.VSN_PER_CLIENT_GET);
       Statistics.partialReportOver(Statistics.Tag.GET_PER_CLIENT_GET);
       Statistics.partialReportOver(Statistics.Tag.ASKTSO);
@@ -268,6 +265,9 @@ public class TransactionalTable extends HTable {
    private class KeyValueTc {
       KeyValue kv = null;
       long Tc;
+      void reset() {
+         kv = null;
+      }
       //update kv if the new one is more recent
       void update(KeyValue newkv, long newTc) {
          if (kv == null || Tc < newTc) {
@@ -298,36 +298,69 @@ public class TransactionalTable extends HTable {
    }
 
    //Added by Maysam Yabandeh
-   //This filter assumes that only one column is feteched
-   //TODO: generalize it
-   //Assume: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
-   //There are three kinds of committed values:
-   //1: Normal values for which I have the commit timestamp Tc
-   //2: Normal values for which the Tc is lost (Tc < Tmax)
-   //3: Values written by failed elders, i.e., (i) elder, (ii) Tc < Tmax, (iii) Tc is retrivable form the failedElders list
-   //The normal values could be read in order of Ts (since Ts order and Tc order is the same), but the all the values of elders must be read since Ts and Tc orders are not the same.
-   private Result filter(TransactionState state, Result result, long startTimestamp, boolean nVersionsIsSet, int nVersions) throws IOException {
+   /*
+    *       This filter assumes that only one column is feteched
+    * TODO: generalize it
+    * Assume: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
+    * There are three kinds of committed values:
+    * 1: Normal values for which I have the commit timestamp Tc
+    * 2: Normal values for which the Tc is lost (Tc < Tmax)
+    * 3: Values written by failed elders, i.e., (i) elder, (ii) Tc < Tmax, (iii) Tc is retrivable form the failedElders list
+    * The normal values could be read in order of Ts (since Ts order and Tc order is the same), but the all the values of elders must be read since Ts and Tc orders are not the same.
+    */
+   private Result filter(TransactionState state, Result unfilteredResult, long startTimestamp, int nMinVersionsAsked) throws IOException {
+      ArrayList<KeyValue> filteredList = new ArrayList<KeyValue>();
+      filter(state, unfilteredResult, startTimestamp, nMinVersionsAsked, filteredList);
+      return new Result(filteredList);
+   }
+
+   //add the results to the filteredLost, recurse if it is necessary
+   private void filter(TransactionState state, Result unfilteredResult, long startTimestamp, int nMinVersionsAsked, ArrayList<KeyValue> filteredList) throws IOException {
       Statistics.partialReport(Statistics.Tag.GET_PER_CLIENT_GET, 1);
-      if (result == null || result.list() == null) {
+      List<KeyValue> kvs = unfilteredResult == null ? null : unfilteredResult.list();
+      if (unfilteredResult == null || kvs == null) {
          Statistics.fullReport(Statistics.Tag.EMPTY_GET, 1);
-         return null;
+         return;
       }
-      List<KeyValue> kvs = result.list();
       Statistics.fullReport(Statistics.Tag.VSN_PER_HBASE_GET, kvs.size());
       Statistics.partialReport(Statistics.Tag.VSN_PER_CLIENT_GET, kvs.size());
       if (kvs.size() == 0)
          Statistics.fullReport(Statistics.Tag.EMPTY_GET, 1);
-      ArrayList<KeyValue> resultContent = new ArrayList<KeyValue>();
       Long nextFetchMaxTimestamp = startTimestamp;
       KeyValueTc mostRecentFailedElder = new KeyValueTc();
       KeyValue mostRecentKeyValueWithLostTc = null;
       KeyValueTc mostRecentValueWithTc = new KeyValueTc();
-      //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax) or valid Tc. Then read the rest of the list to make sure that values of elders are also read. Then among the normal value and the failedElder with highest Tc, choose one.
+      ColumnFamilyAndQuantifier lastColumn = null;
+      int nVersionsRead = 0;
+      boolean pickedOneForLastColumn = false;
+      KeyValue lastkv = null;
+      //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax). Then read the rest of the list to make sure that values of failed elders are also read. Then among the normal value and the failedElder with highest Tc, choose one.
       for (KeyValue kv : kvs) {
+         {//check if the column is switched, if yes provess the results of the last column, otherwise keep reading
+            ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(kv.getFamily(), kv.getQualifier());
+            boolean sameColumn = lastColumn == null ? true : lastColumn.equals(column);
+            if (pickedOneForLastColumn && sameColumn)
+                  continue;
+            if (!sameColumn) {//column is switched
+               if (!pickedOneForLastColumn) //then process the results of the last column
+                  pickTheRightVersion(filteredList, state, startTimestamp, nVersionsRead, nMinVersionsAsked, lastkv, nextFetchMaxTimestamp, mostRecentValueWithTc, mostRecentKeyValueWithLostTc, mostRecentFailedElder);
+               //reset column-dependent variables
+               mostRecentFailedElder.reset();
+               mostRecentValueWithTc.reset();
+               mostRecentKeyValueWithLostTc = null;
+               nVersionsRead = 0;
+               nextFetchMaxTimestamp = startTimestamp;
+               pickedOneForLastColumn = false;
+            }
+            lastColumn = column;
+         }
+         lastkv = kv;
+         nVersionsRead++;
+         //porcess the keyvalue
          long Ts = kv.getTimestamp();
          if (Ts == startTimestamp) {//if it is my own write, return it
-            resultContent.add(kv);
-            return new Result(resultContent);
+            filteredList.add(kv);
+            pickedOneForLastColumn = true;
          }
          nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, Ts);
          if (!IsolationLevel.checkForWriteWriteConflicts) {
@@ -342,51 +375,50 @@ public class TransactionalTable extends HTable {
          if (mostRecentKeyValueWithLostTc != null) continue;//if it is an elder and we have already seen one with lost Tc, then it was in failedEdler as well.
          long Tc = state.tsoclient.commitTimestamp(Ts, startTimestamp);
          if (Tc == -2) continue;//invalid read
+         if (IsolationLevel.checkForWriteWriteConflicts) {//then everything is in order, and the first version is enough
+            filteredList.add(kv);
+            pickedOneForLastColumn = true;
+            continue;
+         }
          if (Tc == -1) // means valid read with lost Tc
             //Case 2: Normal value with lost Tc
             mostRecentKeyValueWithLostTc = kv; //Note: a value with lost Tc could also be a failedElder, so do this check after failedEdler check
          else
             //Case 1: Normal with with Tc
             mostRecentValueWithTc.update(kv, Tc); //some kv might be from elders
-         if (IsolationLevel.checkForWriteWriteConflicts)//then everything is in order, and the first version is enough
-            break;
       }
+      if (!pickedOneForLastColumn)
+         pickTheRightVersion(filteredList, state, startTimestamp, nVersionsRead, nMinVersionsAsked, lastkv, nextFetchMaxTimestamp, mostRecentValueWithTc, mostRecentKeyValueWithLostTc, mostRecentFailedElder);
+   }
+
+   //Having processed the versions related to a column, decide which version should be added to the filteredList
+   void pickTheRightVersion(ArrayList<KeyValue> filteredList, TransactionState state, long startTimestamp, int nVersionsRead, int nMinVersionsAsked, KeyValue lastkv, long nextFetchMaxTimestamp, KeyValueTc mostRecentValueWithTc, KeyValue mostRecentKeyValueWithLostTc, KeyValueTc mostRecentFailedElder) throws IOException {
       if (mostRecentValueWithTc.isMoreRecentThan(mostRecentFailedElder)) {
-         resultContent.add(mostRecentValueWithTc.kv);
-         return new Result(resultContent);
+         filteredList.add(mostRecentValueWithTc.kv);
+         return;
       }
       if (mostRecentFailedElder.isMoreRecentThan(mostRecentKeyValueWithLostTc)) {
          //if Ts < Tc(elder) => Tc < Tc(elder)
          //this is bacause otherwise tso would have detected the other txn as elder too
-         resultContent.add(mostRecentFailedElder.kv);
-         return new Result(resultContent);
+         filteredList.add(mostRecentFailedElder.kv);
+         return;
       }
       if (mostRecentKeyValueWithLostTc != null) {
-         resultContent.add(mostRecentKeyValueWithLostTc);
-         return new Result(resultContent);
+         filteredList.add(mostRecentKeyValueWithLostTc);
+         return;
       }
-
-
-      boolean isMoreLeft = true;
-      if (kvs.size() != nVersions)
-         isMoreLeft = false;
-      if (!isMoreLeft)
-         return null;
+      boolean noMoreLeft = (nVersionsRead < nMinVersionsAsked);
+      if (noMoreLeft)
+         return;
       // We need to fetch more versions
-      // I assume there is at least one item
-      KeyValue kv = kvs.get(0);
-      Get get = new Get(kv.getRow());
-      get.addColumn(kv.getFamily(), kv.getQualifier());
-      //Added by Maysam Yabandeh: for the second tries setting max makes sense even for rw
-      nVersionsIsSet = true;
-      get.setMaxVersions(nVersions);
+      Get get = new Get(lastkv.getRow());
+      get.addColumn(lastkv.getFamily(), lastkv.getQualifier());
+      get.setMaxVersions(nMinVersionsAsked);
       get.setTimeRange(0, nextFetchMaxTimestamp);
-      extraGetsPerformed++;
-      result = this.get(get);
-      result = filter(state, result, startTimestamp, nVersionsIsSet, nVersions);
-      return result;
+      Result unfilteredResult = this.get(get);
+      filter(state, unfilteredResult, startTimestamp, nMinVersionsAsked, filteredList);
    }
-   
+
    /*
    private Result filter(TransactionState state, Result result, long startTimestamp, int localVersions) throws IOException {
       if (result == null) {
@@ -540,7 +572,7 @@ public class TransactionalTable extends HTable {
          Result filteredResult;
          do {
             result = super.next();
-            filteredResult = filter(state, result, state.getStartTimestamp(), true, maxVersions);
+            filteredResult = filter(state, result, state.getStartTimestamp(), maxVersions);
          } while(result != null && filteredResult == null);
          if (result != null) {
             state.addReadRow(new RowKey(result.getRow(), getTableName()));
@@ -552,7 +584,7 @@ public class TransactionalTable extends HTable {
       public Result[] next(int nbRows) throws IOException {
          Result [] results = super.next(nbRows);
          for (int i = 0; i < results.length; i++) {
-            results[i] = filter(state, results[i], state.getStartTimestamp(), true, maxVersions);
+            results[i] = filter(state, results[i], state.getStartTimestamp(), maxVersions);
             if (results[i] != null) {
                state.addReadRow(new RowKey(results[i].getRow(), getTableName()));
             }
