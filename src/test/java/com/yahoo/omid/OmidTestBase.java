@@ -76,12 +76,13 @@ public class OmidTestBase {
       tsothread = new Thread("TSO Thread") {
             public void run() {
                try {
-                  String[] args = new String[5];
-                  args[0] = "1234";
-                  args[1] = "100";
-                  args[2] = "4";
-                  args[3] = "2";
-                  args[4] = "localhost:2181";
+                  String[] args = new String[] { 
+                          "-port", "1234",
+                          "-batch", "100",
+                          "-ensemble", "4",
+                          "-quorum", "2",
+                          "-zk", "localhost:2181"
+                  };
                   TSOServer.main(args);
                } catch (InterruptedException e) {
                   // go away quietly

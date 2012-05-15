@@ -79,19 +79,9 @@ public class TSOServer implements Runnable {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        // Print usage if no argument is specified.
-        if (args.length < 1) {
-            System.err.println("Usage: " + TSOServer.class.getSimpleName() + " <port>");
-            return;
-        }
+        TSOServerConfig config = TSOServerConfig.parseConfig(args);
 
-        // Parse options.
-        int port = Integer.parseInt(args[0]);
-        int batch = Integer.parseInt(args[1]);
-        int ensSize = Integer.parseInt(args[2]), qSize = Integer.parseInt(args[3]);
-        String zkservers = args[4];
-
-        new TSOServer(TSOServerConfig.configFactory(port, batch, (zkservers != null), ensSize, qSize, zkservers)).run();
+        new TSOServer(config).run();
     }
 
     @Override

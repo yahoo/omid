@@ -16,6 +16,9 @@
 
 package com.yahoo.omid.tso;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+
 /**
  * Holds the configuration parameters of a TSO server instance. 
  *
@@ -39,17 +42,41 @@ public class TSOServerConfig {
         
         return config;
     }
-    
+
+    static public TSOServerConfig parseConfig(String args[]){
+        config = new TSOServerConfig();
+
+        if (args.length == 0) {
+            new JCommander(config).usage();
+            System.exit(0);
+        }
+
+        new JCommander(config, args);
+
+        return config;
+    }
+
+    @Parameter(names = "-port", description = "Port reserved by the Status Oracle", required = true)
     private int port;
+
+    @Parameter(names = "-batch", description = "Threshold for the batch sent to the WAL")
     private int batch;
+
+    @Parameter(names = "-ha", description = "Highly Available status oracle: logs operations to the WAL and recovers from a crash")
     private boolean recoveryEnabled;
+
+    @Parameter(names = "-zk", description = "ZooKeeper ensemble: host1:port1,host2:port2...")
     private String zkServers;
+
+    @Parameter(names = "-ensemble", description = "WAL ensemble size")
     private int ensemble;
+
+    @Parameter(names = "-quorum", description = "WAL quorum size")
     private int quorum;
     
     TSOServerConfig(){
         this.port = Integer.parseInt(System.getProperty("PORT", "1234"));
-        this.batch = Integer.parseInt(System.getProperty("batch", "0"));
+        this.batch = Integer.parseInt(System.getProperty("BATCH", "0"));
         this.recoveryEnabled = Boolean.parseBoolean(System.getProperty("RECOVERABLE", "false"));
         this.zkServers = System.getProperty("ZKSERVERS");
         this.ensemble = Integer.parseInt(System.getProperty("ENSEMBLE", "3"));
