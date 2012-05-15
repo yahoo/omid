@@ -299,9 +299,9 @@ public class TransactionalTable extends HTable {
 
    //Added by Maysam Yabandeh
    /*
-    *       This filter assumes that only one column is feteched
-    * TODO: generalize it
-    * Assume: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
+    * TODO: check for deletes
+    * This filter assumes that only one row is feteched
+    * Assume?: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
     * There are three kinds of committed values:
     * 1: Normal values for which I have the commit timestamp Tc
     * 2: Normal values for which the Tc is lost (Tc < Tmax)

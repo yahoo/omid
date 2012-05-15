@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.TreeSet;
 import java.util.PriorityQueue;
+import java.util.Iterator;
 
 public class Elders {
    //set is efficient for membership checking
@@ -50,6 +51,10 @@ public class Elders {
          eldestChangedSinceLastProbe = false;
       }
       return res;
+   }
+
+   public Iterator<Elder> failedEldersIterator() {
+      return failedElders.iterator();
    }
 
    //check if the eldest is still eldest

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -57,6 +58,7 @@ import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.FullAbortReport;
 import com.yahoo.omid.tso.messages.EldestUpdate;
 import com.yahoo.omid.tso.messages.ReincarnationReport;
+import com.yahoo.omid.tso.messages.FailedElderReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.IsolationLevel;
@@ -215,6 +217,10 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      for (Long halfAborted : sharedState.hashmap.halfAborted) {
                         channel.write(new AbortedTransactionReport(halfAborted));
                      }
+                     for (Iterator<Elder> failedElders = sharedState.elders.failedEldersIterator(); failedElders.hasNext(); ) {
+                        Elder fe = failedElders.next();
+                        channel.write(new FailedElderReport(fe.getId(), fe.getCommitTimestamp()));
+                     }
                   }
                   channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
                   channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
@@ -313,6 +319,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      sharedState.uncommited.commit(msg.startTimestamp);
                      //c) commit the transaction
                      newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, reply.commitTimestamp, newmax);
+                     if (reply.wwRowsLength > 0) {//if it is supposed to be reincarnated, also map Tc to Tc just in case of a future query.
+                        newmax = sharedState.hashmap.setCommitted(reply.commitTimestamp, reply.commitTimestamp, newmax);
+                     }
                      //d) report the commit to the immdediate next txn
                      synchronized (sharedMsgBufLock) {
                         queueCommit(msg.startTimestamp, reply.commitTimestamp);
@@ -334,6 +343,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                   }
                   //now do the rest out of sync block to allow more concurrency
                   toWAL.writeLong(reply.commitTimestamp);
+                  //TODO: should we be able to recover the writeset of a failed elders?
                   if (newmax > oldmax) {//I caused a raise in Tmax
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(newmax);
