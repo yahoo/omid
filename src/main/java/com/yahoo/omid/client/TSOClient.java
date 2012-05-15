@@ -517,6 +517,7 @@ public class TSOClient extends SimpleChannelHandler {
 
       if (hasConnectionTimestamp && transaction > connectionTimestamp)
          return transaction <= largestDeletedTimestamp ? -1 : -2;
+      //TODO: it works only if it runs one transaction at a time
       if (transaction <= largestDeletedTimestamp)
          return -1;//committed but the tc is lost
 
@@ -529,10 +530,11 @@ public class TSOClient extends SimpleChannelHandler {
       } catch (InterruptedException e) {
          throw new IOException("Commit query didn't complete", e);
       }
-      return cb.isCommitted() ? -1 : -2;
-      //TODO: this is wrong. we should ask tso about Tc and then use that to decide
+      if (!cb.isAClearAnswer())
+         //TODO: throw a proper exception
+         throw new IOException("Either abort or retry the transaction");
+      return cb.isCommitted() ? cb.commitTimestamp() : -2;
    }
-   
 
    public boolean validRead(long transaction, long startTimestamp) throws IOException {
       if (transaction == startTimestamp)
@@ -556,6 +558,9 @@ public class TSOClient extends SimpleChannelHandler {
       } catch (InterruptedException e) {
          throw new IOException("Commit query didn't complete", e);
       }
+      if (!cb.isAClearAnswer())
+         //TODO: throw a proper exception
+         throw new IOException("Either abort or retry the transaction");
       return cb.isCommitted();
    }
    
@@ -607,7 +612,7 @@ public class TSOClient extends SimpleChannelHandler {
             return;
          }
          for (CommitQueryCallback cb : cbs) {
-            cb.complete(r.committed);
+            cb.complete(r.committed, r.commitTimestamp, r.retry);
          }
       } else if (msg instanceof CommittedTransactionReport) {
          CommittedTransactionReport ctr = (CommittedTransactionReport) msg;

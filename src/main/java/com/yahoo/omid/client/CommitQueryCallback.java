@@ -17,5 +17,5 @@
 package com.yahoo.omid.client;
 
 public interface CommitQueryCallback extends Callback {
-   public void complete(boolean committed);
+   public void complete(boolean committed, long commitTimestamp, boolean retry);
 }

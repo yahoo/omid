@@ -58,6 +58,9 @@ public class TransactionManager {
       tableCache = new HashMap<byte[], HTable>();
    }
 
+   //a temorary solution to allow only one transaction at a time
+   boolean aTransactionIsInProgress = false;
+
    /**
     * Starts a new transaction.
     * 
@@ -68,6 +71,7 @@ public class TransactionManager {
     * @throws TransactionException
     */
    public TransactionState beginTransaction() throws TransactionException {
+      assert(aTransactionIsInProgress == false);
       SyncCreateCallback cb = new SyncCreateCallback();
       try {
          tsoclient.getNewTimestamp(cb);
@@ -79,6 +83,7 @@ public class TransactionManager {
          throw new TransactionException("Error retrieving timestamp", cb.getException());
       }      
 
+      aTransactionIsInProgress=true;
       return new TransactionState(cb.getStartTimestamp(), tsoclient);
    }
 
@@ -92,6 +97,7 @@ public class TransactionManager {
     */
    public void tryCommit(TransactionState transactionState)
          throws CommitUnsuccessfulException, TransactionException {
+      aTransactionIsInProgress=false;
       Statistics.fullReport(Statistics.Tag.COMMIT, 1);
       if (LOG.isTraceEnabled()) {
          LOG.trace("tryCommit " + transactionState.getStartTimestamp());
@@ -138,6 +144,7 @@ public class TransactionManager {
     * @throws TransactionException
     */
    public void abort(TransactionState transactionState) throws TransactionException {
+      aTransactionIsInProgress=false;
       if (LOG.isTraceEnabled()) {
          LOG.trace("abort " + transactionState.getStartTimestamp());
       }

@@ -500,27 +500,24 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       reply.queryTimestamp = msg.queryTimestamp;
       synchronized (sharedState) {
          queries++;
-         //1. check the write-write conflicts
          long value;
          value = sharedState.hashmap.getCommittedTimestamp(msg.queryTimestamp);
          if (value != 0) { //it exists
             reply.commitTimestamp = value;
             reply.committed = value < msg.startTimestamp;//set as abort
          }
-         else if (sharedState.hashmap.isHalfAborted(msg.queryTimestamp))
+         else if (sharedState.largestDeletedTimestamp < msg.queryTimestamp) 
             reply.committed = false;
-         else if (sharedState.uncommited.isUncommited(msg.queryTimestamp))
+         else if (sharedState.hashmap.isHalfAborted(msg.queryTimestamp))
             reply.committed = false;
          else 
             reply.retry = true;
-         //         else if (sharedState.largestDeletedTimestamp >= msg.queryTimestamp) 
-         //            reply.committed = true;
-         // TODO retry needed? isnt it just fully aborted?
+         //retry is show that we cannot distinguish two cases
+         //1. Tc < Tmax
+         //2. Ts < Tmax && aborted && Cleanedup is sent after we read the value but is received before this query is processed.
 
          ctx.getChannel().write(reply);
-
          // We send the message directly. If after a failure the state is inconsistent we'll detect it
-
       }
    }
 

@@ -19,14 +19,28 @@ package com.yahoo.omid.client;
 public class SyncCommitQueryCallback extends SyncCallbackBase
    implements CommitQueryCallback {
    private boolean committed = false;
+   private long commitTimestamp;
+   private boolean retry = false;
 
+   public boolean isAClearAnswer() {
+      return (retry != true);
+   }
+
+   //valid only if isAClearAnswer returns true
    public boolean isCommitted() {
       return committed;
    }
 
+   //valid only if isCommitted return true
+   public long commitTimestamp() {
+      return commitTimestamp;
+   }
+
    synchronized
-   public void complete(boolean committed) {
+   public void complete(boolean committed, long commitTimestamp, boolean retry) {
       this.committed = committed;
+      this.commitTimestamp = commitTimestamp;
+      this.retry = retry;
       countDown();
    }
 }
