@@ -343,7 +343,7 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                   }
                   //now do the rest out of sync block to allow more concurrency
                   toWAL.writeLong(reply.commitTimestamp);
-                  //TODO: should we be able to recover the writeset of a failed elders?
+                  //TODO: should we be able to recover the writeset of failed elders?
                   if (newmax > oldmax) {//I caused a raise in Tmax
                      toWAL.writeByte((byte)-2);
                      toWAL.writeLong(newmax);

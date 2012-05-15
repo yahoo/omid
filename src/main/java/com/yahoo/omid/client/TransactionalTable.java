@@ -299,7 +299,6 @@ public class TransactionalTable extends HTable {
 
    //Added by Maysam Yabandeh
    /*
-    * TODO: check for deletes
     * This filter assumes that only one row is feteched
     * Assume?: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
     * There are three kinds of committed values:
@@ -314,7 +313,7 @@ public class TransactionalTable extends HTable {
       return new Result(filteredList);
    }
 
-   //add the results to the filteredLost, recurse if it is necessary
+   //add the results to the filteredList, recurse if it is necessary
    private void filter(TransactionState state, Result unfilteredResult, long startTimestamp, int nMinVersionsAsked, ArrayList<KeyValue> filteredList) throws IOException {
       Statistics.partialReport(Statistics.Tag.GET_PER_CLIENT_GET, 1);
       List<KeyValue> kvs = unfilteredResult == null ? null : unfilteredResult.list();
@@ -336,7 +335,7 @@ public class TransactionalTable extends HTable {
       KeyValue lastkv = null;
       //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax). Then read the rest of the list to make sure that values of failed elders are also read. Then among the normal value and the failedElder with highest Tc, choose one.
       for (KeyValue kv : kvs) {
-         {//check if the column is switched, if yes provess the results of the last column, otherwise keep reading
+         {//check if the column is switched, if yes process the results of the last column, otherwise keep reading
             ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(kv.getFamily(), kv.getQualifier());
             boolean sameColumn = lastColumn == null ? true : lastColumn.equals(column);
             if (pickedOneForLastColumn && sameColumn)
@@ -359,7 +358,7 @@ public class TransactionalTable extends HTable {
          //porcess the keyvalue
          long Ts = kv.getTimestamp();
          if (Ts == startTimestamp) {//if it is my own write, return it
-            filteredList.add(kv);
+            addIfItIsNotADelete(kv, filteredList);
             pickedOneForLastColumn = true;
          }
          nextFetchMaxTimestamp = Math.min(nextFetchMaxTimestamp, Ts);
@@ -376,7 +375,7 @@ public class TransactionalTable extends HTable {
          long Tc = state.tsoclient.commitTimestamp(Ts, startTimestamp);
          if (Tc == -2) continue;//invalid read
          if (IsolationLevel.checkForWriteWriteConflicts) {//then everything is in order, and the first version is enough
-            filteredList.add(kv);
+            addIfItIsNotADelete(kv, filteredList);
             pickedOneForLastColumn = true;
             continue;
          }
@@ -394,17 +393,17 @@ public class TransactionalTable extends HTable {
    //Having processed the versions related to a column, decide which version should be added to the filteredList
    void pickTheRightVersion(ArrayList<KeyValue> filteredList, TransactionState state, long startTimestamp, int nVersionsRead, int nMinVersionsAsked, KeyValue lastkv, long nextFetchMaxTimestamp, KeyValueTc mostRecentValueWithTc, KeyValue mostRecentKeyValueWithLostTc, KeyValueTc mostRecentFailedElder) throws IOException {
       if (mostRecentValueWithTc.isMoreRecentThan(mostRecentFailedElder)) {
-         filteredList.add(mostRecentValueWithTc.kv);
+         addIfItIsNotADelete(mostRecentValueWithTc.kv, filteredList);
          return;
       }
       if (mostRecentFailedElder.isMoreRecentThan(mostRecentKeyValueWithLostTc)) {
          //if Ts < Tc(elder) => Tc < Tc(elder)
          //this is bacause otherwise tso would have detected the other txn as elder too
-         filteredList.add(mostRecentFailedElder.kv);
+         addIfItIsNotADelete(mostRecentFailedElder.kv, filteredList);
          return;
       }
       if (mostRecentKeyValueWithLostTc != null) {
-         filteredList.add(mostRecentKeyValueWithLostTc);
+         addIfItIsNotADelete(mostRecentKeyValueWithLostTc, filteredList);
          return;
       }
       boolean noMoreLeft = (nVersionsRead < nMinVersionsAsked);
@@ -417,6 +416,11 @@ public class TransactionalTable extends HTable {
       get.setTimeRange(0, nextFetchMaxTimestamp);
       Result unfilteredResult = this.get(get);
       filter(state, unfilteredResult, startTimestamp, nMinVersionsAsked, filteredList);
+   }
+
+   void addIfItIsNotADelete(KeyValue kv, ArrayList<KeyValue> filteredList) {
+      if (kv.getValue().length != 0)
+         filteredList.add(kv);
    }
 
    /*
