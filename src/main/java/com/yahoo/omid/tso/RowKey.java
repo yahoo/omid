@@ -29,8 +29,7 @@ public class RowKey implements Comparable<RowKey> {
    private byte[] tableId;
    private int hash = 0;
    //these are not to be serialized, just used for lock-based impl
-   public boolean isLocked = false;
-   public int index = -1;//the index on hashmap
+   public int index = -1;//the index on hashmap, it is used to sort the rowkeys
 
    public RowKey() {
       rowId = new byte[0];
@@ -119,8 +118,8 @@ public class RowKey implements Comparable<RowKey> {
        return hash;
    }
 
-   //This is used to access the hashmap
-   //no need to serialize
+   //assume: index must be assigned before using the RowKey in a collection
+   //This is used to sort the RowKeys
    public int compareTo(RowKey rk) {
       return index - rk.index;
    }

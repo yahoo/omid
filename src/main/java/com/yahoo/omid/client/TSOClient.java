@@ -506,6 +506,8 @@ public class TSOClient extends SimpleChannelHandler {
       }
    }
 
+   //Added by Maysam Yabandeh
+   //In the new implementation, I need direct access to commit timestamp and the logic for deciding the committed version is more complex. Therefero, this function replaces validRead.
    public long commitTimestamp(long transaction, long startTimestamp) throws IOException {
       if (aborted.contains(transaction)) 
          return -2;//invalid read
