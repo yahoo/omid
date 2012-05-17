@@ -228,5 +228,12 @@ public class TransactionManager {
             throw new TransactionException("Could not clean up for table " + entry.getKey(), ioe);
          }
       }
+      AbortCompleteCallback cb = new SyncAbortCompleteCallback();
+      try {
+         tsoclient.completeAbort(transactionState.getStartTimestamp(), cb );
+      } catch (IOException ioe) {
+         throw new TransactionException("Could not notify TSO about cleanup completion for transaction " +
+               transactionState.getStartTimestamp(), ioe);
+      }
    }
 }

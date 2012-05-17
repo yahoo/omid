@@ -121,10 +121,6 @@ public class TSOTestBase {
          };
    
          bkthread.start();
-   
-         if (!LocalBookKeeper.waitForServerUp("localhost:2181", 10000)) {
-            throw new Exception("Error starting zookeeper/bookkeeper");
-         }
       }
    }
 
@@ -143,9 +139,17 @@ public class TSOTestBase {
    
    @Before
    public void setupTSO() throws Exception {
-      Thread.sleep(10);
+       if (!LocalBookKeeper.waitForServerUp("localhost:2181", 10000)) {
+           throw new Exception("Error starting zookeeper/bookkeeper");
+        }
       
-      tso = new TSOServer(1234, 0, 4, 2, new String[] {"localhost:2181"});
+       /*
+        * TODO: Fix LocalBookKeeper to wait until the bookies are up
+        * instead of waiting only until the zookeeper server is up.
+        */
+       Thread.sleep(500);
+       
+      tso = new TSOServer(TSOServerConfig.configFactory(1234, 0, false, 4, 2, new String("localhost:2181")));
       tsothread = new Thread(tso);
       
       LOG.info("Starting TSO");

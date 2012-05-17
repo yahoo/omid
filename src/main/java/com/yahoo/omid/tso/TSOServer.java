@@ -16,23 +16,13 @@
 
 package com.yahoo.omid.tso;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.bookkeeper.client.BKException;
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
-import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.commons.lang.StringUtils;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooKeeper;
-import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
@@ -46,34 +36,36 @@ import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
 import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
 
-import com.yahoo.omid.tso.serialization.TSODecoder;
-import com.yahoo.omid.tso.serialization.TSOEncoder;
+import com.yahoo.omid.tso.persistence.BookKeeperStateBuilder;
 
 /**
  * TSO Server with serialization
  */
 public class TSOServer implements Runnable {
+    
+    private static final Log LOG = LogFactory.getLog(BookKeeperStateBuilder.class);
 
     private TSOState state;
-    private int port;
-    private int batch;
-    private int ensemble;
-    private int quorum;
-    private String[] zkservers;
+    private TSOServerConfig config;
     private boolean finish;
     private Object lock;
 
-    public TSOServer(int port, int batch, int ensemble, int quorum, String[] zkservers) {
+    public TSOServer() {
         super();
-        this.port = port;
-        this.batch = batch;
-        this.ensemble = ensemble;
-        this.quorum = quorum;
-        this.zkservers = zkservers;
+        this.config = TSOServerConfig.configFactory();
+        
         this.finish = false;
         this.lock = new Object();
     }
-
+    
+    public TSOServer(TSOServerConfig config) {
+        super();
+        this.config = config;
+        
+        this.finish = false;
+        this.lock = new Object();
+    }
+    
     public TSOState getState() {
         return state;
     }
@@ -87,19 +79,9 @@ public class TSOServer implements Runnable {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        // Print usage if no argument is specified.
-        if (args.length < 1) {
-            System.err.println("Usage: " + TSOServer.class.getSimpleName() + " <port>");
-            return;
-        }
+        TSOServerConfig config = TSOServerConfig.parseConfig(args);
 
-        // Parse options.
-        int port = Integer.parseInt(args[0]);
-        int batch = Integer.parseInt(args[1]);
-        int ensSize = Integer.parseInt(args[2]), qSize = Integer.parseInt(args[3]);
-        String[] bookies = Arrays.copyOfRange(args, 4, args.length);
-
-        new TSOServer(port, batch, ensSize, qSize, bookies).run();
+        new TSOServer(config).run();
     }
 
     @Override
@@ -113,7 +95,7 @@ public class TSOServer implements Runnable {
         // Create the global ChannelGroup
         ChannelGroup channelGroup = new DefaultChannelGroup(TSOServer.class.getName());
         // threads max
-//         int maxThreads = Runtime.getRuntime().availableProcessors() *2 + 1;
+        // int maxThreads = Runtime.getRuntime().availableProcessors() *2 + 1;
         int maxThreads = 5;
         // Memory limitation: 1MB by channel, 1GB global, 100 ms of timeout
         ThreadPoolExecutor pipelineExecutor = new OrderedMemoryAwareThreadPoolExecutor(maxThreads, 1048576, 1073741824,
@@ -121,29 +103,21 @@ public class TSOServer implements Runnable {
 
         // This is the only object of timestamp oracle
         // TODO: make it singleton
-        TimestampOracle timestampOracle = new TimestampOracle();
+        //TimestampOracle timestampOracle = new TimestampOracle();
         // The wrapper for the shared state of TSO
-        state = new TSOState(timestampOracle.get());
-        TSOState.BATCH_SIZE = batch;
+        state = BookKeeperStateBuilder.getState(this.config);
+        
+        if(state == null){
+            LOG.error("Couldn't build state");
+            return;
+        }
+        TSOState.BATCH_SIZE = config.getBatchSize();
         System.out.println("PARAM MAX_ITEMS: " + TSOState.MAX_ITEMS);
         System.out.println("PARAM BATCH_SIZE: " + TSOState.BATCH_SIZE);
         System.out.println("PARAM LOAD_FACTOR: " + TSOState.LOAD_FACTOR);
         System.out.println("PARAM MAX_THREADS: " + maxThreads);
 
-        // BookKeeper stuff
-        String servers = StringUtils.join(zkservers, ',');
-        try {
-            state.bookkeeper = new BookKeeper(servers);
-            state.lh = state.bookkeeper.createLedger(ensemble, quorum, BookKeeper.DigestType.CRC32, new byte[] { 'a',
-                    'b' });
-            System.out.println("Ledger handle: " + state.lh.getId());
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-
-        final TSOHandler handler = new TSOHandler(channelGroup, timestampOracle, state);
+        final TSOHandler handler = new TSOHandler(channelGroup, state);
 
         bootstrap.setPipelineFactory(new TSOPipelineFactory(pipelineExecutor, handler));
         bootstrap.setOption("tcpNoDelay", false);
@@ -158,7 +132,7 @@ public class TSOServer implements Runnable {
         // Create the monitor
         ThroughputMonitor monitor = new ThroughputMonitor(state);
         // Add the parent channel to the group
-        Channel channel = bootstrap.bind(new InetSocketAddress(port));
+        Channel channel = bootstrap.bind(new InetSocketAddress(config.getPort()));
         channelGroup.add(channel);
         
         // Compacter handler
@@ -184,7 +158,7 @@ public class TSOServer implements Runnable {
         comBootstrap.setOption("child.reuseAddress", true);
         comBootstrap.setOption("child.connectTimeoutMillis", 100);
         comBootstrap.setOption("readWriteFair", true);
-        channel = comBootstrap.bind(new InetSocketAddress(port + 1));
+        channel = comBootstrap.bind(new InetSocketAddress(config.getPort() + 1));
 
         // Starts the monitor
         monitor.start();
@@ -198,9 +172,10 @@ public class TSOServer implements Runnable {
             }
         }
 
-        timestampOracle.stop();
+        //timestampOracle.stop();
         handler.stop();
         comHandler.stop();
+        state.stop();
 
         // *** Start the Netty shutdown ***
 
@@ -218,28 +193,6 @@ public class TSOServer implements Runnable {
         System.out.println("End of resources");
         factory.releaseExternalResources();
         comFactory.releaseExternalResources();
-    }
-    
-    private void recoverState() throws BKException, InterruptedException, KeeperException, IOException {
-        String servers = StringUtils.join(zkservers, ',');
-        ZooKeeper zooKeeper = new ZooKeeper(servers, 1000, null);
-        ClientConfiguration conf = new ClientConfiguration();
-        BookKeeper bookKeeper = new BookKeeper(conf, zooKeeper);
-
-        List<String> children = zooKeeper.getChildren("/ledgers", false);
-        children.remove("available");
-        if (!children.isEmpty()) {
-            Collections.sort(children);
-            String ledgerName = children.get(children.size());
-            
-            long ledgerId = Long.parseLong(ledgerName.substring(1));
-        
-            LedgerHandle handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32, new byte[] { 'a', 'b' });
-            long lastEntryId = handle.getLastAddConfirmed();
-            
-            
-        }
-        state.lh = bookKeeper.createLedger(BookKeeper.DigestType.CRC32, new byte[] { 'a', 'b' });
     }
 
     public void stop() {

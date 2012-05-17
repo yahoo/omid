@@ -61,6 +61,10 @@ import com.yahoo.omid.tso.messages.ReincarnationReport;
 import com.yahoo.omid.tso.messages.FailedElderReport;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
+import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+import com.yahoo.omid.tso.persistence.LoggerException;
+import com.yahoo.omid.tso.persistence.LoggerException.Code;
+import com.yahoo.omid.tso.persistence.LoggerProtocol;
 import com.yahoo.omid.IsolationLevel;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -71,7 +75,7 @@ import java.util.HashSet;
  * @author maysam
  *
  */
-public class TSOHandler extends SimpleChannelHandler implements AddCallback {
+public class TSOHandler extends SimpleChannelHandler {
 
    private static final Log LOG = LogFactory.getLog(TSOHandler.class);
 
@@ -110,11 +114,11 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
     * Constructor
     * @param channelGroup
     */
-   public TSOHandler(ChannelGroup channelGroup, TimestampOracle to, TSOState state) {
+   public TSOHandler(ChannelGroup channelGroup, TSOState state) {
       //System.out.println("This is rwcimbo with elders - no filter is installed");
       //System.out.println("This is buggy rwcimbo");
       this.channelGroup = channelGroup;
-      this.timestampOracle = to;
+      this.timestampOracle = state.getSO();
       this.sharedState = state;
       this.flushThread = new FlushThread();
       this.executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
@@ -177,14 +181,13 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       synchronized (sharedState) {
          DataOutputStream toWAL  = sharedState.toWAL;
          try {
-            toWAL.writeByte((byte)-3);
+            toWAL.writeByte(LoggerProtocol.ABORT);
             toWAL.writeLong(msg.startTimestamp);
          } catch (IOException e) {
             e.printStackTrace();
          }
          abortCount++;
-         sharedState.hashmap.setHalfAborted(msg.startTimestamp);
-         sharedState.uncommited.abort(msg.startTimestamp);
+         sharedState.processAbort(msg.startTimestamp);
          synchronized (sharedMsgBufLock) {
             queueHalfAbort(msg.startTimestamp);
          }
@@ -318,7 +321,8 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      sharedState.uncommited.commit(reply.commitTimestamp);
                      sharedState.uncommited.commit(msg.startTimestamp);
                      //c) commit the transaction
-                     newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, reply.commitTimestamp, newmax);
+                     //newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, reply.commitTimestamp, newmax);
+                     newmax = sharedState.processCommit(msg.startTimestamp, reply.commitTimestamp, newmax);
                      if (reply.wwRowsLength > 0) {//if it is supposed to be reincarnated, also map Tc to Tc just in case of a future query.
                         newmax = sharedState.hashmap.setCommitted(reply.commitTimestamp, reply.commitTimestamp, newmax);
                      }
@@ -342,10 +346,15 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
                      }
                   }
                   //now do the rest out of sync block to allow more concurrency
-                  toWAL.writeLong(reply.commitTimestamp);
+                  if(LOG.isDebugEnabled()){
+                      LOG.debug("Adding commit to WAL");
+                  }
+                  toWAL.writeByte(LoggerProtocol.COMMIT);
+                  toWAL.writeLong(msg.startTimestamp);
+                  toWAL.writeLong(reply.commitTimestamp);//Tc is not necessary in theory, since we abort the in-progress txn after recovery, but it makes it easier for the recovery algorithm to bypass snapshotting
                   //TODO: should we be able to recover the writeset of failed elders?
                   if (newmax > oldmax) {//I caused a raise in Tmax
-                     toWAL.writeByte((byte)-2);
+                     toWAL.writeByte(LoggerProtocol.LARGESTDELETEDTIMESTAMP);
                      toWAL.writeLong(newmax);
                      synchronized (sharedState.hashmap) {
                         for (Long id : toAbort)
@@ -377,14 +386,13 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
          } else { //add it to the aborted list
             abortCount++;
             try {
-               toWAL.writeByte((byte)-3);
+               toWAL.writeByte(LoggerProtocol.ABORT);
                toWAL.writeLong(msg.startTimestamp);
             } catch (IOException e) {
                e.printStackTrace();
             }
             synchronized (sharedState.hashmap) {
-               sharedState.hashmap.setHalfAborted(msg.startTimestamp);
-               sharedState.uncommited.abort(msg.startTimestamp);
+               sharedState.processAbort(msg.startTimestamp);
             }
             synchronized (sharedMsgBufLock) {
                queueHalfAbort(msg.startTimestamp);
@@ -407,14 +415,32 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
          TSOHandler.transferredBytes.incrementAndGet();
 
-         //async write into WAL, callback function is addComplete
          ChannelandMessage cam = new ChannelandMessage(ctx, reply);
 
          synchronized (sharedState) {
             sharedState.nextBatch.add(cam);
             if (sharedState.baos.size() >= TSOState.BATCH_SIZE) {
-               sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
-               sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
+             if(LOG.isDebugEnabled()){
+                 LOG.debug("Going to add record of size " + sharedState.baos.size());
+             }
+            //sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
+             sharedState.addRecord(baos.toByteArray(), new AddRecordCallback() {
+                @Override
+                public void addRecordComplete(int rc, Object ctx) {
+                   if (rc != Code.OK) {
+                      LOG.warn("Write failed: " + LoggerException.getMessage(rc));
+                   } else {
+                      synchronized (callbackLock) {
+                         @SuppressWarnings("unchecked")
+                         ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
+                         for (ChannelandMessage cam : theBatch) {
+                            Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+                         }
+                      }
+                   }
+                }
+             }, sharedState.nextBatch);
+             sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
                sharedState.baos.reset();
             }
          }
@@ -523,7 +549,25 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
    public void flush() {
       synchronized (sharedState) {
-         sharedState.lh.asyncAddEntry(sharedState.baos.toByteArray(), this, sharedState.nextBatch);
+         if(LOG.isDebugEnabled()){
+             LOG.debug("Adding record, size " + sharedState.baos.size());
+         }
+         sharedState.addRecord(baos.toByteArray(), new AddRecordCallback() {
+            @Override
+            public void addRecordComplete(int rc, Object ctx) {
+               if (rc != Code.OK) {
+                  LOG.warn("Write failed: " + LoggerException.getMessage(rc));
+               } else {
+                  synchronized (callbackLock) {
+                     @SuppressWarnings("unchecked")
+                     ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
+                     for (ChannelandMessage cam : theBatch) {
+                        Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
+                     }
+                  }
+               }
+            }
+         }, sharedState.nextBatch);
          sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
          sharedState.baos.reset();
          if (flushFuture.cancel(false)) {
@@ -541,6 +585,9 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
             if (sharedState.nextBatch.size() > 0) {
                synchronized (sharedState) {
                   if (sharedState.nextBatch.size() > 0) {
+                     if(LOG.isDebugEnabled()){
+                        LOG.debug("Flushing log batch.");
+                     }
                      flush();
                   }
                }
@@ -610,12 +657,12 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
       synchronized (sharedState) {
          DataOutputStream toWAL  = sharedState.toWAL;
          try {
-            toWAL.writeByte((byte)-4);
+            toWAL.writeByte(LoggerProtocol.FULLABORT);
             toWAL.writeLong(msg.startTimestamp);
          } catch (IOException e) {
             e.printStackTrace();
          }
-         sharedState.hashmap.setFullAborted(msg.startTimestamp);
+         sharedState.processFullAbort(msg.startTimestamp);
       }
       synchronized (sharedMsgBufLock) {
          queueFullAbort(msg.startTimestamp);
@@ -637,23 +684,6 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
    private Object sharedMsgBufLock = new Object();
    private Object callbackLock = new Object();
 
-   /*
-    * Callback of asyncAddEntry from WAL
-    */
-   @Override
-      public void addComplete(int rc, LedgerHandle lh, long entryId, Object ctx) {
-         // Guarantee that messages sent to the WAL are delivered in order
-         if (lh != sharedState.lh) 
-            return;
-         synchronized (callbackLock) {
-            @SuppressWarnings("unchecked")
-               ArrayList<ChannelandMessage> theBatch = (ArrayList<ChannelandMessage>) ctx;
-            for (ChannelandMessage cam : theBatch) {
-               Channels.write(cam.ctx, Channels.succeededFuture(cam.ctx.getChannel()), cam.msg);
-            }
-         }
-      }
-
    @Override
       public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
          LOG.warn("TSOHandler: Unexpected exception from downstream.", e.getCause());
@@ -667,3 +697,4 @@ public class TSOHandler extends SimpleChannelHandler implements AddCallback {
 
 
 }
+

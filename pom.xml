@@ -25,19 +25,17 @@
   <name>omid</name>
   <url>http://maven.apache.org</url>
 
-  <repositories>
-    <repository>
-      <id>apache.snapshots</id>
-      <name>Temporary repo waiting for HBase 0.92.0 release</name>
-       <url>https://repository.apache.org/content/groups/snapshots-group/</url>
-       <snapshots>
-         <enabled>true</enabled>
-       </snapshots>
-    </repository>
-  </repositories>
-
   <build>
-    <plugins>
+     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.9</version>
+        <configuration>
+          <argLine>-Xmx1G</argLine>
+          <forkMode>pertest</forkMode>
+        </configuration>
+      </plugin>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
 	<version>2.3.2</version>
@@ -113,14 +111,14 @@
     <dependency>
     	<groupId>org.apache.hbase</groupId>
     	<artifactId>hbase</artifactId>
-    	<version>0.92.0-SNAPSHOT</version>
+    	<version>0.92.0</version>
     	<type>jar</type>
     	<scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
       <artifactId>zookeeper</artifactId>
-      <version>3.4.0</version>
+      <version>3.4.3</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -146,6 +144,13 @@
     	<groupId>org.hamcrest</groupId>
     	<artifactId>hamcrest-library</artifactId>
     	<version>1.2.1</version>
+    	<type>jar</type>
+    	<scope>compile</scope>
+    </dependency>
+    <dependency>
+    	<groupId>com.beust</groupId>
+    	<artifactId>jcommander</artifactId>
+    	<version>1.23</version>
     	<type>jar</type>
     	<scope>compile</scope>
     </dependency>

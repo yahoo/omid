@@ -219,29 +219,20 @@ public class TransactionalTable extends HTable {
     */
    public void put(TransactionState transactionState, Put put) throws IOException, IllegalArgumentException {
       final long startTimestamp = transactionState.getStartTimestamp();
-//      byte[] startTSBytes = Bytes.toBytes(startTimestamp);
       // create put with correct ts
       final Put tsput = new Put(put.getRow(), startTimestamp);
       Map<byte[], List<KeyValue>> kvs = put.getFamilyMap();
       for (List<KeyValue> kvl : kvs.values()) {
          for (KeyValue kv : kvl) {
-//            int tsOffset = kv.getTimestampOffset();
-//            System.arraycopy(startTSBytes, 0, kv.getBuffer(), tsOffset, Bytes.SIZEOF_LONG);
             tsput.add(new KeyValue(kv.getRow(), kv.getFamily(), kv.getQualifier(), startTimestamp, kv.getValue()));
          }
       }
 
       // should add the table as well
       transactionState.addWrittenRow(new RowKeyFamily(put.getRow(), getTableName(), put.getFamilyMap()));
+      transactionState.addRow(new RowKeyFamily(tsput.getRow(), getTableName(), tsput.getFamilyMap()));
 
       put(tsput);
-//      super.getConnection().getRegionServerWithRetries(
-//            new ServerCallable<Boolean>(super.getConnection(), super.getTableName(), put.getRow()) {
-//               public Boolean call() throws IOException {
-//                  server.put(location.getRegionInfo().getRegionName(), tsput);
-//                  return true;
-//               }
-//            });
    }
    /**
     * Transactional version of {@link HTable#getScanner(Scan)}

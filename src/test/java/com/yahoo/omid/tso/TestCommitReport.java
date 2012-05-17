@@ -18,11 +18,9 @@ package com.yahoo.omid.tso;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.objectweb.asm.Opcodes.NEW;
 
 import org.junit.Test;
 
-import com.yahoo.omid.tso.RowKey;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;

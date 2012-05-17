@@ -20,7 +20,6 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 

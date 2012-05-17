@@ -19,15 +19,16 @@ package com.yahoo.omid.tso;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.TreeSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
-import org.apache.bookkeeper.client.BookKeeper;
-import org.apache.bookkeeper.client.LedgerHandle;
+import com.yahoo.omid.tso.persistence.LoggerException.Code;
+import com.yahoo.omid.tso.persistence.BookKeeperStateBuilder;
+import com.yahoo.omid.tso.persistence.StateLogger;
+import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 
 /**
  * The wrapper for different states of TSO
@@ -35,6 +36,9 @@ import org.apache.bookkeeper.client.LedgerHandle;
  * @author maysam
  */
 public class TSOState {
+    private static final Log LOG = LogFactory.getLog(TSOState.class);
+    
+    
    /**
     * The maximum entries kept in TSO
     */
@@ -70,12 +74,34 @@ public class TSOState {
    /**
     * Hash map load factor
     */
-//   static final public float LOAD_FACTOR = 0.2f;
    static final public float LOAD_FACTOR = 0.5f;
-
+   
    /**
-    * Largest Deleted Timestamp from the hashmap.committed list
-    * this timestmap must be reported to the client
+    * Object that implements the logic to log records
+    * for recoverability
+    */
+   
+   StateLogger logger;
+
+   public StateLogger getLogger(){
+       return logger;
+   }
+   
+   public void setLogger(StateLogger logger){
+       this.logger = logger;
+   }
+   
+   /**
+    * Only timestamp oracle instance in the system.
+    */
+   private TimestampOracle timestampOracle;
+   
+   protected TimestampOracle getSO(){
+       return timestampOracle;
+   }
+   
+   /**
+    * Largest Deleted Timestamp
     */
    public long largestDeletedTimestamp = 0;
 
@@ -87,7 +113,7 @@ public class TSOState {
    public TSOSharedMessageBuffer sharedMessageBuffer = new TSOSharedMessageBuffer(this);
 
    /**
-    * The hash map to to keep track of recetly committed rows
+    * The hash map to to keep track of recently committed rows
     * each bucket is about 20 byte, so the initial capacity is 20MB
     */
    public CommitHashMap hashmap = new CommitHashMap(MAX_ITEMS, LOAD_FACTOR);
@@ -98,11 +124,67 @@ public class TSOState {
    public Elders elders;
 
    /**
-    * Reference to BookKeeper
+    * Process commit request.
+    * 
+    * @param startTimestamp
     */
-   public BookKeeper bookkeeper;
-   LedgerHandle lh;
+   protected long processCommit(long startTimestamp, long commitTimestamp, long newmax){
+       newmax = hashmap.setCommitted(startTimestamp, commitTimestamp, newmax);
+       return newmax;
+   }
+   
+   /**
+    * Process largest deleted timestamp.
+    * 
+    * @param largestDeletedTimestamp
+    */
+   protected synchronized void processLargestDeletedTimestamp(long largestDeletedTimestamp){
+       this.largestDeletedTimestamp = Math.max(largestDeletedTimestamp, this.largestDeletedTimestamp);
+   }
+   
+   /**
+    * Process abort request.
+    * 
+    * @param startTimestamp
+    */
+   protected void processAbort(long startTimestamp){
+       hashmap.setHalfAborted(startTimestamp);
+       uncommited.abort(startTimestamp);
+   }
+   
+   /**
+    * Process full abort report.
+    * 
+    * @param startTimestamp
+    */
+   protected void processFullAbort(long startTimestamp){
+       hashmap.setFullAborted(startTimestamp);
+   }
 
+   /**
+    * If logger is disabled, then this call is a noop.
+    * 
+    * @param record
+    * @param cb
+    * @param ctx
+    */
+   public void addRecord(byte[] record, final AddRecordCallback cb, Object ctx) {
+       if(logger != null){
+           logger.addRecord(record, cb, ctx);
+       } else{
+           cb.addRecordComplete(Code.OK, ctx);
+       }
+   }
+   
+   /**
+    * Closes this state object.
+    */
+   void stop(){
+       if(logger != null){
+           logger.shutdown();
+       }
+   }
+   
    /*
     * WAL related pointers
     */
@@ -111,10 +193,19 @@ public class TSOState {
    public DataOutputStream toWAL = new DataOutputStream(baos);
    public List<TSOHandler.ChannelandMessage> nextBatch = new ArrayList<TSOHandler.ChannelandMessage>();
    
-   public TSOState(long largestDeletedTimestamp) {
-      this.largestDeletedTimestamp = largestDeletedTimestamp;
-      this.uncommited = new Uncommited(largestDeletedTimestamp);
-      this.elders = new Elders();
+   public TSOState(StateLogger logger, TimestampOracle timestampOracle) {
+       this.timestampOracle = timestampOracle;
+       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = this.timestampOracle.get();
+       this.uncommited = new Uncommited(largestDeletedTimestamp);
+       this.logger = logger;
    }
+   
+   public TSOState(TimestampOracle timestampOracle) {
+       this.timestampOracle = timestampOracle;
+       this.largestDeletedTimestamp = timestampOracle.get();
+       this.uncommited = new Uncommited(largestDeletedTimestamp);
+       this.elders = new Elders();
+       this.logger = null;
+    }
 }
 
