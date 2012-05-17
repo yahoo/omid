@@ -253,7 +253,6 @@ public class TSOHandler extends SimpleChannelHandler {
     */
    public void handle(CommitRequest msg, ChannelHandlerContext ctx) {
       CommitResponse reply = new CommitResponse(msg.startTimestamp);
-      ByteArrayOutputStream baos = sharedState.baos;
       DataOutputStream toWAL  = sharedState.toWAL;
       reply.committed = true;
       //HashSet<Integer> lockedSet = new HashSet();
@@ -424,7 +423,7 @@ public class TSOHandler extends SimpleChannelHandler {
                  LOG.debug("Going to add record of size " + sharedState.baos.size());
              }
             //sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
-             sharedState.addRecord(baos.toByteArray(), new AddRecordCallback() {
+             sharedState.addRecord(sharedState.baos.toByteArray(), new AddRecordCallback() {
                 @Override
                 public void addRecordComplete(int rc, Object ctx) {
                    if (rc != Code.OK) {
@@ -552,7 +551,7 @@ public class TSOHandler extends SimpleChannelHandler {
          if(LOG.isDebugEnabled()){
              LOG.debug("Adding record, size " + sharedState.baos.size());
          }
-         sharedState.addRecord(baos.toByteArray(), new AddRecordCallback() {
+         sharedState.addRecord(sharedState.baos.toByteArray(), new AddRecordCallback() {
             @Override
             public void addRecordComplete(int rc, Object ctx) {
                if (rc != Code.OK) {

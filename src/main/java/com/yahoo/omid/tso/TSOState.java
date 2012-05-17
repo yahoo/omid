@@ -128,6 +128,9 @@ public class TSOState {
     * 
     * @param startTimestamp
     */
+   protected long processCommit(long startTimestamp, long commitTimestamp){
+      return processCommit(startTimestamp, commitTimestamp, largestDeletedTimestamp);
+   }
    protected long processCommit(long startTimestamp, long commitTimestamp, long newmax){
        newmax = hashmap.setCommitted(startTimestamp, commitTimestamp, newmax);
        return newmax;
@@ -195,8 +198,9 @@ public class TSOState {
    
    public TSOState(StateLogger logger, TimestampOracle timestampOracle) {
        this.timestampOracle = timestampOracle;
-       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = this.timestampOracle.get();
+       this.largestDeletedTimestamp = this.timestampOracle.get();
        this.uncommited = new Uncommited(largestDeletedTimestamp);
+       this.elders = new Elders();
        this.logger = logger;
    }
    

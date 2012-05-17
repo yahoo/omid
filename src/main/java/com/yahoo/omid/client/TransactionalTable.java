@@ -229,8 +229,7 @@ public class TransactionalTable extends HTable {
       }
 
       // should add the table as well
-      transactionState.addWrittenRow(new RowKeyFamily(put.getRow(), getTableName(), put.getFamilyMap()));
-      transactionState.addRow(new RowKeyFamily(tsput.getRow(), getTableName(), tsput.getFamilyMap()));
+      transactionState.addWrittenRow(new RowKeyFamily(tsput.getRow(), getTableName(), tsput.getFamilyMap()));
 
       put(tsput);
    }
