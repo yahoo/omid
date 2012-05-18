@@ -134,14 +134,6 @@ public class TransactionalTable extends HTable {
 //      } while (!result.isEmpty() && filteredResult == null);
       getsPerformed++;
       Result firstResult = super.get(tsget);
-      //this if is for debugging
-      if (firstResult == null || firstResult.list() == null || firstResult.list().size() == 0) {
-         System.out.println("FFFFFFF row: " + Bytes.toString(get.getRow()) + " eldest= " + eldest + " start: " + startTime + " end: " + endTime);
-         for(byte[] col : (NavigableSet<byte[]>)new ArrayList(get.getFamilyMap().values()).get(0)) 
-            System.out.println(" c-col: " + Bytes.toString(col));
-         for(byte[] col : (NavigableSet<byte[]>)new ArrayList(tsget.getFamilyMap().values()).get(0)) 
-            System.out.println(" col(tsget): " + Bytes.toString(col) + " start " + eldest + " " + endTime + " " + " vs " + nVersions);
-      }
       Result result = filter(transactionState, firstResult, readTimestamp, nVersions);
       Statistics.partialReportOver(Statistics.Tag.VSN_PER_CLIENT_GET);
       Statistics.partialReportOver(Statistics.Tag.GET_PER_CLIENT_GET);
@@ -300,6 +292,8 @@ public class TransactionalTable extends HTable {
    private Result filter(TransactionState state, Result unfilteredResult, long startTimestamp, int nMinVersionsAsked) throws IOException {
       ArrayList<KeyValue> filteredList = new ArrayList<KeyValue>();
       filter(state, unfilteredResult, startTimestamp, nMinVersionsAsked, filteredList);
+      if (filteredList.isEmpty())//Some functions (like the scanner) expect null if the results is empty!
+         return null;
       return new Result(filteredList);
    }
 
