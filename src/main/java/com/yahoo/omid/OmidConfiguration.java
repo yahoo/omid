@@ -24,10 +24,10 @@ import org.apache.hadoop.conf.Configuration;
  *
  */
 public class OmidConfiguration extends Configuration {
-   public static Configuration create() {
-      Configuration conf = new Configuration();
-      conf.addDefaultResource("omid-site.xml");
-      return conf;
-   }
+    public static Configuration create() {
+        Configuration conf = new Configuration();
+        conf.addDefaultResource("omid-site.xml");
+        return conf;
+    }
 }
 

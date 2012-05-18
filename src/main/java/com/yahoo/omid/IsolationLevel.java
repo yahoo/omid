@@ -24,26 +24,26 @@ import org.apache.hadoop.conf.Configuration;
  *
  */
 public class IsolationLevel {
-   static public boolean checkForReadWriteConflicts;
-   static public boolean checkForWriteWriteConflicts;
+    static public boolean checkForReadWriteConflicts;
+    static public boolean checkForWriteWriteConflicts;
 
-   static {
-      Configuration conf = OmidConfiguration.create();
-      if (conf.get("tso.rwcheck") == null || conf.get("tso.wwcheck") == null) {
-         System.out.println("ISOLATION ERROR: the isolation level parameters are not set: " + conf.get("tso.rwcheck") + " " + conf.get("tso.wwcheck"));
-         System.exit(1);
-      }
-      checkForReadWriteConflicts = conf.getBoolean("tso.rwcheck", false);
-      checkForWriteWriteConflicts = conf.getBoolean("tso.wwcheck", true);
-      if (IsolationLevel.checkForReadWriteConflicts)
-         System.out.println("ISOLATION: check for read-write conflicts");
-      if (IsolationLevel.checkForWriteWriteConflicts)
-         System.out.println("ISOLATION: check for write-write conflicts");
-      if (!IsolationLevel.checkForReadWriteConflicts && !IsolationLevel.checkForWriteWriteConflicts) {
-         System.out.println("ISOLATION ERROR: I do not know which version it is");
-         System.exit(1);
-      }
-   }
+    static {
+        Configuration conf = OmidConfiguration.create();
+        if (conf.get("tso.rwcheck") == null || conf.get("tso.wwcheck") == null) {
+            System.out.println("ISOLATION ERROR: the isolation level parameters are not set: " + conf.get("tso.rwcheck") + " " + conf.get("tso.wwcheck"));
+            System.exit(1);
+        }
+        checkForReadWriteConflicts = conf.getBoolean("tso.rwcheck", false);
+        checkForWriteWriteConflicts = conf.getBoolean("tso.wwcheck", true);
+        if (IsolationLevel.checkForReadWriteConflicts)
+            System.out.println("ISOLATION: check for read-write conflicts");
+        if (IsolationLevel.checkForWriteWriteConflicts)
+            System.out.println("ISOLATION: check for write-write conflicts");
+        if (!IsolationLevel.checkForReadWriteConflicts && !IsolationLevel.checkForWriteWriteConflicts) {
+            System.out.println("ISOLATION ERROR: I do not know which version it is");
+            System.exit(1);
+        }
+    }
 }
 
 

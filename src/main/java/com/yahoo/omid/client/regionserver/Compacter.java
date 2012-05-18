@@ -35,140 +35,140 @@ import com.yahoo.omid.client.ByteArray;
 import com.yahoo.omid.tso.messages.MinimumTimestamp;
 
 public class Compacter extends BaseRegionObserver {
-   
-   private static ExecutorService bossExecutor = Executors.newCachedThreadPool();
-   private static ExecutorService workerExecutor = Executors.newCachedThreadPool();
-   private volatile long minTimestamp;
-   private ClientBootstrap bootstrap;
-   private ChannelFactory factory;
-   private Channel channel;
 
-   @Override
-   public void start(CoprocessorEnvironment e) throws IOException {
-      System.out.println("Starting compacter");
-      Configuration conf = e.getConfiguration();
-      factory = new NioClientSocketChannelFactory(bossExecutor, workerExecutor, 3);
-      bootstrap = new ClientBootstrap(factory);
+    private static ExecutorService bossExecutor = Executors.newCachedThreadPool();
+    private static ExecutorService workerExecutor = Executors.newCachedThreadPool();
+    private volatile long minTimestamp;
+    private ClientBootstrap bootstrap;
+    private ChannelFactory factory;
+    private Channel channel;
 
-      bootstrap.getPipeline().addLast("decoder", new ObjectDecoder());
-      bootstrap.getPipeline().addLast("handler", new Handler());
-      bootstrap.setOption("tcpNoDelay", false);
-      bootstrap.setOption("keepAlive", true);
-      bootstrap.setOption("reuseAddress", true);
-      bootstrap.setOption("connectTimeoutMillis", 100);
-      
-      String host = conf.get("tso.host");
-      int port = conf.getInt("tso.port", 1234) + 1;
+    @Override
+        public void start(CoprocessorEnvironment e) throws IOException {
+            System.out.println("Starting compacter");
+            Configuration conf = e.getConfiguration();
+            factory = new NioClientSocketChannelFactory(bossExecutor, workerExecutor, 3);
+            bootstrap = new ClientBootstrap(factory);
 
-      if (host == null) {
-         throw new IOException("tso.host missing from configuration");
-      }
+            bootstrap.getPipeline().addLast("decoder", new ObjectDecoder());
+            bootstrap.getPipeline().addLast("handler", new Handler());
+            bootstrap.setOption("tcpNoDelay", false);
+            bootstrap.setOption("keepAlive", true);
+            bootstrap.setOption("reuseAddress", true);
+            bootstrap.setOption("connectTimeoutMillis", 100);
 
-      bootstrap.connect(new InetSocketAddress(host, port)).addListener(new ChannelFutureListener() {
-         
-         @Override
-         public void operationComplete(ChannelFuture future) throws Exception {
-            if (future.isSuccess()) {
-               System.out.println("Compacter connected!");
-               channel = future.getChannel();
+            String host = conf.get("tso.host");
+            int port = conf.getInt("tso.port", 1234) + 1;
+
+            if (host == null) {
+                throw new IOException("tso.host missing from configuration");
+            }
+
+            bootstrap.connect(new InetSocketAddress(host, port)).addListener(new ChannelFutureListener() {
+
+                @Override
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    if (future.isSuccess()) {
+                        System.out.println("Compacter connected!");
+                        channel = future.getChannel();
+                    } else {
+                        System.out.println("Connection failed");
+                    }
+                }
+            });
+        }
+
+    @Override
+        public void stop(CoprocessorEnvironment e) throws IOException {
+            System.out.println("Stoping compacter");
+            if (channel != null) {
+                System.out.println("Calling close");
+                channel.close();
+            }
+            System.out.println("Compacter stopped");
+        }
+
+    @Override
+        public InternalScanner preCompact(ObserverContext<RegionCoprocessorEnvironment> e, Store store,
+                InternalScanner scanner) {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+            Calendar cal = Calendar.getInstance();
+            System.out.println("preCompact: " + dateFormat.format(cal.getTime()));
+            if (e.getEnvironment().getRegion().getRegionInfo().isMetaTable()) {
+                return scanner;
             } else {
-               System.out.println("Connection failed");
+                return new CompacterScanner(scanner, minTimestamp);
             }
-         }
-      });
-   }
+        }
 
-   @Override
-   public void stop(CoprocessorEnvironment e) throws IOException {
-      System.out.println("Stoping compacter");
-      if (channel != null) {
-         System.out.println("Calling close");
-         channel.close();
-      }
-      System.out.println("Compacter stopped");
-   }
+    private static class CompacterScanner implements InternalScanner {
+        private InternalScanner internalScanner;
+        private long minTimestamp;
+        private Set<ByteArray> columnsSeen = new HashSet<ByteArray>();
+        private ByteArray lastRowId = null; 
 
-   @Override
-   public InternalScanner preCompact(ObserverContext<RegionCoprocessorEnvironment> e, Store store,
-         InternalScanner scanner) {
-      DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-      Calendar cal = Calendar.getInstance();
-      System.out.println("preCompact: " + dateFormat.format(cal.getTime()));
-      if (e.getEnvironment().getRegion().getRegionInfo().isMetaTable()) {
-         return scanner;
-      } else {
-         return new CompacterScanner(scanner, minTimestamp);
-      }
-   }
-   
-   private static class CompacterScanner implements InternalScanner {
-      private InternalScanner internalScanner;
-      private long minTimestamp;
-      private Set<ByteArray> columnsSeen = new HashSet<ByteArray>();
-      private ByteArray lastRowId = null; 
-      
-      public CompacterScanner(InternalScanner internalScanner, long minTimestamp) {
-         this.minTimestamp = minTimestamp;
-         this.internalScanner = internalScanner;
-         //System.out.println("Created scanner with " + minTimestamp);
-      }
+        public CompacterScanner(InternalScanner internalScanner, long minTimestamp) {
+            this.minTimestamp = minTimestamp;
+            this.internalScanner = internalScanner;
+            //System.out.println("Created scanner with " + minTimestamp);
+        }
 
-      @Override
-      public boolean next(List<KeyValue> results) throws IOException {
-         return next(results, -1);
-      }
-
-      @Override
-      public boolean next(List<KeyValue> result, int limit) throws IOException {
-         boolean moreRows = false;
-         List<KeyValue> raw = new ArrayList<KeyValue>(limit);
-         while (limit == -1 || result.size() < limit) {
-            int toReceive = limit == -1 ? -1 : limit - result.size();
-            moreRows = internalScanner.next(raw, toReceive);
-            if (raw.size() > 0) {
-               ByteArray currentRowId = new ByteArray(raw.get(0).getRow());
-               if (!currentRowId.equals(lastRowId)) {
-                  columnsSeen.clear();
-                  lastRowId = currentRowId;
-               }
+        @Override
+            public boolean next(List<KeyValue> results) throws IOException {
+                return next(results, -1);
             }
-            for (KeyValue kv : raw) {
-               ByteArray column = new ByteArray(kv.getFamily(), kv.getQualifier());
-               if (!columnsSeen.contains(column)) {
-                  result.add(kv);
-                  if (kv.getTimestamp() < minTimestamp) 
-                     columnsSeen.add(column);
-               }
-            }
-            if (raw.size() < toReceive || toReceive == -1) {
-               columnsSeen.clear();
-               break;
-            }
-            raw.clear();
-         }
-         if (!moreRows) {
-            columnsSeen.clear();
-         }
-         return moreRows;
-      }
 
-      @Override
-      public void close() throws IOException {
-         internalScanner.close();
-      }
-      
-   }
-   
-   private class Handler extends SimpleChannelUpstreamHandler {
-      @Override
-      public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
-         Object message = e.getMessage();
-//         System.out.println("Received " + message);
-         if (message instanceof MinimumTimestamp) {
-            Compacter.this.minTimestamp = ((MinimumTimestamp) message).getTimestamp();
-         } else {
-            //System.out.println("Wtf " + message);
-         }
-      }
-   }
+        @Override
+            public boolean next(List<KeyValue> result, int limit) throws IOException {
+                boolean moreRows = false;
+                List<KeyValue> raw = new ArrayList<KeyValue>(limit);
+                while (limit == -1 || result.size() < limit) {
+                    int toReceive = limit == -1 ? -1 : limit - result.size();
+                    moreRows = internalScanner.next(raw, toReceive);
+                    if (raw.size() > 0) {
+                        ByteArray currentRowId = new ByteArray(raw.get(0).getRow());
+                        if (!currentRowId.equals(lastRowId)) {
+                            columnsSeen.clear();
+                            lastRowId = currentRowId;
+                        }
+                    }
+                    for (KeyValue kv : raw) {
+                        ByteArray column = new ByteArray(kv.getFamily(), kv.getQualifier());
+                        if (!columnsSeen.contains(column)) {
+                            result.add(kv);
+                            if (kv.getTimestamp() < minTimestamp) 
+                                columnsSeen.add(column);
+                        }
+                    }
+                    if (raw.size() < toReceive || toReceive == -1) {
+                        columnsSeen.clear();
+                        break;
+                    }
+                    raw.clear();
+                }
+                if (!moreRows) {
+                    columnsSeen.clear();
+                }
+                return moreRows;
+            }
+
+        @Override
+            public void close() throws IOException {
+                internalScanner.close();
+            }
+
+    }
+
+    private class Handler extends SimpleChannelUpstreamHandler {
+        @Override
+            public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+                Object message = e.getMessage();
+                //         System.out.println("Received " + message);
+                if (message instanceof MinimumTimestamp) {
+                    Compacter.this.minTimestamp = ((MinimumTimestamp) message).getTimestamp();
+                } else {
+                    //System.out.println("Wtf " + message);
+                }
+            }
+    }
 }

@@ -43,45 +43,45 @@ import com.yahoo.omid.tso.messages.TimestampResponse;
 
 public class TSOEncoder extends OneToOneEncoder{
 
-   //just override decode method
-   protected Object encode(ChannelHandlerContext ctx, Channel channel, Object msg)
-      throws Exception {
-      ByteArrayOutputStream buffer = BufferPool.getBuffer();
-      buffer.reset();
-      DataOutputStream objWrapper = new DataOutputStream(buffer);
-      if (msg instanceof ChannelBuffer) {
-         return msg;
-      } else if (msg instanceof TimestampRequest) {
-         objWrapper.writeByte(TSOMessage.TimestampRequest);
-      } else if (msg instanceof TimestampResponse) {
-         objWrapper.writeByte(TSOMessage.TimestampResponse);
-      } else if (msg instanceof CommitRequest) {
-         objWrapper.writeByte(TSOMessage.CommitRequest);
-      } else if (msg instanceof CommitResponse) {
-         objWrapper.writeByte(TSOMessage.CommitResponse);
-      } else if (msg instanceof AbortRequest) {
-         objWrapper.writeByte(TSOMessage.AbortRequest);
-      } else if (msg instanceof FullAbortReport) {
-         objWrapper.writeByte(TSOMessage.FullAbortReport);
-      } else if (msg instanceof EldestUpdate) {
-         objWrapper.writeByte(TSOMessage.EldestUpdate);
-      } else if (msg instanceof ReincarnationReport) {
-         objWrapper.writeByte(TSOMessage.ReincarnationReport);
-      } else if (msg instanceof CommitQueryRequest) {
-         objWrapper.writeByte(TSOMessage.CommitQueryRequest);
-      } else if (msg instanceof CommitQueryResponse) {
-         objWrapper.writeByte(TSOMessage.CommitQueryResponse);
-      } else if (msg instanceof AbortedTransactionReport) {
-         objWrapper.writeByte(TSOMessage.AbortedTransactionReport);
-      } else if (msg instanceof CommittedTransactionReport) {
-         objWrapper.writeByte(TSOMessage.CommittedTransactionReport);
-      } else if (msg instanceof LargestDeletedTimestampReport) {
-         objWrapper.writeByte(TSOMessage.LargestDeletedTimestampReport);
-      } else throw new Exception("Wrong obj");
-      ((TSOMessage)msg).writeObject(objWrapper);
-      ChannelBuffer result = ChannelBuffers.wrappedBuffer(buffer.toByteArray());
-      BufferPool.pushBuffer(buffer);
-      return result;
-   }
+    //just override decode method
+    protected Object encode(ChannelHandlerContext ctx, Channel channel, Object msg)
+        throws Exception {
+        ByteArrayOutputStream buffer = BufferPool.getBuffer();
+        buffer.reset();
+        DataOutputStream objWrapper = new DataOutputStream(buffer);
+        if (msg instanceof ChannelBuffer) {
+            return msg;
+        } else if (msg instanceof TimestampRequest) {
+            objWrapper.writeByte(TSOMessage.TimestampRequest);
+        } else if (msg instanceof TimestampResponse) {
+            objWrapper.writeByte(TSOMessage.TimestampResponse);
+        } else if (msg instanceof CommitRequest) {
+            objWrapper.writeByte(TSOMessage.CommitRequest);
+        } else if (msg instanceof CommitResponse) {
+            objWrapper.writeByte(TSOMessage.CommitResponse);
+        } else if (msg instanceof AbortRequest) {
+            objWrapper.writeByte(TSOMessage.AbortRequest);
+        } else if (msg instanceof FullAbortReport) {
+            objWrapper.writeByte(TSOMessage.FullAbortReport);
+        } else if (msg instanceof EldestUpdate) {
+            objWrapper.writeByte(TSOMessage.EldestUpdate);
+        } else if (msg instanceof ReincarnationReport) {
+            objWrapper.writeByte(TSOMessage.ReincarnationReport);
+        } else if (msg instanceof CommitQueryRequest) {
+            objWrapper.writeByte(TSOMessage.CommitQueryRequest);
+        } else if (msg instanceof CommitQueryResponse) {
+            objWrapper.writeByte(TSOMessage.CommitQueryResponse);
+        } else if (msg instanceof AbortedTransactionReport) {
+            objWrapper.writeByte(TSOMessage.AbortedTransactionReport);
+        } else if (msg instanceof CommittedTransactionReport) {
+            objWrapper.writeByte(TSOMessage.CommittedTransactionReport);
+        } else if (msg instanceof LargestDeletedTimestampReport) {
+            objWrapper.writeByte(TSOMessage.LargestDeletedTimestampReport);
+        } else throw new Exception("Wrong obj");
+        ((TSOMessage)msg).writeObject(objWrapper);
+        ChannelBuffer result = ChannelBuffers.wrappedBuffer(buffer.toByteArray());
+        BufferPool.pushBuffer(buffer);
+        return result;
+    }
 }
 

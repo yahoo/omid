@@ -19,44 +19,44 @@ package com.yahoo.omid.client;
 //A wrapper for both column family and the qualifier
 //Make it easier to be used in maps and hash maps
 public class ColumnFamilyAndQuantifier {
-   protected byte[] family;
-   protected byte[] qualifier;
-   protected Integer hash = null;
-   ColumnFamilyAndQuantifier(byte[] f, byte[] q) {
-      family = f;
-      qualifier = q;
-   }
-   @Override
-      public boolean equals(Object o) {
-         if (o instanceof ColumnFamilyAndQuantifier) {
-            ColumnFamilyAndQuantifier other = (ColumnFamilyAndQuantifier) o;
-            if (family.length != other.family.length || qualifier.length != other.qualifier.length)
-               return false;
-            for (int i = 0; i < family.length; i++)
-               if (family[i] != other.family[i])
-                  return false;
-            for (int i = 0; i < qualifier.length; i++)
-               if (qualifier[i] != other.qualifier[i])
-                  return false;
-            return true;
-         }
-         return false;
-      }
-   @Override
-      public int hashCode() {
-         if (hash != null)
-            return hash;
-         int h = 0;
-         h = computeHash(h, family);
-         h = computeHash(h, qualifier);
-         hash = h;
-         return h;
-      }
-   private int computeHash(int hash, byte[] larray) {
-      hash += larray.length;
-      for (int i = 0; i < larray.length; i++) {
-         hash += larray[i];
-      }
-      return hash;
-   }
+    protected byte[] family;
+    protected byte[] qualifier;
+    protected Integer hash = null;
+    ColumnFamilyAndQuantifier(byte[] f, byte[] q) {
+        family = f;
+        qualifier = q;
+    }
+    @Override
+        public boolean equals(Object o) {
+            if (o instanceof ColumnFamilyAndQuantifier) {
+                ColumnFamilyAndQuantifier other = (ColumnFamilyAndQuantifier) o;
+                if (family.length != other.family.length || qualifier.length != other.qualifier.length)
+                    return false;
+                for (int i = 0; i < family.length; i++)
+                    if (family[i] != other.family[i])
+                        return false;
+                for (int i = 0; i < qualifier.length; i++)
+                    if (qualifier[i] != other.qualifier[i])
+                        return false;
+                return true;
+            }
+            return false;
+        }
+    @Override
+        public int hashCode() {
+            if (hash != null)
+                return hash;
+            int h = 0;
+            h = computeHash(h, family);
+            h = computeHash(h, qualifier);
+            hash = h;
+            return h;
+        }
+    private int computeHash(int hash, byte[] larray) {
+        hash += larray.length;
+        for (int i = 0; i < larray.length; i++) {
+            hash += larray[i];
+        }
+        return hash;
+    }
 }

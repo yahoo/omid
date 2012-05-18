@@ -30,53 +30,53 @@ import com.yahoo.omid.tso.TSOMessage;
  */
 public class FailedElderReport implements TSOMessage {
 
-   /**
-    * the start timestamp of the reincarnated transaction
-    */
-   public long startTimestamp;
-   public long commitTimestamp;
+    /**
+     * the start timestamp of the reincarnated transaction
+     */
+    public long startTimestamp;
+    public long commitTimestamp;
 
-   /**
-    * Constructor from timestamp
-    */
-   public FailedElderReport() {
-   }
+    /**
+     * Constructor from timestamp
+     */
+    public FailedElderReport() {
+    }
 
-   /**
-    * Constructor from timestamp
-    * @param t
-    */
-   public FailedElderReport(long ts, long tc) {
-      startTimestamp = ts;
-      commitTimestamp = tc;
-   }
+    /**
+     * Constructor from timestamp
+     * @param t
+     */
+    public FailedElderReport(long ts, long tc) {
+        startTimestamp = ts;
+        commitTimestamp = tc;
+    }
 
-   @Override
-      public String toString() {
-         return "FailedElderReport: T_s:" + startTimestamp + " Tc:" + commitTimestamp;
-      }
+    @Override
+        public String toString() {
+            return "FailedElderReport: T_s:" + startTimestamp + " Tc:" + commitTimestamp;
+        }
 
-   @Override
-      public void readObject(ChannelBuffer aInputStream) 
-      throws IOException {
-      startTimestamp = aInputStream.readLong();
-      commitTimestamp = aInputStream.readLong();
-      }
+    @Override
+        public void readObject(ChannelBuffer aInputStream) 
+        throws IOException {
+        startTimestamp = aInputStream.readLong();
+        commitTimestamp = aInputStream.readLong();
+        }
 
-   @Override
-      public void writeObject(DataOutputStream aOutputStream) 
-      throws IOException {
-      aOutputStream.writeLong(startTimestamp);
-      aOutputStream.writeLong(commitTimestamp);
-      }
+    @Override
+        public void writeObject(DataOutputStream aOutputStream) 
+        throws IOException {
+        aOutputStream.writeLong(startTimestamp);
+        aOutputStream.writeLong(commitTimestamp);
+        }
 
 
-   @Override
-      public void writeObject(ChannelBuffer buffer)
-      {
-         buffer.writeLong(startTimestamp);
-         buffer.writeLong(commitTimestamp);
-      }
+    @Override
+        public void writeObject(ChannelBuffer buffer)
+        {
+            buffer.writeLong(startTimestamp);
+            buffer.writeLong(commitTimestamp);
+        }
 }
 
 

@@ -27,140 +27,140 @@ package com.yahoo.omid.tso;
 
 class CommitHashMap {
 
-   native void init(int initialCapacity, int maxCommits, float loadFactor);
+    native void init(int initialCapacity, int maxCommits, float loadFactor);
 
-   native static long gettotalput();
+    native static long gettotalput();
 
-   native static long gettotalget();
+    native static long gettotalget();
 
-   native static long gettotalwalkforput();
+    native static long gettotalwalkforput();
 
-   native static long gettotalwalkforget();
+    native static long gettotalwalkforget();
 
-   // Load the library
-   static {
-      System.loadLibrary("tso-commithashmap");
-   }
+    // Load the library
+    static {
+        System.loadLibrary("tso-commithashmap");
+    }
 
-   /**
-    * Constructs a new, empty hashtable with a default capacity and load factor,
-    * which is <code>1000</code> and <code>0.75</code> respectively.
-    */
-   public CommitHashMap() {
-      this(1000, 0.75f);
-   }
+    /**
+     * Constructs a new, empty hashtable with a default capacity and load factor,
+     * which is <code>1000</code> and <code>0.75</code> respectively.
+     */
+    public CommitHashMap() {
+        this(1000, 0.75f);
+    }
 
-   /**
-    * Constructs a new, empty hashtable with the specified initial capacity and
-    * default load factor, which is <code>0.75</code>.
-    * 
-    * @param initialCapacity
-    *           the initial capacity of the hashtable.
-    * @throws IllegalArgumentException
-    *            if the initial capacity is less than zero.
-    */
-   public CommitHashMap(int initialCapacity) {
-      this(initialCapacity, 0.75f);
-   }
+    /**
+     * Constructs a new, empty hashtable with the specified initial capacity and
+     * default load factor, which is <code>0.75</code>.
+     * 
+     * @param initialCapacity
+     *           the initial capacity of the hashtable.
+     * @throws IllegalArgumentException
+     *            if the initial capacity is less than zero.
+     */
+    public CommitHashMap(int initialCapacity) {
+        this(initialCapacity, 0.75f);
+    }
 
-   /**
-    * Constructs a new, empty hashtable with the specified initial capacity and
-    * the specified load factor.
-    * 
-    * @param initialCapacity
-    *           the initial capacity of the hashtable.
-    * @param loadFactor
-    *           the load factor of the hashtable.
-    * @throws IllegalArgumentException
-    *            if the initial capacity is less than zero, or if the load
-    *            factor is nonpositive.
-    */
-   public CommitHashMap(int initialCapacity, float loadFactor) {
-      if (initialCapacity < 0) {
-         throw new IllegalArgumentException("Illegal Capacity: " + initialCapacity);
-      }
-      if (loadFactor <= 0) {
-         throw new IllegalArgumentException("Illegal Load: " + loadFactor);
-      }
-      if (initialCapacity == 0) {
-         initialCapacity = 1;
-      }
-      
-      //assuming the worst case that each transaction modifies a value, this is the right size because it is proportional to the hashmap size
-      int txnCommitArraySize = (int) (initialCapacity * loadFactor);
-      this.init(initialCapacity, txnCommitArraySize, loadFactor);
-   }
+    /**
+     * Constructs a new, empty hashtable with the specified initial capacity and
+     * the specified load factor.
+     * 
+     * @param initialCapacity
+     *           the initial capacity of the hashtable.
+     * @param loadFactor
+     *           the load factor of the hashtable.
+     * @throws IllegalArgumentException
+     *            if the initial capacity is less than zero, or if the load
+     *            factor is nonpositive.
+     */
+    public CommitHashMap(int initialCapacity, float loadFactor) {
+        if (initialCapacity < 0) {
+            throw new IllegalArgumentException("Illegal Capacity: " + initialCapacity);
+        }
+        if (loadFactor <= 0) {
+            throw new IllegalArgumentException("Illegal Load: " + loadFactor);
+        }
+        if (initialCapacity == 0) {
+            initialCapacity = 1;
+        }
 
-   /**
-    * Returns the value to which the specified key is mapped in this map. If
-    * there are multiple values with the same key, return the first The first is
-    * the one with the largest key, because (i) put always put the recent ones
-    * ahead, (ii) a new put on the same key has always larger value (because
-    * value is commit timestamp and the map is atmoic)
-    * 
-    * @param key
-    *           a key in the hashtable.
-    * @return the value to which the key is mapped in this hashtable;
-    *         <code>null</code> if the key is not mapped to any value in this
-    *         hashtable.
-    * @see #put(int, Object)
-    */
-   native long get(byte[] rowId, byte[] tableId, int hash);
-   /**
-    * like get but wrap it by lock and unlock
-    */
-   native long atomicget(byte[] rowId, byte[] tableId, int hash, int index, long ts);
+        //assuming the worst case that each transaction modifies a value, this is the right size because it is proportional to the hashmap size
+        int txnCommitArraySize = (int) (initialCapacity * loadFactor);
+        this.init(initialCapacity, txnCommitArraySize, loadFactor);
+    }
 
-   /**
-    * Maps the specified <code>key</code> to the specified <code>value</code> in
-    * this hashtable. The key cannot be <code>null</code>.
-    * 
-    * The value can be retrieved by calling the <code>get</code> method with a
-    * key that is equal to the original key.
-    * 
-    * It guarantees that if multiple entries with the same keys exist then the
-    * first one is the most fresh one, i.e., with the largest value
-    * 
-    * @param key
-    *           the hashtable key.
-    * @param value
-    *           the value.
-    * @throws NullPointerException
-    *            if the key is <code>null</code>. return true if the vlaue is
-    *            replaced
-    */
-   native void put(byte[] rowId, byte[] tableId, long value, int hash);
+    /**
+     * Returns the value to which the specified key is mapped in this map. If
+     * there are multiple values with the same key, return the first The first is
+     * the one with the largest key, because (i) put always put the recent ones
+     * ahead, (ii) a new put on the same key has always larger value (because
+     * value is commit timestamp and the map is atmoic)
+     * 
+     * @param key
+     *           a key in the hashtable.
+     * @return the value to which the key is mapped in this hashtable;
+     *         <code>null</code> if the key is not mapped to any value in this
+     *         hashtable.
+     * @see #put(int, Object)
+     */
+    native long get(byte[] rowId, byte[] tableId, int hash);
+    /**
+     * like get but wrap it by lock and unlock
+     */
+    native long atomicget(byte[] rowId, byte[] tableId, int hash, int index, long ts);
 
-   /**
-    * Returns the commit timestamp 
-    *
-    * @param   startTimestamp   the transaction start timestamp
-    * @return  commit timestamp if such mapping exist, 0 otherwise
-    */
-   native long getCommittedTimestamp(long startTimestamp);
-   native long setCommitted(long startTimestamp, long commitTimestamp, long largestDeletedTimestamp);
+    /**
+     * Maps the specified <code>key</code> to the specified <code>value</code> in
+     * this hashtable. The key cannot be <code>null</code>.
+     * 
+     * The value can be retrieved by calling the <code>get</code> method with a
+     * key that is equal to the original key.
+     * 
+     * It guarantees that if multiple entries with the same keys exist then the
+     * first one is the most fresh one, i.e., with the largest value
+     * 
+     * @param key
+     *           the hashtable key.
+     * @param value
+     *           the value.
+     * @throws NullPointerException
+     *            if the key is <code>null</code>. return true if the vlaue is
+     *            replaced
+     */
+    native void put(byte[] rowId, byte[] tableId, long value, int hash);
 
-   native long lock(int hash);
-   native long unlock(int hash);
+    /**
+     * Returns the commit timestamp 
+     *
+     * @param   startTimestamp   the transaction start timestamp
+     * @return  commit timestamp if such mapping exist, 0 otherwise
+     */
+    native long getCommittedTimestamp(long startTimestamp);
+    native long setCommitted(long startTimestamp, long commitTimestamp, long largestDeletedTimestamp);
 
-   // set of half aborted transactions
-   // TODO: set the initial capacity in a smarter way
-   java.util.HashSet<Long> halfAborted = new java.util.HashSet<Long>(10000);
+    native long lock(int hash);
+    native long unlock(int hash);
 
-   // add a new half aborted transaction
-   void setHalfAborted(long startTimestamp) {
-      halfAborted.add(startTimestamp);
-   }
+    // set of half aborted transactions
+    // TODO: set the initial capacity in a smarter way
+    java.util.HashSet<Long> halfAborted = new java.util.HashSet<Long>(10000);
 
-   // call when a half aborted transaction is fully aborted
-   void setFullAborted(long startTimestamp) {
-      halfAborted.remove(startTimestamp);
-   }
+    // add a new half aborted transaction
+    void setHalfAborted(long startTimestamp) {
+        halfAborted.add(startTimestamp);
+    }
 
-   // query to see if a transaction is half aborted
-   boolean isHalfAborted(long startTimestamp) {
-      return halfAborted.contains(startTimestamp);
-   }
+    // call when a half aborted transaction is fully aborted
+    void setFullAborted(long startTimestamp) {
+        halfAborted.remove(startTimestamp);
+    }
+
+    // query to see if a transaction is half aborted
+    boolean isHalfAborted(long startTimestamp) {
+        return halfAborted.contains(startTimestamp);
+    }
 }
 
 /*
@@ -234,17 +234,17 @@ class CommitHashMap {
  * firstReference.key[b]; e.hash = firstReference.hash; e.tag =
  * firstReference.tag; e.value = firstReference.value; e.order =
  * firstReference.order; e = firstReference; } for (byte b = 0; b < 8; b++)
- * e.key[b] = key[b]; //e.key = key; e.hash = hash; e.tag = tag; e.value =
- * value; e.order = ++largestOrder; totalgced++; totalgcrun++; return true; }
- * //update the first reference to the key if (e.hash == hash && firstReference
- * == null) //if (java.util.Arrays.equals(e.key, key) && firstReference == null)
- * //if (e.key == key && firstReference == null) firstReference = e; //if
- * (!thereIsOld && isOld)//there are some old items here //thereIsOld = true; }
- * 
- * // Creates the new entry. Entry e = new Entry(key, hash, tag, value,
- * tab[index]); if (count % 100000 == 0)
- * System.out.println("NNNNNNNNNNNNNNNNNNNew Entry " + count); tab[index] = e;
- * count++; return false; }
- * 
- * public static int totalgcrun = 0; public static int totalgced = 0; }
- */
+* e.key[b] = key[b]; //e.key = key; e.hash = hash; e.tag = tag; e.value =
+* value; e.order = ++largestOrder; totalgced++; totalgcrun++; return true; }
+* //update the first reference to the key if (e.hash == hash && firstReference
+* == null) //if (java.util.Arrays.equals(e.key, key) && firstReference == null)
+    * //if (e.key == key && firstReference == null) firstReference = e; //if
+* (!thereIsOld && isOld)//there are some old items here //thereIsOld = true; }
+    * 
+    * // Creates the new entry. Entry e = new Entry(key, hash, tag, value,
+    * tab[index]); if (count % 100000 == 0)
+    * System.out.println("NNNNNNNNNNNNNNNNNNNew Entry " + count); tab[index] = e;
+    * count++; return false; }
+    * 
+    * public static int totalgcrun = 0; public static int totalgced = 0; }
+    */

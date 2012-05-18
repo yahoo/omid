@@ -33,74 +33,74 @@ import org.apache.hadoop.hbase.filter.*;
  */
 public class MinVersionsFilter extends FilterBase {
 
-   //read at least minVersions and go till reach startTime
-   long startTime = 0;
-   long endTime = Long.MAX_VALUE;
-   int minVersions;
+    //read at least minVersions and go till reach startTime
+    long startTime = 0;
+    long endTime = Long.MAX_VALUE;
+    int minVersions;
 
-   //keep track of included versions for each column qualifier of each column family
-   int includedVersionsForLastColumn;
-   ColumnFamilyAndQuantifier lastColumn;
+    //keep track of included versions for each column qualifier of each column family
+    int includedVersionsForLastColumn;
+    ColumnFamilyAndQuantifier lastColumn;
 
-   /**
-    * Used during deserialization. Do not use otherwise.
-    */
-   public MinVersionsFilter() {
-      super();
-   }
+    /**
+     * Used during deserialization. Do not use otherwise.
+     */
+    public MinVersionsFilter() {
+        super();
+    }
 
-   public MinVersionsFilter(long startTime, long endTime, int minVersions) {
-      this.startTime = startTime;
-      this.endTime = endTime;
-      this.minVersions = minVersions;
-      init();
-   }
+    public MinVersionsFilter(long startTime, long endTime, int minVersions) {
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.minVersions = minVersions;
+        init();
+    }
 
-   private void init() {
-      includedVersionsForLastColumn = 0;
-      lastColumn = null;
-   }
+    private void init() {
+        includedVersionsForLastColumn = 0;
+        lastColumn = null;
+    }
 
-   private int getIncludedVersions(ColumnFamilyAndQuantifier column) {
-      if (lastColumn == null || !lastColumn.equals(column)) {
-         lastColumn = column;
-         includedVersionsForLastColumn = 0;
-      }
-      return includedVersionsForLastColumn;
-   }
+    private int getIncludedVersions(ColumnFamilyAndQuantifier column) {
+        if (lastColumn == null || !lastColumn.equals(column)) {
+            lastColumn = column;
+            includedVersionsForLastColumn = 0;
+        }
+        return includedVersionsForLastColumn;
+    }
 
-   private void setIncludedVersions(ColumnFamilyAndQuantifier column, int versions) {
-      includedVersionsForLastColumn = versions;
-   }
+    private void setIncludedVersions(ColumnFamilyAndQuantifier column, int versions) {
+        includedVersionsForLastColumn = versions;
+    }
 
-   @Override
-      public ReturnCode filterKeyValue(KeyValue v) {
-         long version = v.getTimestamp();
-         if (version >= endTime)
-            return ReturnCode.SKIP;
-         ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(v.getFamily(), v.getQualifier());
-         int includedVersions = getIncludedVersions(column);
-         if (includedVersions < minVersions || version > startTime) {
-            includedVersions++;
-            setIncludedVersions(column, includedVersions);
-            return ReturnCode.INCLUDE;
-         }
-         return ReturnCode.NEXT_COL;
-      }
+    @Override
+        public ReturnCode filterKeyValue(KeyValue v) {
+            long version = v.getTimestamp();
+            if (version >= endTime)
+                return ReturnCode.SKIP;
+            ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(v.getFamily(), v.getQualifier());
+            int includedVersions = getIncludedVersions(column);
+            if (includedVersions < minVersions || version > startTime) {
+                includedVersions++;
+                setIncludedVersions(column, includedVersions);
+                return ReturnCode.INCLUDE;
+            }
+            return ReturnCode.NEXT_COL;
+        }
 
-   @Override
-      public void readFields(DataInput in) throws IOException {
-         this.startTime = in.readLong();
-         this.endTime = in.readLong();
-         this.minVersions = in.readInt();
-         init();
-      }
+    @Override
+        public void readFields(DataInput in) throws IOException {
+            this.startTime = in.readLong();
+            this.endTime = in.readLong();
+            this.minVersions = in.readInt();
+            init();
+        }
 
-   @Override
-      public void write(DataOutput out) throws IOException {
-         out.writeLong(this.startTime);
-         out.writeLong(this.endTime);
-         out.writeInt(this.minVersions);
-      }
+    @Override
+        public void write(DataOutput out) throws IOException {
+            out.writeLong(this.startTime);
+            out.writeLong(this.endTime);
+            out.writeInt(this.minVersions);
+        }
 }
 

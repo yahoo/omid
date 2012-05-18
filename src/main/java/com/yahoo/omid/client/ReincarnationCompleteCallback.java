@@ -17,5 +17,5 @@
 package com.yahoo.omid.client;
 
 public interface ReincarnationCompleteCallback extends Callback {
-   public void complete();
+    public void complete();
 }

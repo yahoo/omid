@@ -27,84 +27,84 @@ import java.util.EnumMap;
  *
  */
 public class Statistics {
-   public enum Tag {
-      VSN_PER_HBASE_GET,//number of returned version per hbase get operation
-         VSN_PER_CLIENT_GET,//number of returned version per client get operation
-         GET_PER_CLIENT_GET,//number of hbase get performed per client get operation
-         COMMIT,//number of commits
-         REINCARNATION,//number of reincarnations
-         ASKTSO,//number of queries sent to tso
-         EMPTY_GET,//number of hbase get that return nothing
-         dummy
-   }
-   static class History {
-      public int cnt;
-      public long total;
-   }
-   static Map<Tag, History> histories = new EnumMap<Tag, History>(Tag.class);
-   static Map<Tag, History> partialChanges = new EnumMap<Tag, History>(Tag.class);
-   static protected History getHistory(Tag tag, Map<Tag, History> map) {
-      History history = map.get(tag);
-      if (history == null) {
-         history = new History();
-         map.put(tag, history);
-      }
-      return history;
-   }
+    public enum Tag {
+        VSN_PER_HBASE_GET,//number of returned version per hbase get operation
+            VSN_PER_CLIENT_GET,//number of returned version per client get operation
+            GET_PER_CLIENT_GET,//number of hbase get performed per client get operation
+            COMMIT,//number of commits
+            REINCARNATION,//number of reincarnations
+            ASKTSO,//number of queries sent to tso
+            EMPTY_GET,//number of hbase get that return nothing
+            dummy
+    }
+    static class History {
+        public int cnt;
+        public long total;
+    }
+    static Map<Tag, History> histories = new EnumMap<Tag, History>(Tag.class);
+    static Map<Tag, History> partialChanges = new EnumMap<Tag, History>(Tag.class);
+    static protected History getHistory(Tag tag, Map<Tag, History> map) {
+        History history = map.get(tag);
+        if (history == null) {
+            history = new History();
+            map.put(tag, history);
+        }
+        return history;
+    }
 
-   static public void partialReport(Tag tag, int value) {
-      synchronized (histories) {
-         History tmpHistory = getHistory(tag, partialChanges);
-         tmpHistory.total += value;
-      }
-   }
+    static public void partialReport(Tag tag, int value) {
+        synchronized (histories) {
+            History tmpHistory = getHistory(tag, partialChanges);
+            tmpHistory.total += value;
+        }
+    }
 
-   static public void partialReportOver(Tag tag) {
-      synchronized (histories) {
-         History tmpHistory = getHistory(tag, partialChanges);
-         if (tmpHistory.total == 0)
-            return;
-         History history = getHistory(tag, histories);
-         history.cnt ++;
-         history.total += tmpHistory.total;
-         tmpHistory.total = 0;
-      }
-   }
+    static public void partialReportOver(Tag tag) {
+        synchronized (histories) {
+            History tmpHistory = getHistory(tag, partialChanges);
+            if (tmpHistory.total == 0)
+                return;
+            History history = getHistory(tag, histories);
+            history.cnt ++;
+            history.total += tmpHistory.total;
+            tmpHistory.total = 0;
+        }
+    }
 
-   static public void fullReport(Tag tag, int value) {
-      synchronized (histories) {
-         if (value == 0)
-            return;
-         History history = getHistory(tag, histories);
-         history.cnt ++;
-         history.total += value;
-      }
-   }
+    static public void fullReport(Tag tag, int value) {
+        synchronized (histories) {
+            if (value == 0)
+                return;
+            History history = getHistory(tag, histories);
+            history.cnt ++;
+            history.total += value;
+        }
+    }
 
-   static long lastReportTime = System.currentTimeMillis();
-   static final long reportInterval = 2000;
-   static public boolean skipReport() {
-      long currentTimeMillis = System.currentTimeMillis();
-      if (currentTimeMillis - lastReportTime > reportInterval) {
-         lastReportTime = currentTimeMillis;
-         return false;
-      }
-      return true;
-   }
-   static public void println() {
-      synchronized (histories) {
-         if (skipReport())
-            return;
-         System.out.print("Statistics: ");
-         for (Map.Entry<Tag, History> entry : histories.entrySet()) {
-            Tag tag = entry.getKey();
-            History history = entry.getValue();
-            System.out.print(tag + "Cnt " + history.cnt + " ");
-            System.out.print(tag + "Sum " + history.total + " ");
-            System.out.print(tag + "Avg " + (float) history.total / history.cnt + " ");
-         }
-         System.out.println();
-      }
-   }
+    static long lastReportTime = System.currentTimeMillis();
+    static final long reportInterval = 2000;
+    static public boolean skipReport() {
+        long currentTimeMillis = System.currentTimeMillis();
+        if (currentTimeMillis - lastReportTime > reportInterval) {
+            lastReportTime = currentTimeMillis;
+            return false;
+        }
+        return true;
+    }
+    static public void println() {
+        synchronized (histories) {
+            if (skipReport())
+                return;
+            System.out.print("Statistics: ");
+            for (Map.Entry<Tag, History> entry : histories.entrySet()) {
+                Tag tag = entry.getKey();
+                History history = entry.getValue();
+                System.out.print(tag + "Cnt " + history.cnt + " ");
+                System.out.print(tag + "Sum " + history.total + " ");
+                System.out.print(tag + "Avg " + (float) history.total / history.cnt + " ");
+            }
+            System.out.println();
+        }
+    }
 }
 

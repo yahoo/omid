@@ -30,48 +30,48 @@ import com.yahoo.omid.tso.TSOMessage;
  */
 public class ReincarnationReport implements TSOMessage {
 
-   /**
-    * the start timestamp of the reincarnated transaction
-    */
-   public long startTimestamp;
+    /**
+     * the start timestamp of the reincarnated transaction
+     */
+    public long startTimestamp;
 
-   /**
-    * Constructor from timestamp
-    */
-   public ReincarnationReport() {
-   }
+    /**
+     * Constructor from timestamp
+     */
+    public ReincarnationReport() {
+    }
 
-   /**
-    * Constructor from timestamp
-    * @param t
-    */
-   public ReincarnationReport(long t) {
-      startTimestamp = t;
-   }
+    /**
+     * Constructor from timestamp
+     * @param t
+     */
+    public ReincarnationReport(long t) {
+        startTimestamp = t;
+    }
 
-   @Override
-      public String toString() {
-         return "ReincarnationReport: T_s:" + startTimestamp;
-      }
+    @Override
+        public String toString() {
+            return "ReincarnationReport: T_s:" + startTimestamp;
+        }
 
-   @Override
-      public void readObject(ChannelBuffer aInputStream) 
-      throws IOException {
-      startTimestamp = aInputStream.readLong();
-      }
+    @Override
+        public void readObject(ChannelBuffer aInputStream) 
+        throws IOException {
+        startTimestamp = aInputStream.readLong();
+        }
 
-   @Override
-      public void writeObject(DataOutputStream aOutputStream) 
-      throws IOException {
-      aOutputStream.writeLong(startTimestamp);
-      }
+    @Override
+        public void writeObject(DataOutputStream aOutputStream) 
+        throws IOException {
+        aOutputStream.writeLong(startTimestamp);
+        }
 
 
-   @Override
-      public void writeObject(ChannelBuffer buffer)
-      {
-         buffer.writeLong(startTimestamp);
-      }
+    @Override
+        public void writeObject(ChannelBuffer buffer)
+        {
+            buffer.writeLong(startTimestamp);
+        }
 }
 
 

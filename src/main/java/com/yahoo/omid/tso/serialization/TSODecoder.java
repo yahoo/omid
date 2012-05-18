@@ -59,7 +59,7 @@ public class TSODecoder extends FrameDecoder {
         // ChannelBufferInputStream( buf ) );
         int slice = buf.readableBytes();
         slice = slice > 16 ? 16 : slice;
-//        System.out.println("Decoding bytes: " + TSOSharedMessageBuffer.dumpHex(buf.slice(buf.readerIndex(), slice)));
+        //        System.out.println("Decoding bytes: " + TSOSharedMessageBuffer.dumpHex(buf.slice(buf.readerIndex(), slice)));
         ChannelBuffer ostream = buf;
         TSOMessage msg;
         try {
@@ -68,66 +68,66 @@ public class TSODecoder extends FrameDecoder {
                 LOG.trace("Decoding message : " + type);
             }
             if ((type & 0xC0) == 0x00) {
-               return readCommittedTransactionReport(type, ostream);
+                return readCommittedTransactionReport(type, ostream);
             } else if ((type & 0xC0) == 0x40) {
-               return readAbortTransactionReport(type, ostream);
+                return readAbortTransactionReport(type, ostream);
             } else if ((type & 0x40) == 0) {
-               return readCommittedTransactionReport(type, ostream);
+                return readCommittedTransactionReport(type, ostream);
             } else if (type >= TSOMessage.CommittedTransactionReport) {
-               return readCommittedTransactionReport(type, ostream);
+                return readCommittedTransactionReport(type, ostream);
             } else {
                 switch (type) {
-                case TSOMessage.TimestampRequest:
-                    msg = new TimestampRequest();
-                    break;
-                case TSOMessage.TimestampResponse:
-                    msg = new TimestampResponse();
-                    break;
-                case TSOMessage.CommitRequest:
-                    msg = new CommitRequest();
-                    break;
-                case TSOMessage.CommitResponse:
-                    msg = new CommitResponse();
-                    break;
-                case TSOMessage.FullAbortReport:
-//                    msg = new FullAbortReport();
-//                    break;
-                case TSOMessage.FullAbortReportByte:
-                    return readFullInteger(type, ostream);
-//                    break;
-                case TSOMessage.FailedElderReport:
-                    msg = new FailedElderReport();
-                    break;
-                case TSOMessage.EldestUpdate:
-                    msg = new EldestUpdate();
-                    break;
-                case TSOMessage.ReincarnationReport:
-                    msg = new ReincarnationReport();
-                    break;
-                case TSOMessage.CommitQueryRequest:
-                    msg = new CommitQueryRequest();
-                    break;
-                case TSOMessage.CommitQueryResponse:
-                    msg = new CommitQueryResponse();
-                    break;
-                case TSOMessage.AbortedTransactionReport:
-//                    msg = new AbortedTransactionReport();
-//                    break;
-                case TSOMessage.AbortedTransactionReportByte:
-                    return readHalfInteger(type, ostream);
-//                    break;
-                case TSOMessage.CommittedTransactionReport:
-                    msg = new CommittedTransactionReport();
-                    break;
-                case TSOMessage.LargestDeletedTimestampReport:
-                    msg = new LargestDeletedTimestampReport();
-                    break;
-                case TSOMessage.AbortRequest:
-                   msg = new AbortRequest();
-                   break;
-                default:
-//                   System.out.println("Wrong type " + type); System.out.flush();
-                    throw new Exception("Wrong type " + type + " " + ostream.toString().length());
+                    case TSOMessage.TimestampRequest:
+                        msg = new TimestampRequest();
+                        break;
+                    case TSOMessage.TimestampResponse:
+                        msg = new TimestampResponse();
+                        break;
+                    case TSOMessage.CommitRequest:
+                        msg = new CommitRequest();
+                        break;
+                    case TSOMessage.CommitResponse:
+                        msg = new CommitResponse();
+                        break;
+                    case TSOMessage.FullAbortReport:
+                        //                    msg = new FullAbortReport();
+                        //                    break;
+                    case TSOMessage.FullAbortReportByte:
+                        return readFullInteger(type, ostream);
+                        //                    break;
+                    case TSOMessage.FailedElderReport:
+                        msg = new FailedElderReport();
+                        break;
+                    case TSOMessage.EldestUpdate:
+                        msg = new EldestUpdate();
+                        break;
+                    case TSOMessage.ReincarnationReport:
+                        msg = new ReincarnationReport();
+                        break;
+                    case TSOMessage.CommitQueryRequest:
+                        msg = new CommitQueryRequest();
+                        break;
+                    case TSOMessage.CommitQueryResponse:
+                        msg = new CommitQueryResponse();
+                        break;
+                    case TSOMessage.AbortedTransactionReport:
+                        //                    msg = new AbortedTransactionReport();
+                        //                    break;
+                    case TSOMessage.AbortedTransactionReportByte:
+                        return readHalfInteger(type, ostream);
+                        //                    break;
+                    case TSOMessage.CommittedTransactionReport:
+                        msg = new CommittedTransactionReport();
+                        break;
+                    case TSOMessage.LargestDeletedTimestampReport:
+                        msg = new LargestDeletedTimestampReport();
+                        break;
+                    case TSOMessage.AbortRequest:
+                        msg = new AbortRequest();
+                        break;
+                    default:
+                        //                   System.out.println("Wrong type " + type); System.out.flush();
+                        throw new Exception("Wrong type " + type + " " + ostream.toString().length());
                 }
             }
             msg.readObject(ostream);
@@ -145,26 +145,26 @@ public class TSODecoder extends FrameDecoder {
     }
 
     private TSOMessage readAbortTransactionReport(byte type, ChannelBuffer ostream) {
-      int diff = (((type & 0x1f) << 27) >> 27);
-      TSOMessage msg;
-      if ((type & 0x20) == 0) {
-         // Half abort
-         lastHalfAbortedTimestamp += diff;
-         msg = new AbortedTransactionReport(lastHalfAbortedTimestamp);
-      } else {
-         // Full abort
-         lastFullAbortedTimestamp += diff;
-         msg =  new FullAbortReport(lastFullAbortedTimestamp);
-      }
-      return msg;
-   }
+        int diff = (((type & 0x1f) << 27) >> 27);
+        TSOMessage msg;
+        if ((type & 0x20) == 0) {
+            // Half abort
+            lastHalfAbortedTimestamp += diff;
+            msg = new AbortedTransactionReport(lastHalfAbortedTimestamp);
+        } else {
+            // Full abort
+            lastFullAbortedTimestamp += diff;
+            msg =  new FullAbortReport(lastFullAbortedTimestamp);
+        }
+        return msg;
+    }
 
-   public long lastStartTimestamp = 0;
+    public long lastStartTimestamp = 0;
     long lastCommitTimestamp = 0;
 
     long lastHalfAbortedTimestamp = 0;
     long lastFullAbortedTimestamp = 0;
-    
+
     private AbortedTransactionReport readHalfInteger(byte type, ChannelBuffer ostream) throws IOException {
         AbortedTransactionReport msg;
         if (type == TSOMessage.AbortedTransactionReport) {
@@ -179,7 +179,7 @@ public class TSODecoder extends FrameDecoder {
 
         return msg;
     }
-    
+
     private FullAbortReport readFullInteger(byte type, ChannelBuffer ostream) throws IOException {
         FullAbortReport msg;
         if (type == TSOMessage.FullAbortReport) {
@@ -199,60 +199,60 @@ public class TSODecoder extends FrameDecoder {
         long startTimestamp = 0;
         long commitTimestamp = 0;
         if (high >= 0) {
-//            System.out.println("1 byte " + high);
+            //            System.out.println("1 byte " + high);
             high = (byte) ((high << 26) >> 26);
             startTimestamp = lastStartTimestamp + high;
             commitTimestamp = lastCommitTimestamp + 1;
         } else if ((high & 0x40) == 0) {
             byte low = aInputStream.readByte();
-//            System.out.println("2 bytes " + high + " " + low);
+            //            System.out.println("2 bytes " + high + " " + low);
             long startDiff = low & 0xff;
             startDiff |= ((high & 0x3f) << 26) >> 18;
             // long commitDiff = (low & 0x0f);
 
-//            startDiff = (startDiff << 50) >> 50;
+            //            startDiff = (startDiff << 50) >> 50;
             startTimestamp = lastStartTimestamp + startDiff;
             // commitTimestamp = lastCommitTimestamp + commitDiff;
             commitTimestamp = lastCommitTimestamp + 1;
         } else {
             // System.out.println("Else " + high);
             switch (high) {
-            case TSOMessage.CommittedTransactionReportByteByte:
-                startTimestamp = lastStartTimestamp + aInputStream.readByte();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
-                break;
-            case TSOMessage.CommittedTransactionReportShortByte:
-                startTimestamp = lastStartTimestamp + aInputStream.readShort();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
-                break;
-            case TSOMessage.CommittedTransactionReportIntegerByte:
-                startTimestamp = lastStartTimestamp + aInputStream.readInt();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
-                break;
-            case TSOMessage.CommittedTransactionReportLongByte:
-                startTimestamp = lastStartTimestamp + aInputStream.readLong();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
-                break;
+                case TSOMessage.CommittedTransactionReportByteByte:
+                    startTimestamp = lastStartTimestamp + aInputStream.readByte();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
+                    break;
+                case TSOMessage.CommittedTransactionReportShortByte:
+                    startTimestamp = lastStartTimestamp + aInputStream.readShort();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
+                    break;
+                case TSOMessage.CommittedTransactionReportIntegerByte:
+                    startTimestamp = lastStartTimestamp + aInputStream.readInt();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
+                    break;
+                case TSOMessage.CommittedTransactionReportLongByte:
+                    startTimestamp = lastStartTimestamp + aInputStream.readLong();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readByte();
+                    break;
 
-            case TSOMessage.CommittedTransactionReportByteShort:
-                startTimestamp = lastStartTimestamp + aInputStream.readByte();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
-                break;
-            case TSOMessage.CommittedTransactionReportShortShort:
-                startTimestamp = lastStartTimestamp + aInputStream.readShort();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
-                break;
-            case TSOMessage.CommittedTransactionReportIntegerShort:
-                startTimestamp = lastStartTimestamp + aInputStream.readInt();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
-                break;
-            case TSOMessage.CommittedTransactionReportLongShort:
-                startTimestamp = lastStartTimestamp + aInputStream.readLong();
-                commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
-                break;
-            case TSOMessage.CommittedTransactionReport:
-                startTimestamp = aInputStream.readLong();
-                commitTimestamp = aInputStream.readLong();
+                case TSOMessage.CommittedTransactionReportByteShort:
+                    startTimestamp = lastStartTimestamp + aInputStream.readByte();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
+                    break;
+                case TSOMessage.CommittedTransactionReportShortShort:
+                    startTimestamp = lastStartTimestamp + aInputStream.readShort();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
+                    break;
+                case TSOMessage.CommittedTransactionReportIntegerShort:
+                    startTimestamp = lastStartTimestamp + aInputStream.readInt();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
+                    break;
+                case TSOMessage.CommittedTransactionReportLongShort:
+                    startTimestamp = lastStartTimestamp + aInputStream.readLong();
+                    commitTimestamp = lastCommitTimestamp + aInputStream.readShort();
+                    break;
+                case TSOMessage.CommittedTransactionReport:
+                    startTimestamp = aInputStream.readLong();
+                    commitTimestamp = aInputStream.readLong();
             }
         }
 

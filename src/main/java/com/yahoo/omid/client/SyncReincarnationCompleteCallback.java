@@ -17,10 +17,10 @@
 package com.yahoo.omid.client;
 
 public class SyncReincarnationCompleteCallback extends SyncCallbackBase
-   implements ReincarnationCompleteCallback {
+    implements ReincarnationCompleteCallback {
 
-   synchronized
-   public void complete() {
-      countDown();
-   }
+    synchronized
+        public void complete() {
+            countDown();
+        }
 }

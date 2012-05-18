@@ -59,395 +59,395 @@ import com.yahoo.omid.IsolationLevel;
  */
 public class ClientHandler extends TSOClient {
 
-   private static final Log LOG = LogFactory.getLog(ClientHandler.class);
+    private static final Log LOG = LogFactory.getLog(ClientHandler.class);
 
-   /**
-    * Maximum number of modified rows in each transaction
-    */
-   static int MAX_ROW = 20;
+    /**
+     * Maximum number of modified rows in each transaction
+     */
+    static int MAX_ROW = 20;
 
-   /**
-    * The number of rows in database
-    */
-   static final int DB_SIZE = 20000000;
+    /**
+     * The number of rows in database
+     */
+    static final int DB_SIZE = 20000000;
 
-   //private static final long PAUSE_LENGTH = 50; // in ms
-   private static final long PAUSE_LENGTH = 50000; // in micro sec
+    //private static final long PAUSE_LENGTH = 50; // in ms
+    private static final long PAUSE_LENGTH = 50000; // in micro sec
 
-   /**
-    * Maximum number if outstanding message
-    */
-   private final int MAX_IN_FLIGHT;
+    /**
+     * Maximum number if outstanding message
+     */
+    private final int MAX_IN_FLIGHT;
 
-   /**
-    * Number of message to do
-    */
-   private final long nbMessage;
+    /**
+     * Number of message to do
+     */
+    private final long nbMessage;
 
-   /**
-    * Current rank (decreasing, 0 is the end of the game)
-    */
-   private long curMessage;
+    /**
+     * Current rank (decreasing, 0 is the end of the game)
+     */
+    private long curMessage;
 
-   /**
-    * number of outstanding commit requests
-    */
-   private int outstandingTransactions = 0;
+    /**
+     * number of outstanding commit requests
+     */
+    private int outstandingTransactions = 0;
 
-   /**
-    * Start date
-    */
-   private Date startDate = null;
+    /**
+     * Start date
+     */
+    private Date startDate = null;
 
-   /**
-    * Stop date
-    */
-   private Date stopDate = null;
+    /**
+     * Stop date
+     */
+    private Date stopDate = null;
 
-   /**
-    * Return value for the caller
-    */
-   final BlockingQueue<Boolean> answer = new LinkedBlockingQueue<Boolean>();
+    /**
+     * Return value for the caller
+     */
+    final BlockingQueue<Boolean> answer = new LinkedBlockingQueue<Boolean>();
 
-   private Committed committed = new Committed();
-   private Set<Long> aborted = Collections.synchronizedSet(new HashSet<Long>(100000));
+    private Committed committed = new Committed();
+    private Set<Long> aborted = Collections.synchronizedSet(new HashSet<Long>(100000));
 
-   /*
-    * For statistial purposes
-    */
-   public ConcurrentHashMap<Long, Long> wallClockTime = new ConcurrentHashMap<Long, Long>(); 
+    /*
+     * For statistial purposes
+     */
+    public ConcurrentHashMap<Long, Long> wallClockTime = new ConcurrentHashMap<Long, Long>(); 
 
-   public long totalNanoTime = 0;
-   public long totalTx = 0;
-   
-   private Channel channel;
+    public long totalNanoTime = 0;
+    public long totalTx = 0;
 
-   private float percentReads;
+    private Channel channel;
 
-   /**
-    * Method to wait for the final response
-    * 
-    * @return success or not
-    */
-   public boolean waitForAll() {
-      for (;;) {
-         try {
-            return answer.take();
-         } catch (InterruptedException e) {
-            // Ignore.
-         }
-      }
-   }
+    private float percentReads;
 
-   /**
-    * Constructor
-    * 
-    * @param nbMessage
-    * @param inflight
-    * @throws IOException
-    */
-   public ClientHandler(Configuration conf, long nbMessage, int inflight, boolean pauseClient, 
-         float percentReads) throws IOException {
-      super(conf);
-      if (nbMessage < 0) {
-         throw new IllegalArgumentException("nbMessage: " + nbMessage);
-      }
-      this.MAX_IN_FLIGHT = inflight;
-      this.nbMessage = nbMessage;
-      this.curMessage = nbMessage;
-      this.pauseClient = pauseClient;
-      this.percentReads = percentReads;
-   }
+    /**
+     * Method to wait for the final response
+     * 
+     * @return success or not
+     */
+    public boolean waitForAll() {
+        for (;;) {
+            try {
+                return answer.take();
+            } catch (InterruptedException e) {
+                // Ignore.
+            }
+        }
+    }
 
-   /**
-    * Starts the traffic
-    */
-   @Override
-   public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
-      super.channelConnected(ctx, e);
-      try {
-         Thread.sleep(15000);
-      } catch (InterruptedException e1) {
-         //ignore
-      }
-      startDate = new Date();
-      channel = e.getChannel();
-      startTransaction();
-   }
+    /**
+     * Constructor
+     * 
+     * @param nbMessage
+     * @param inflight
+     * @throws IOException
+     */
+    public ClientHandler(Configuration conf, long nbMessage, int inflight, boolean pauseClient, 
+            float percentReads) throws IOException {
+        super(conf);
+        if (nbMessage < 0) {
+            throw new IllegalArgumentException("nbMessage: " + nbMessage);
+        }
+        this.MAX_IN_FLIGHT = inflight;
+        this.nbMessage = nbMessage;
+        this.curMessage = nbMessage;
+        this.pauseClient = pauseClient;
+        this.percentReads = percentReads;
+    }
 
-   /**
-    * If write of Commit Request was not possible before, just do it now
-    */
-   @Override
-   public void channelInterestChanged(ChannelHandlerContext ctx, ChannelStateEvent e) {
-      startTransaction();
-   }
+    /**
+     * Starts the traffic
+     */
+    @Override
+        public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
+            super.channelConnected(ctx, e);
+            try {
+                Thread.sleep(15000);
+            } catch (InterruptedException e1) {
+                //ignore
+            }
+            startDate = new Date();
+            channel = e.getChannel();
+            startTransaction();
+        }
 
-   /**
-    * When the channel is closed, print result
-    */
-   @Override
-   public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-      super.channelClosed(ctx, e);
-      stopDate = new Date();
-      String MB = String.format("Memory Used: %8.3f MB", (Runtime.getRuntime().totalMemory() - Runtime.getRuntime()
-            .freeMemory()) / 1048576.0);
-      String Mbs = String.format("%9.3f TPS",
-            ((nbMessage - curMessage) * 1000 / (float) (stopDate.getTime() - (startDate != null ? startDate.getTime()
-                  : 0))));
-      System.out.println(MB + " " + Mbs);
-   }
+    /**
+     * If write of Commit Request was not possible before, just do it now
+     */
+    @Override
+        public void channelInterestChanged(ChannelHandlerContext ctx, ChannelStateEvent e) {
+            startTransaction();
+        }
 
-   /**
-    * When a message is received, handle it based on its type
-    * @throws IOException 
-    */
-   @Override
-   protected void processMessage(TSOMessage msg) {
-      if (msg instanceof CommitResponse) {
-         handle((CommitResponse) msg);
-      } else if (msg instanceof TimestampResponse) {
-         handle((TimestampResponse) msg);
-      }
-   }
+    /**
+     * When the channel is closed, print result
+     */
+    @Override
+        public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+            super.channelClosed(ctx, e);
+            stopDate = new Date();
+            String MB = String.format("Memory Used: %8.3f MB", (Runtime.getRuntime().totalMemory() - Runtime.getRuntime()
+                        .freeMemory()) / 1048576.0);
+            String Mbs = String.format("%9.3f TPS",
+                    ((nbMessage - curMessage) * 1000 / (float) (stopDate.getTime() - (startDate != null ? startDate.getTime()
+                            : 0))));
+            System.out.println(MB + " " + Mbs);
+        }
 
-   /**
-    * Handle the TimestampResponse message
-    */
-   public void handle(TimestampResponse timestampResponse) {
-      sendCommitRequest(timestampResponse.timestamp);
-   }
+    /**
+     * When a message is received, handle it based on its type
+     * @throws IOException 
+     */
+    @Override
+        protected void processMessage(TSOMessage msg) {
+            if (msg instanceof CommitResponse) {
+                handle((CommitResponse) msg);
+            } else if (msg instanceof TimestampResponse) {
+                handle((TimestampResponse) msg);
+            }
+        }
 
-   /**
-    * Handle the CommitRequest message
-    */
-   private long lasttotalTx = 0;
-   private long lasttotalNanoTime = 0;
-   private long lastTimeout = System.currentTimeMillis();
+    /**
+     * Handle the TimestampResponse message
+     */
+    public void handle(TimestampResponse timestampResponse) {
+        sendCommitRequest(timestampResponse.timestamp);
+    }
 
-   public void handle(CommitResponse msg) {
-      // outstandingTransactions.decrementAndGet();
-      outstandingTransactions--;
-      long finishNanoTime = System.nanoTime();
-      long startNanoTime = wallClockTime.remove(msg.startTimestamp);
-      if (msg.committed) {
-         totalNanoTime += (finishNanoTime - startNanoTime);
-         totalTx++;
-         long timeout = System.currentTimeMillis();
-         // if (totalTx % 10000 == 0) {//print out
-         if (timeout - lastTimeout > 60 * 1000) { // print out
-            long difftx = totalTx - lasttotalTx;
-            long difftime = totalNanoTime - lasttotalNanoTime;
-            System.out.format(
-                  " CLIENT: totalTx: %d totalNanoTime: %d microtime/tx: %4.3f tx/s %4.3f "
+    /**
+     * Handle the CommitRequest message
+     */
+    private long lasttotalTx = 0;
+    private long lasttotalNanoTime = 0;
+    private long lastTimeout = System.currentTimeMillis();
+
+    public void handle(CommitResponse msg) {
+        // outstandingTransactions.decrementAndGet();
+        outstandingTransactions--;
+        long finishNanoTime = System.nanoTime();
+        long startNanoTime = wallClockTime.remove(msg.startTimestamp);
+        if (msg.committed) {
+            totalNanoTime += (finishNanoTime - startNanoTime);
+            totalTx++;
+            long timeout = System.currentTimeMillis();
+            // if (totalTx % 10000 == 0) {//print out
+            if (timeout - lastTimeout > 60 * 1000) { // print out
+                long difftx = totalTx - lasttotalTx;
+                long difftime = totalNanoTime - lasttotalNanoTime;
+                System.out.format(
+                        " CLIENT: totalTx: %d totalNanoTime: %d microtime/tx: %4.3f tx/s %4.3f "
                         + "Size Com: %d Size Aborted: %d Memory Used: %8.3f KB TPS:  %9.3f \n",
-                  difftx,
-                  difftime,
-                  (difftime / (double) difftx / 1000),
-                  1000 * difftx / ((double) (timeout - lastTimeout)),
-                  getSizeCom(),
-                  getSizeAborted(),
-//                  largestDeletedTimestamp - _decoder.lastStartTimestamp,
-                  (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024.0,
-                  ((nbMessage - curMessage) * 1000 / (float) (new Date().getTime() - (startDate != null ? startDate
-                        .getTime() : 0))));
-            lasttotalTx = totalTx;
-            lasttotalNanoTime = totalNanoTime;
-            lastTimeout = timeout;
-         }
-         //report the reincarnation
-         if (msg.wwRows != null) {
-            for (RowKey r: msg.wwRows)
-               System.out.println("WW " + msg.startTimestamp + " " + msg.commitTimestamp + " row is: ");
+                        difftx,
+                        difftime,
+                        (difftime / (double) difftx / 1000),
+                        1000 * difftx / ((double) (timeout - lastTimeout)),
+                        getSizeCom(),
+                        getSizeAborted(),
+                        //                  largestDeletedTimestamp - _decoder.lastStartTimestamp,
+                        (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1024.0,
+                        ((nbMessage - curMessage) * 1000 / (float) (new Date().getTime() - (startDate != null ? startDate
+                                .getTime() : 0))));
+                lasttotalTx = totalTx;
+                lasttotalNanoTime = totalNanoTime;
+                lastTimeout = timeout;
+            }
+            //report the reincarnation
+            if (msg.wwRows != null) {
+                for (RowKey r: msg.wwRows)
+                    System.out.println("WW " + msg.startTimestamp + " " + msg.commitTimestamp + " row is: ");
+                try {
+                    super.completeReincarnation(msg.startTimestamp, new SyncReincarnationCompleteCallback());
+                } catch (IOException e) {
+                    LOG.error("Couldn't send reincarnation report", e);
+                }
+            }
+        } else {// aborted
             try {
-               super.completeReincarnation(msg.startTimestamp, new SyncReincarnationCompleteCallback());
+                super.completeAbort(msg.startTimestamp, new SyncAbortCompleteCallback());
             } catch (IOException e) {
-               LOG.error("Couldn't send reincarnation report", e);
+                LOG.error("Couldn't send abort", e);
             }
-         }
-      } else {// aborted
-         try {
-            super.completeAbort(msg.startTimestamp, new SyncAbortCompleteCallback());
-         } catch (IOException e) {
-            LOG.error("Couldn't send abort", e);
-         }
-      }
-      startTransaction();
-   }
+        }
+        startTransaction();
+    }
 
-   private long getSizeCom() {
-      return committed.getSize();
-   }
+    private long getSizeCom() {
+        return committed.getSize();
+    }
 
-   private long getSizeAborted() {
-      return aborted.size() * 8 * 8;
-   }
+    private long getSizeAborted() {
+        return aborted.size() * 8 * 8;
+    }
 
-   @Override
-   public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-      if (e.getCause() instanceof IOException) {
-         LOG.warn("IOException from downstream.", e.getCause());
-      } else {
-         LOG.warn("Unexpected exception from downstream.", e.getCause());
-      }
-      // Offer default object
-      answer.offer(false);
-      Channels.close(e.getChannel());
-   }
+    @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
+            if (e.getCause() instanceof IOException) {
+                LOG.warn("IOException from downstream.", e.getCause());
+            } else {
+                LOG.warn("Unexpected exception from downstream.", e.getCause());
+            }
+            // Offer default object
+            answer.offer(false);
+            Channels.close(e.getChannel());
+        }
 
-   private java.util.Random rnd;
+    private java.util.Random rnd;
 
-   private boolean pauseClient;
+    private boolean pauseClient;
 
-   /**
-    * Sends the CommitRequest message to the channel
-    * 
-    * @param timestamp
-    * @param channel
-    */
-   private void sendCommitRequest(final long timestamp) {
-      if (!((channel.getInterestOps() & Channel.OP_WRITE) == 0))
-         return;
+    /**
+     * Sends the CommitRequest message to the channel
+     * 
+     * @param timestamp
+     * @param channel
+     */
+    private void sendCommitRequest(final long timestamp) {
+        if (!((channel.getInterestOps() & Channel.OP_WRITE) == 0))
+            return;
 
-      // initialize rnd if it is not yet
-      if (rnd == null) {
-         long seed = System.currentTimeMillis();
-         seed *= channel.getId();// to make it channel dependent
-         rnd = new java.util.Random(seed);
-      }
+        // initialize rnd if it is not yet
+        if (rnd == null) {
+            long seed = System.currentTimeMillis();
+            seed *= channel.getId();// to make it channel dependent
+            rnd = new java.util.Random(seed);
+        }
 
-      boolean readOnly = (rnd.nextFloat() * 100) < percentReads;
+        boolean readOnly = (rnd.nextFloat() * 100) < percentReads;
 
-      int writtenSize = MAX_ROW == 0 ? 0 : rnd.nextInt(MAX_ROW);
-      int readSize = writtenSize == 0 ? 0 : rnd.nextInt(MAX_ROW);
-      if (!IsolationLevel.checkForReadWriteConflicts)
-         readSize = 0;
-      
-      final RowKey [] writtenRows = new RowKey[writtenSize];
-      for (int i = 0; i < writtenRows.length; i++) {
-         // long l = rnd.nextLong();
-         long l = rnd.nextInt(DB_SIZE);
-         byte[] b = new byte[8];
-         for (int iii = 0; iii < 8; iii++) {
-            b[7 - iii] = (byte) (l >>> (iii * 8));
-         }
-         byte[] tableId = new byte[8];
-         writtenRows[i] = new RowKey(b, tableId);
-      }
+        int writtenSize = MAX_ROW == 0 ? 0 : rnd.nextInt(MAX_ROW);
+        int readSize = writtenSize == 0 ? 0 : rnd.nextInt(MAX_ROW);
+        if (!IsolationLevel.checkForReadWriteConflicts)
+            readSize = 0;
 
-      final RowKey [] readRows = new RowKey[readSize];
-      for (int i = 0; i < readRows.length; i++) {
-         // long l = rnd.nextLong();
-         long l = rnd.nextInt(DB_SIZE);
-         byte[] b = new byte[8];
-         for (int iii = 0; iii < 8; iii++) {
-            b[7 - iii] = (byte) (l >>> (iii * 8));
-         }
-         byte[] tableId = new byte[8];
-         readRows[i] = new RowKey(b, tableId);
-      }
-      //
-      //TODO: what if the client and servers are fed with different MAX_ITEMS?
-      //for (RowKey r : writtenRows)
-         //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
-      //Arrays.sort(writtenRows);//to avoid deadlocks
-      //if (IsolationLevel.checkForReadWriteConflicts) {
-         //for (RowKey r : readRows)
-            //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
-         //Arrays.sort(readRows);//to avoid deadlocks
-      //}
+        final RowKey [] writtenRows = new RowKey[writtenSize];
+        for (int i = 0; i < writtenRows.length; i++) {
+            // long l = rnd.nextLong();
+            long l = rnd.nextInt(DB_SIZE);
+            byte[] b = new byte[8];
+            for (int iii = 0; iii < 8; iii++) {
+                b[7 - iii] = (byte) (l >>> (iii * 8));
+            }
+            byte[] tableId = new byte[8];
+            writtenRows[i] = new RowKey(b, tableId);
+        }
 
-      // send a query once in a while
-      totalCommitRequestSent++;
-      if (totalCommitRequestSent % QUERY_RATE == 0 && writtenRows.length > 0) {
-         long queryTimeStamp = rnd.nextInt(Math.abs((int) timestamp));
-         try {
-            isCommitted(timestamp, queryTimeStamp, new SyncCommitQueryCallback());
-         } catch (IOException e) {
-            LOG.error("Couldn't send commit query", e);
-         }
-      }
+        final RowKey [] readRows = new RowKey[readSize];
+        for (int i = 0; i < readRows.length; i++) {
+            // long l = rnd.nextLong();
+            long l = rnd.nextInt(DB_SIZE);
+            byte[] b = new byte[8];
+            for (int iii = 0; iii < 8; iii++) {
+                b[7 - iii] = (byte) (l >>> (iii * 8));
+            }
+            byte[] tableId = new byte[8];
+            readRows[i] = new RowKey(b, tableId);
+        }
+        //
+        //TODO: what if the client and servers are fed with different MAX_ITEMS?
+        //for (RowKey r : writtenRows)
+        //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
+        //Arrays.sort(writtenRows);//to avoid deadlocks
+        //if (IsolationLevel.checkForReadWriteConflicts) {
+        //for (RowKey r : readRows)
+        //r.index = (r.hashCode() & 0x7FFFFFFF) % TSOState.MAX_ITEMS;
+        //Arrays.sort(readRows);//to avoid deadlocks
+        //}
 
-      //if (slowchance == -1) {
-         //slowchance = rnd.nextInt(10);
-         //if (slowchance == 0)
-            //System.out.println("I am slow");
-      //}
-
-      long randompausetime = pauseClient ? PAUSE_LENGTH : 0; //this is the average
-      double uniformrandom = rnd.nextDouble(); //[0,1)
-      //double geometricrandom = -1 * java.lang.Math.log(uniformrandom);
-      //randompausetime = (long) (randompausetime * geometricrandom);
-      randompausetime = (long) (randompausetime * 2 * uniformrandom);
-      //if (slowchance == 0)
-         //randompausetime = 1000 * randompausetime;
-      executor.schedule(new Runnable() {
-         @Override
-         public void run() {
-            // keep statistics
-            wallClockTime.put(timestamp, System.nanoTime());
-
+        // send a query once in a while
+        totalCommitRequestSent++;
+        if (totalCommitRequestSent % QUERY_RATE == 0 && writtenRows.length > 0) {
+            long queryTimeStamp = rnd.nextInt(Math.abs((int) timestamp));
             try {
-               commit(timestamp, writtenRows, readRows, new SyncCommitCallback());
+                isCommitted(timestamp, queryTimeStamp, new SyncCommitQueryCallback());
             } catch (IOException e) {
-               LOG.error("Couldn't send commit", e);
-               e.printStackTrace();
+                LOG.error("Couldn't send commit query", e);
             }
-         }
-      }, randompausetime, TimeUnit.MICROSECONDS);
+        }
 
-   }
+        //if (slowchance == -1) {
+        //slowchance = rnd.nextInt(10);
+        //if (slowchance == 0)
+        //System.out.println("I am slow");
+        //}
 
-   //static int slowchance = -1;
+        long randompausetime = pauseClient ? PAUSE_LENGTH : 0; //this is the average
+        double uniformrandom = rnd.nextDouble(); //[0,1)
+        //double geometricrandom = -1 * java.lang.Math.log(uniformrandom);
+        //randompausetime = (long) (randompausetime * geometricrandom);
+        randompausetime = (long) (randompausetime * 2 * uniformrandom);
+        //if (slowchance == 0)
+        //randompausetime = 1000 * randompausetime;
+        executor.schedule(new Runnable() {
+            @Override
+            public void run() {
+                // keep statistics
+                wallClockTime.put(timestamp, System.nanoTime());
 
-   private static ScheduledExecutorService executor = Executors.newScheduledThreadPool(20);
-
-   private long totalCommitRequestSent;// just to keep the total number of
-                                       // commitreqeusts sent
-   private int QUERY_RATE = 100;// send a query after this number of commit
-                                // requests
-
-   /**
-    * Start a new transaction
-    * 
-    * @param channel
-    * @throws IOException 
-    */
-   private void startTransaction() {
-      while (true) {// fill the pipe with as much as request you can
-         if (!((channel.getInterestOps() & Channel.OP_WRITE) == 0))
-            return;
-
-         // if (outstandingTransactions.intValue() >= MAX_IN_FLIGHT)
-         if (outstandingTransactions >= MAX_IN_FLIGHT)
-            return;
-
-         if (curMessage == 0) {
-            LOG.warn("No more message");
-            // wait for all outstanding msgs and then close the channel
-            // if (outstandingTransactions.intValue() == 0) {
-            if (outstandingTransactions == 0) {
-               LOG.warn("Close channel");
-               channel.close().addListener(new ChannelFutureListener() {
-                  public void operationComplete(ChannelFuture future) {
-                     answer.offer(true);
-                  }
-               });
+                try {
+                    commit(timestamp, writtenRows, readRows, new SyncCommitCallback());
+                } catch (IOException e) {
+                    LOG.error("Couldn't send commit", e);
+                    e.printStackTrace();
+                }
             }
-            return;
-         }
-         curMessage--;
-//         TimestampRequest tr = new TimestampRequest();
-         outstandingTransactions++;
-         // outstandingTransactions.incrementAndGet();
-//         Channels.write(channel, tr);
-         try {
-            super.getNewTimestamp(new SyncCreateCallback());
-         } catch (IOException e) {
-            LOG.error("Couldn't start transaction", e);
-         }
+        }, randompausetime, TimeUnit.MICROSECONDS);
 
-         Thread.yield();
-      }
-   }
+    }
+
+    //static int slowchance = -1;
+
+    private static ScheduledExecutorService executor = Executors.newScheduledThreadPool(20);
+
+    private long totalCommitRequestSent;// just to keep the total number of
+    // commitreqeusts sent
+    private int QUERY_RATE = 100;// send a query after this number of commit
+    // requests
+
+    /**
+     * Start a new transaction
+     * 
+     * @param channel
+     * @throws IOException 
+     */
+    private void startTransaction() {
+        while (true) {// fill the pipe with as much as request you can
+            if (!((channel.getInterestOps() & Channel.OP_WRITE) == 0))
+                return;
+
+            // if (outstandingTransactions.intValue() >= MAX_IN_FLIGHT)
+            if (outstandingTransactions >= MAX_IN_FLIGHT)
+                return;
+
+            if (curMessage == 0) {
+                LOG.warn("No more message");
+                // wait for all outstanding msgs and then close the channel
+                // if (outstandingTransactions.intValue() == 0) {
+                if (outstandingTransactions == 0) {
+                    LOG.warn("Close channel");
+                    channel.close().addListener(new ChannelFutureListener() {
+                        public void operationComplete(ChannelFuture future) {
+                            answer.offer(true);
+                        }
+                    });
+                }
+                return;
+            }
+            curMessage--;
+            //         TimestampRequest tr = new TimestampRequest();
+            outstandingTransactions++;
+            // outstandingTransactions.incrementAndGet();
+            //         Channels.write(channel, tr);
+            try {
+                super.getNewTimestamp(new SyncCreateCallback());
+            } catch (IOException e) {
+                LOG.error("Couldn't start transaction", e);
+            }
+
+            Thread.yield();
+        }
+    }
 }

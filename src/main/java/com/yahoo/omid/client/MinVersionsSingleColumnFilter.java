@@ -32,57 +32,57 @@ import org.apache.hadoop.hbase.filter.*;
  */
 public class MinVersionsSingleColumnFilter extends FilterBase {
 
-   //read at least minVersions and go till reach startTime
-   long startTime = 0;
-   long endTime = Long.MAX_VALUE;
-   int minVersions;
+    //read at least minVersions and go till reach startTime
+    long startTime = 0;
+    long endTime = Long.MAX_VALUE;
+    int minVersions;
 
-   int includedVersions;
+    int includedVersions;
 
 
-   /**
-    * Used during deserialization. Do not use otherwise.
-    */
-   public MinVersionsSingleColumnFilter() {
-      super();
-   }
+    /**
+     * Used during deserialization. Do not use otherwise.
+     */
+    public MinVersionsSingleColumnFilter() {
+        super();
+    }
 
-   public MinVersionsSingleColumnFilter(long startTime, long endTime, int minVersions) {
-      this.startTime = startTime;
-      this.endTime = endTime;
-      this.minVersions = minVersions;
-      init();
-   }
+    public MinVersionsSingleColumnFilter(long startTime, long endTime, int minVersions) {
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.minVersions = minVersions;
+        init();
+    }
 
-   private void init() {
-      includedVersions = 0;
-   }
+    private void init() {
+        includedVersions = 0;
+    }
 
-   @Override
-      public ReturnCode filterKeyValue(KeyValue v) {
-         long version = v.getTimestamp();
-         if (version >= endTime)
-            return ReturnCode.SKIP;
-         if (includedVersions < minVersions || version > startTime) {
-            includedVersions++;
-            return ReturnCode.INCLUDE;
-         }
-         return ReturnCode.NEXT_COL;
-      }
+    @Override
+        public ReturnCode filterKeyValue(KeyValue v) {
+            long version = v.getTimestamp();
+            if (version >= endTime)
+                return ReturnCode.SKIP;
+            if (includedVersions < minVersions || version > startTime) {
+                includedVersions++;
+                return ReturnCode.INCLUDE;
+            }
+            return ReturnCode.NEXT_COL;
+        }
 
-   @Override
-      public void readFields(DataInput in) throws IOException {
-         this.startTime = in.readLong();
-         this.endTime = in.readLong();
-         this.minVersions = in.readInt();
-         init();
-      }
+    @Override
+        public void readFields(DataInput in) throws IOException {
+            this.startTime = in.readLong();
+            this.endTime = in.readLong();
+            this.minVersions = in.readInt();
+            init();
+        }
 
-   @Override
-      public void write(DataOutput out) throws IOException {
-         out.writeLong(this.startTime);
-         out.writeLong(this.endTime);
-         out.writeInt(this.minVersions);
-      }
+    @Override
+        public void write(DataOutput out) throws IOException {
+            out.writeLong(this.startTime);
+            out.writeLong(this.endTime);
+            out.writeInt(this.minVersions);
+        }
 }
 

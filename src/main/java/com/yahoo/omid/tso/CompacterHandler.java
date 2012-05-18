@@ -33,37 +33,37 @@ import com.yahoo.omid.tso.messages.MinimumTimestamp;
  */
 public class CompacterHandler extends SimpleChannelHandler {
 
-   private final ChannelGroup channelGroup;
-   private final ScheduledExecutorService executor;
+    private final ChannelGroup channelGroup;
+    private final ScheduledExecutorService executor;
 
-   public CompacterHandler(ChannelGroup channelGroup, TSOState state) {
-      this.channelGroup = channelGroup;
-      this.executor = Executors.newScheduledThreadPool(4);
-      this.executor.scheduleWithFixedDelay(new Notifier(channelGroup, state), 1, 1, TimeUnit.SECONDS);
-   }
+    public CompacterHandler(ChannelGroup channelGroup, TSOState state) {
+        this.channelGroup = channelGroup;
+        this.executor = Executors.newScheduledThreadPool(4);
+        this.executor.scheduleWithFixedDelay(new Notifier(channelGroup, state), 1, 1, TimeUnit.SECONDS);
+    }
 
-   public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-      //System.out.println("New connection");
-      channelGroup.add(ctx.getChannel());
-   }
+    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+        //System.out.println("New connection");
+        channelGroup.add(ctx.getChannel());
+    }
 
-   private static class Notifier implements Runnable {
-      private final ChannelGroup channelGroup;
-      private final TSOState sharedState;
-      
-      public Notifier(ChannelGroup channelGroup, TSOState sharedState) {
-         this.channelGroup = channelGroup;
-         this.sharedState = sharedState;
-      }
-      @Override
-      public void run() {
-         long timestamp = sharedState.uncommited.getFirstUncommitted();
-//         System.out.println("sending " + timestamp);
-         channelGroup.write(new MinimumTimestamp(timestamp));
-      }
-   }
+    private static class Notifier implements Runnable {
+        private final ChannelGroup channelGroup;
+        private final TSOState sharedState;
 
-   public void stop() {
-      this.executor.shutdown();
-   }
+        public Notifier(ChannelGroup channelGroup, TSOState sharedState) {
+            this.channelGroup = channelGroup;
+            this.sharedState = sharedState;
+        }
+        @Override
+            public void run() {
+                long timestamp = sharedState.uncommited.getFirstUncommitted();
+                //         System.out.println("sending " + timestamp);
+                channelGroup.write(new MinimumTimestamp(timestamp));
+            }
+    }
+
+    public void stop() {
+        this.executor.shutdown();
+    }
 }

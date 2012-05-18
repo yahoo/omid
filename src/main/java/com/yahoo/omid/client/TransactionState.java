@@ -22,56 +22,56 @@ import java.util.Set;
 import com.yahoo.omid.tso.RowKey;
 
 public class TransactionState {
-   private long startTimestamp;
-   private long commitTimestamp;
-   private Set<RowKeyFamily> writtenRows;
-   private Set<RowKey> readRows;
-   
-   public TSOClient tsoclient;
+    private long startTimestamp;
+    private long commitTimestamp;
+    private Set<RowKeyFamily> writtenRows;
+    private Set<RowKey> readRows;
 
-   TransactionState() {
-      startTimestamp = 0;
-      commitTimestamp = 0;
-      this.writtenRows = new HashSet<RowKeyFamily>();
-      this.readRows = new HashSet<RowKey>();
-   }
+    public TSOClient tsoclient;
 
-   TransactionState(long startTimestamp, TSOClient client) {
-      this();
-      this.startTimestamp = startTimestamp;;
-      this.commitTimestamp = 0;
-      this.tsoclient = client;
-   }
+    TransactionState() {
+        startTimestamp = 0;
+        commitTimestamp = 0;
+        this.writtenRows = new HashSet<RowKeyFamily>();
+        this.readRows = new HashSet<RowKey>();
+    }
 
-   long getStartTimestamp() {
-      return startTimestamp;
-   }
-   
-   long getCommitTimestamp() {
-      return commitTimestamp;
-   }
+    TransactionState(long startTimestamp, TSOClient client) {
+        this();
+        this.startTimestamp = startTimestamp;;
+        this.commitTimestamp = 0;
+        this.tsoclient = client;
+    }
 
-   void setCommitTimestamp(long commitTimestamp) {
-      this.commitTimestamp = commitTimestamp;
-   }
+    long getStartTimestamp() {
+        return startTimestamp;
+    }
 
-   RowKeyFamily[] getWrittenRows() {
-      return writtenRows.toArray(new RowKeyFamily[0]);
-   }
+    long getCommitTimestamp() {
+        return commitTimestamp;
+    }
 
-   void addWrittenRow(RowKeyFamily row) {
-      writtenRows.add(row);
-   }
+    void setCommitTimestamp(long commitTimestamp) {
+        this.commitTimestamp = commitTimestamp;
+    }
 
-   RowKey[] getReadRows() {
-      return readRows.toArray(new RowKey[0]);
-   }
+    RowKeyFamily[] getWrittenRows() {
+        return writtenRows.toArray(new RowKeyFamily[0]);
+    }
 
-   void addReadRow(RowKey row) {
-      readRows.add(row);
-   }
+    void addWrittenRow(RowKeyFamily row) {
+        writtenRows.add(row);
+    }
 
-   public String toString() {
-      return "Transaction-" + Long.toHexString(startTimestamp);
-   }
+    RowKey[] getReadRows() {
+        return readRows.toArray(new RowKey[0]);
+    }
+
+    void addReadRow(RowKey row) {
+        readRows.add(row);
+    }
+
+    public String toString() {
+        return "Transaction-" + Long.toHexString(startTimestamp);
+    }
 }

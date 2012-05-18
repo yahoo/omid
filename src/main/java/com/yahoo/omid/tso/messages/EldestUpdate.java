@@ -30,48 +30,48 @@ import com.yahoo.omid.tso.TSOMessage;
  */
 public class EldestUpdate implements TSOMessage {
 
-   /**
-    * the start timestamp of the eldest transaction
-    */
-   public long startTimestamp;
+    /**
+     * the start timestamp of the eldest transaction
+     */
+    public long startTimestamp;
 
-   /**
-    * Constructor from timestamp
-    */
-   public EldestUpdate() {
-   }
+    /**
+     * Constructor from timestamp
+     */
+    public EldestUpdate() {
+    }
 
-   /**
-    * Constructor from timestamp
-    * @param t
-    */
-   public EldestUpdate(long t) {
-      startTimestamp = t;
-   }
+    /**
+     * Constructor from timestamp
+     * @param t
+     */
+    public EldestUpdate(long t) {
+        startTimestamp = t;
+    }
 
-   @Override
-      public String toString() {
-         return "EldestUpdate: T_s:" + startTimestamp;
-      }
+    @Override
+        public String toString() {
+            return "EldestUpdate: T_s:" + startTimestamp;
+        }
 
-   @Override
-      public void readObject(ChannelBuffer aInputStream) 
-      throws IOException {
-      startTimestamp = aInputStream.readLong();
-      }
+    @Override
+        public void readObject(ChannelBuffer aInputStream) 
+        throws IOException {
+        startTimestamp = aInputStream.readLong();
+        }
 
-   @Override
-      public void writeObject(DataOutputStream aOutputStream) 
-      throws IOException {
-      aOutputStream.writeLong(startTimestamp);
-      }
+    @Override
+        public void writeObject(DataOutputStream aOutputStream) 
+        throws IOException {
+        aOutputStream.writeLong(startTimestamp);
+        }
 
 
-   @Override
-      public void writeObject(ChannelBuffer buffer)
-      {
-         buffer.writeLong(startTimestamp);
-      }
+    @Override
+        public void writeObject(ChannelBuffer buffer)
+        {
+            buffer.writeLong(startTimestamp);
+        }
 }
 
 
