@@ -228,7 +228,7 @@ public class BookKeeperStateBuilder extends StateBuilder {
     throws LoggerException { 
         //The buildState is not implemented for isolation levels that do not check for write-write conflicts. We can remove this exception throwing, after implementing that.
         if (!com.yahoo.omid.IsolationLevel.checkForWriteWriteConflicts)
-            throws LoggerException.create(Code.LOGGERDISABLED);
+            throw LoggerException.create(Code.LOGGERDISABLED);
 
         try{
             CountDownLatch latch = new CountDownLatch(1);
