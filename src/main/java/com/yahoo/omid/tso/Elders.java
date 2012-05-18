@@ -101,7 +101,7 @@ public class Elders {
     public boolean reincarnateElder(long id) {
         boolean itWasFailed;
         synchronized (this) {
-            assert(eldest == null || eldest.getId() < id);
+            assert(eldest == null || eldest.getId() <= id);
             Elder e = new Elder(id);
             boolean isStillElder = setofelders.remove(e);
             itWasFailed = false;
