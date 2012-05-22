@@ -325,6 +325,11 @@ public class TSOHandler extends SimpleChannelHandler {
                             toWAL.writeByte(LoggerProtocol.COMMIT);
                             toWAL.writeLong(msg.startTimestamp);
                             toWAL.writeLong(reply.commitTimestamp);//Tc is not necessary in theory, since we abort the in-progress txn after recovery, but it makes it easier for the recovery algorithm to bypass snapshotting
+                            if (reply.wwRowsLength > 0) {//ww conflict
+                                //TODO: merge it with COMMIT entry
+                                toWAL.writeByte(LoggerProtocol.ELDER);
+                                toWAL.writeLong(msg.startTimestamp);
+                            }
                         }
                         //b) make sure that it will not be aborted concurrently
                         sharedState.uncommited.commit(reply.commitTimestamp);
@@ -511,6 +516,14 @@ public class TSOHandler extends SimpleChannelHandler {
                 synchronized (sharedMsgBufLock) {
                     queueEldestUpdate(sharedState.elders.getEldest());
                 }
+                synchronized (sharedState.toWAL) {
+                    try {
+                        sharedState.toWAL.writeByte(LoggerProtocol.ELDEST);
+                        sharedState.toWAL.writeLong(msg.startTimestamp);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
             else
                 LOG.warn("eldest " + sharedState.elders.getEldest() + " isnt changed by ww " + msg.startTimestamp );
@@ -657,6 +670,14 @@ public class TSOHandler extends SimpleChannelHandler {
             }
             else
                 LOG.warn("eldest " + sharedState.elders.getEldest() + " isnt changed by reincarnated " + msg.startTimestamp );
+        }
+        synchronized (sharedState.toWAL) {
+            try {
+                sharedState.toWAL.writeByte(LoggerProtocol.REINCARNATION);
+                sharedState.toWAL.writeLong(msg.startTimestamp);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 

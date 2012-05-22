@@ -35,6 +35,10 @@ public class LoggerProtocol extends TSOState{
     public final static byte LARGESTDELETEDTIMESTAMP = (byte) -3;
     public final static byte ABORT = (byte) -4;
     public final static byte FULLABORT = (byte) -5;
+    //flags related to commits with write-write conflicts
+    public final static byte ELDEST = (byte) -6;//The eldest is changed
+    public final static byte ELDER = (byte) -7;//Elder report
+    public final static byte REINCARNATION = (byte) -8;//Elder reincarnation report
     
     
     /**
