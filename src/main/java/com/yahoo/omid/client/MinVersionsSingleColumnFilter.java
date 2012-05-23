@@ -28,6 +28,8 @@ import org.apache.hadoop.hbase.filter.*;
 /**
  * Filter that sets both minTimestamp and minVersions
  * Assumes that there is only one column in the output
+ * This filter is more optimized than MinVersionsFilter if
+ * we know that the get asks for a single column qualifier
  * @maysam
  */
 public class MinVersionsSingleColumnFilter extends FilterBase {

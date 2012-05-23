@@ -22,7 +22,7 @@ import com.yahoo.omid.tso.RowKey;
 public class SyncCommitCallback extends SyncCallbackBase implements CommitCallback {
     private Result result;
     private long commitTimestamp;
-    private RowKey[] wwRows;
+    private RowKey[] wwRows;//rows with write-write conflict
 
     public Result getResult() {
         return result;
@@ -40,12 +40,11 @@ public class SyncCommitCallback extends SyncCallbackBase implements CommitCallba
         return wwRows;
     }
 
-    synchronized
-        public void complete(Result res, long commitTimestamp, RowKey[] wwRows) {
-            this.result = res;
-            this.commitTimestamp = commitTimestamp;
-            this.wwRows = wwRows;
-            countDown();
-        }
+    synchronized public void complete(Result res, long commitTimestamp, RowKey[] wwRows) {
+        this.result = res;
+        this.commitTimestamp = commitTimestamp;
+        this.wwRows = wwRows;
+        countDown();
+    }
 }
 
