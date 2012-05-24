@@ -98,6 +98,7 @@ public class TransactionalTable extends HTable {
             startTime = eldest;
             //for rw case, we need all the versions, no max
             tsget.setFilter(new MinVersionsFilter(startTime, endTime, nVersions));
+            tsget.setMaxVersions();//remove max limit
         }
         //long startTime = timeRange.getMin();
         //tsget.setTimeRange(startTime, endTime).setMaxVersions((int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
