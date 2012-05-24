@@ -521,10 +521,10 @@ public class TSOClient extends SimpleChannelHandler {
             return commitTimestamp;
 
         if (hasConnectionTimestamp && transaction > connectionTimestamp)
-            return transaction <= largestDeletedTimestamp ? -1 : INVALID_READ;
+            return transaction <= largestDeletedTimestamp ? LOST_TC : INVALID_READ;
         //TODO: it works only if it runs one transaction at a time
         if (transaction <= largestDeletedTimestamp)
-            return -1;//committed but the tc is lost
+            return LOST_TC;//committed but the tc is lost
 
         Statistics.partialReport(Statistics.Tag.ASKTSO, 1);
         askedTSO++;
@@ -539,11 +539,6 @@ public class TSOClient extends SimpleChannelHandler {
             //TODO: throw a proper exception
             throw new IOException("Either abort or retry the transaction");
         return cb.isCommitted() ? cb.commitTimestamp() : INVALID_READ;
-    }
-
-    public boolean validRead(long transaction, long startTimestamp) throws IOException {
-        long Tc = commitTimestamp(transaction, startTimestamp);
-        return (Tc != INVALID_READ);
     }
 
     /**
