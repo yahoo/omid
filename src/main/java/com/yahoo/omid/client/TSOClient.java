@@ -506,7 +506,9 @@ public class TSOClient extends SimpleChannelHandler {
         }
         }
 
-    //In the new implementation, I need direct access to commit timestamp and the logic for deciding the committed version is more complex. Therefero, this function replaces validRead.
+    //In the new implementation, I need direct access to commit timestamp and the logic for deciding 
+    // the committed version is more complex. Therefero, this function replaces validRead.
+    // validRead could still be used if only validity of the version matters, like in tests
     public long commitTimestamp(long transaction, long startTimestamp) throws IOException {
         if (aborted.contains(transaction)) 
             return -2;//invalid read
@@ -538,31 +540,8 @@ public class TSOClient extends SimpleChannelHandler {
     }
 
     public boolean validRead(long transaction, long startTimestamp) throws IOException {
-        if (transaction == startTimestamp)
-            return true;
-        if (aborted.contains(transaction)) 
-            return false;
-        long commitTimestamp = committed.getCommit(transaction);
-        if (commitTimestamp != -1)
-            return commitTimestamp <= startTimestamp;
-        if (hasConnectionTimestamp && transaction > connectionTimestamp)
-            return transaction <= largestDeletedTimestamp;
-        if (transaction <= largestDeletedTimestamp)
-            return true;
-        //      System.out.format("Asking TSO... hasConnectionTimestamp: %s connectionTimestamp: %d transaction: %d startTimestamp: %d\n",
-        //            Boolean.valueOf(hasConnectionTimestamp).toString(), connectionTimestamp, transaction, startTimestamp);
-        askedTSO++;
-        SyncCommitQueryCallback cb = new SyncCommitQueryCallback();
-        isCommitted(startTimestamp, transaction, cb);
-        try {
-            cb.await();
-        } catch (InterruptedException e) {
-            throw new IOException("Commit query didn't complete", e);
-        }
-        if (!cb.isAClearAnswer())
-            //TODO: throw a proper exception
-            throw new IOException("Either abort or retry the transaction");
-        return cb.isCommitted();
+        long Tc = commitTimestamp(transaction, startTimestamp);
+        return (Tc != -2);
     }
 
     /**
