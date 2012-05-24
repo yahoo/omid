@@ -87,12 +87,13 @@ public class TransactionalTable extends HTable {
 
         final Get tsget = new Get(get.getRow());
         TimeRange timeRange = get.getTimeRange();
-        final long eldest = IsolationLevel.checkForWriteWriteConflicts ? -1 : //-1 means no eldest, i.e., do not worry about it
+        final long NO_ELDEST = -1;//-1 means no eldest, i.e., do not worry about it
+        final long eldest = IsolationLevel.checkForWriteWriteConflicts ? NO_ELDEST : 
             transactionState.tsoclient.getEldest();//if we do not check for ww conflicts, we should take elders into account
         int nVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
         long startTime = 0;
         long endTime = Math.min(timeRange.getMax(), readTimestamp + 1);
-        if (eldest == -1 || eldest >= endTime) {//-1 means no eldest
+        if (eldest == NO_ELDEST || eldest >= endTime) {
             tsget.setTimeRange(startTime, endTime).setMaxVersions(nVersions);
         } else {//either from 0, or eldest, fetch all
             startTime = eldest;
@@ -338,13 +339,13 @@ public class TransactionalTable extends HTable {
             if (mostRecentKeyValueWithLostTc != null) continue;//if it is an elder and we have already seen one 
             //with lost Tc, then it was in failedEdler as well.
             long Tc = state.tsoclient.commitTimestamp(Ts, startTimestamp);
-            if (Tc == -2) continue;//invalid read
+            if (Tc == TSOClient.INVALID_READ) continue;//invalid read
             if (IsolationLevel.checkForWriteWriteConflicts) {//then everything is in order, and the first version is enough
                 addIfItIsNotADelete(kv, filteredList);
                 pickedOneForLastColumn = true;
                 continue;
             }
-            if (Tc == -1) // means valid read with lost Tc
+            if (Tc == TSOClient.LOST_TC) // means valid read with lost Tc
                 //Case 2: Normal value with lost Tc
                 mostRecentKeyValueWithLostTc = kv; //Note: a value with lost Tc could also be a failedElder, 
             //so do this check after failedEdler check

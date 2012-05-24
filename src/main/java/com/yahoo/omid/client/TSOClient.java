@@ -506,20 +506,22 @@ public class TSOClient extends SimpleChannelHandler {
         }
         }
 
+    public static final long INVALID_READ = -2;
+    public static final long LOST_TC = -1;
     //In the new implementation, I need direct access to commit timestamp and the logic for deciding 
     // the committed version is more complex. Therefero, this function replaces validRead.
     // validRead could still be used if only validity of the version matters, like in tests
     public long commitTimestamp(long transaction, long startTimestamp) throws IOException {
         if (aborted.contains(transaction)) 
-            return -2;//invalid read
+            return INVALID_READ;//invalid read
         long commitTimestamp = committed.getCommit(transaction);
         if (commitTimestamp != -1 && commitTimestamp > startTimestamp)
-            return -2;//invalid read
+            return INVALID_READ;//invalid read
         if (commitTimestamp != -1 && commitTimestamp <= startTimestamp)
             return commitTimestamp;
 
         if (hasConnectionTimestamp && transaction > connectionTimestamp)
-            return transaction <= largestDeletedTimestamp ? -1 : -2;
+            return transaction <= largestDeletedTimestamp ? -1 : INVALID_READ;
         //TODO: it works only if it runs one transaction at a time
         if (transaction <= largestDeletedTimestamp)
             return -1;//committed but the tc is lost
@@ -536,12 +538,12 @@ public class TSOClient extends SimpleChannelHandler {
         if (!cb.isAClearAnswer())
             //TODO: throw a proper exception
             throw new IOException("Either abort or retry the transaction");
-        return cb.isCommitted() ? cb.commitTimestamp() : -2;
+        return cb.isCommitted() ? cb.commitTimestamp() : INVALID_READ;
     }
 
     public boolean validRead(long transaction, long startTimestamp) throws IOException {
         long Tc = commitTimestamp(transaction, startTimestamp);
-        return (Tc != -2);
+        return (Tc != INVALID_READ);
     }
 
     /**
