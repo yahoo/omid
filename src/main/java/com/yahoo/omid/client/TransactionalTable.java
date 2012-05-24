@@ -257,12 +257,15 @@ public class TransactionalTable extends HTable {
     /*
      * This filter assumes that only one row is feteched
      * Assume?: the writes of all elders are either feteched and rejected in a previous get or are presents in this result variable
+     * There are two kinds of txns: normal and elders. The values that are written by normal 
+     * and the values that are reincarnated by elders are normal values.
      * There are three kinds of committed values:
      * 1: Normal values for which I have the commit timestamp Tc
      * 2: Normal values for which the Tc is lost (Tc < Tmax)
-     * 3: Values written by failed elders, i.e., (i) elder, (ii) Tc < Tmax, (iii) Tc is retrivable form the failedElders list
-     * The normal values could be read in order of Ts (since Ts order and Tc order is the same), but the all the values of elders 
-     * must be read since Ts and Tc orders are not the same.
+     * 3: Values written by failed elders. failed elders are the ones that are (i) elder, (ii) Tc < Tmax, (iii) Tc is retrivable form the failedElders list.
+     * The first get reads from the end till the eldest, therefore contains all the normal and elder values.
+     * The normal values could be read in order of Ts (since Ts order and Tc order is the same) and the first one could be returned. But all the values of elders 
+     * must be read and mapped to Tc since Ts and Tc orders are not the same.
      */
     private Result filter(TransactionState state, Result unfilteredResult, long startTimestamp, int nMinVersionsAsked) 
         throws IOException {
@@ -295,15 +298,16 @@ public class TransactionalTable extends HTable {
         boolean pickedOneForLastColumn = false;
         KeyValue lastkv = null;
         //start from the highest Ts and compare their Tc till you reach a one with lost Tc (Ts < Tmax). 
+        //(This is to ensure that all the elders' values are read.)
         //Then read the rest of the list to make sure that values of failed elders are also read. 
         //Then among the normal value and the failedElder with highest Tc, choose one.
         for (KeyValue kv : kvs) {
-            {//check if the column is switched, if yes process the results of the last column, otherwise keep reading
+            {//check if the column is changed, if yes process the results of the last column, otherwise keep reading
                 ColumnFamilyAndQuantifier column = new ColumnFamilyAndQuantifier(kv.getFamily(), kv.getQualifier());
                 boolean sameColumn = lastColumn == null ? true : lastColumn.equals(column);
                 if (pickedOneForLastColumn && sameColumn)
                     continue;
-                if (!sameColumn) {//column is switched
+                if (!sameColumn) {//column is changed
                     if (!pickedOneForLastColumn) //then process the results of the last column
                         pickTheRightVersion(filteredList, state, startTimestamp, nVersionsRead, nMinVersionsAsked, 
                                 lastkv, nextFetchMaxTimestamp, mostRecentValueWithTc, 
@@ -370,7 +374,8 @@ public class TransactionalTable extends HTable {
         }
         if (mostRecentFailedElder.isMoreRecentThan(mostRecentKeyValueWithLostTc)) {
             //if Ts < Tc(elder) => Tc < Tc(elder)
-            //this is bacause otherwise tso would have detected the other txn as elder too
+            //this is bacause otherwise there is write-write conflict and 
+            //hence tso would have detected the other txn as elder too
             addIfItIsNotADelete(mostRecentFailedElder.kv, filteredList);
             return;
         }
