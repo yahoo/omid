@@ -25,103 +25,81 @@ import org.apache.hadoop.hbase.util.MurmurHash;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 public class RowKey implements Comparable<RowKey> {
-   private byte[] rowId;
-   private byte[] tableId;
-   private int hash = 0;
-   //these are not to be serialized, just used for lock-based impl
-   public int index = -1;//the index on hashmap, it is used to sort the rowkeys
+    private byte[] rowId;
+    private byte[] tableId;
+    private int hash = 0;
+    //these are not to be serialized, just used for lock-based impl
+    public int index = -1;//the index on hashmap, it is used to sort the rowkeys
 
-   public RowKey() {
-      rowId = new byte[0];
-      tableId = new byte[0];
-   }
+    public RowKey() {
+        rowId = new byte[0];
+        tableId = new byte[0];
+    }
 
-   public RowKey(byte[] r, byte[] t) {
-      rowId = r;
-      tableId = t;
-   }
-   public byte[] getTable() {
-      return tableId;
-   }
+    public RowKey(byte[] r, byte[] t) {
+        rowId = r;
+        tableId = t;
+    }
+    public byte[] getTable() {
+        return tableId;
+    }
 
-   public byte[] getRow() {
-      return rowId;
-   }
+    public byte[] getRow() {
+        return rowId;
+    }
 
-   public String toString() {
-      return new String(tableId) + ":" + new String(rowId);
-   }
+    public String toString() {
+        return new String(tableId) + ":" + new String(rowId);
+    }
 
-   public static RowKey readObject(ChannelBuffer aInputStream) 
-         throws IOException {
-      //int index = aInputStream.readInt();
-      int hash = aInputStream.readInt();
-      short len = aInputStream.readByte();
-//      byte[] rowId = RowKeyBuffer.nextRowKey(len);
-      byte[] rowId = new byte[len];
-      aInputStream.readBytes(rowId, 0, len);
-      len = aInputStream.readByte();
-//      byte[] tableId = RowKeyBuffer.nextRowKey(len);
-      byte[] tableId = new byte[len];
-      aInputStream.readBytes(tableId, 0, len);
-      RowKey rk = new RowKey(rowId, tableId);
-      rk.hash = hash;
-      //rk.index = index;
-      return rk;
-   }
+    public static RowKey readObject(ChannelBuffer aInputStream) 
+        throws IOException {
+        int hash = aInputStream.readInt();
+        short len = aInputStream.readByte();
+        byte[] rowId = new byte[len];
+        aInputStream.readBytes(rowId, 0, len);
+        len = aInputStream.readByte();
+        byte[] tableId = new byte[len];
+        aInputStream.readBytes(tableId, 0, len);
+        RowKey rk = new RowKey(rowId, tableId);
+        rk.hash = hash;
+        return rk;
+    }
 
-   public void writeObject(DataOutputStream aOutputStream)
-         throws IOException {
-      hashCode();
-      //assert(index != -1);
-      //aOutputStream.writeInt(index);
-      aOutputStream.writeInt(hash);
-      aOutputStream.writeByte(rowId.length);
-      aOutputStream.write(rowId,0,rowId.length);
-      aOutputStream.writeByte(tableId.length);
-      aOutputStream.write(tableId,0,tableId.length);
-   }
+    public void writeObject(DataOutputStream aOutputStream)
+        throws IOException {
+        hashCode();
+        aOutputStream.writeInt(hash);
+        aOutputStream.writeByte(rowId.length);
+        aOutputStream.write(rowId,0,rowId.length);
+        aOutputStream.writeByte(tableId.length);
+        aOutputStream.write(tableId,0,tableId.length);
+    }
 
-   public boolean equals(Object obj) {
-      if (obj instanceof RowKey) {
-         RowKey other = (RowKey)obj;
-         
-         return Bytes.equals(other.rowId, rowId) 
-            && Bytes.equals(other.tableId, tableId);
-      }
-      return false;
-   }
+    public boolean equals(Object obj) {
+        if (obj instanceof RowKey) {
+            RowKey other = (RowKey)obj;
 
-   public int hashCode() {
-       if (hash != 0) {
-         return hash;
-      }
-       //hash is the xor or row and table id
-       /*int h = 0;
-      for(int i =0; i < Math.min(8, rowId.length); i++){
-         h <<= 8;
-         h ^= (int)rowId[i] & 0xFF;
-      }
-      hash = h;
-      h = 0;
-      for(int i =0; i < Math.min(8,tableId.length); i++){
-         h <<= 8;
-         h ^= (int)tableId[i] & 0xFF;
-      }
-      hash ^= h;
-      return hash;*/
-       byte[] key = Arrays.copyOf(tableId, tableId.length + rowId.length);
-       System.arraycopy(rowId, 0, key, tableId.length, rowId.length);
-       hash = MurmurHash.getInstance().hash(key, 0, key.length, 0xdeadbeef);
-       //return MurmurHash3.MurmurHash3_x64_32(rowId, 0xDEADBEEF);
-      //	    return (31*Arrays.hashCode(tableId)) + Arrays.hashCode(rowId);
-       return hash;
-   }
+            return Bytes.equals(other.rowId, rowId) 
+                && Bytes.equals(other.tableId, tableId);
+        }
+        return false;
+    }
 
-   //assume: index must be assigned before using the RowKey in a collection
-   //This is used to sort the RowKeys
-   public int compareTo(RowKey rk) {
-      return index - rk.index;
-   }
+    public int hashCode() {
+        if (hash != 0) {
+            return hash;
+        }
+        byte[] key = Arrays.copyOf(tableId, tableId.length + rowId.length);
+        System.arraycopy(rowId, 0, key, tableId.length, rowId.length);
+        hash = MurmurHash.getInstance().hash(key, 0, key.length, 0xdeadbeef);
+        return hash;
+    }
+
+    //assume: index must be assigned before using the RowKey in a collection
+    //This is used to sort the RowKeys
+    public int compareTo(RowKey rk) {
+        return index - rk.index;
+    }
 }
 

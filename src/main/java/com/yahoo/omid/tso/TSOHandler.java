@@ -115,8 +115,6 @@ public class TSOHandler extends SimpleChannelHandler {
      * @param channelGroup
      */
     public TSOHandler(ChannelGroup channelGroup, TSOState state) {
-        //System.out.println("This is rwcimbo with elders - no filter is installed");
-        //System.out.println("This is buggy rwcimbo");
         this.channelGroup = channelGroup;
         this.timestampOracle = state.getSO();
         this.sharedState = state;
