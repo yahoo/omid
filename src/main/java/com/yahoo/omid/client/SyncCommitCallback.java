@@ -18,11 +18,12 @@ package com.yahoo.omid.client;
 
 import com.yahoo.omid.client.TSOClient.Result;
 import com.yahoo.omid.tso.RowKey;
+import java.util.ArrayList;
 
 public class SyncCommitCallback extends SyncCallbackBase implements CommitCallback {
     private Result result;
     private long commitTimestamp;
-    private RowKey[] wwRows;
+    private ArrayList<RowKey> rowsWithWriteWriteConflict;//rows with write-write conflict
 
     public Result getResult() {
         return result;
@@ -33,19 +34,18 @@ public class SyncCommitCallback extends SyncCallbackBase implements CommitCallba
     }
 
     public boolean isElder() {
-        return wwRows != null && wwRows.length != 0;
+        return rowsWithWriteWriteConflict != null && rowsWithWriteWriteConflict.size() != 0;
     }
 
-    public RowKey[] getWWRows() {
-        return wwRows;
+    public ArrayList<RowKey> getWWRows() {
+        return rowsWithWriteWriteConflict;
     }
 
-    synchronized
-        public void complete(Result res, long commitTimestamp, RowKey[] wwRows) {
-            this.result = res;
-            this.commitTimestamp = commitTimestamp;
-            this.wwRows = wwRows;
-            countDown();
-        }
+    synchronized public void complete(Result res, long commitTimestamp, ArrayList<RowKey> rowsWithWriteWriteConflict) {
+        this.result = res;
+        this.commitTimestamp = commitTimestamp;
+        this.rowsWithWriteWriteConflict = rowsWithWriteWriteConflict;
+        countDown();
+    }
 }
 

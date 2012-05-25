@@ -21,12 +21,16 @@ package com.yahoo.omid;
 import java.util.Map;
 import java.util.EnumMap;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 /**
  * To collect statistics
  * @author maysam
  *
  */
 public class Statistics {
+    private static final Log LOG = LogFactory.getLog(Statistics.class);
     public enum Tag {
         VSN_PER_HBASE_GET,//number of returned version per hbase get operation
             VSN_PER_CLIENT_GET,//number of returned version per client get operation
@@ -53,6 +57,8 @@ public class Statistics {
     }
 
     static public void partialReport(Tag tag, int value) {
+        if(!LOG.isDebugEnabled())
+            return;
         synchronized (histories) {
             History tmpHistory = getHistory(tag, partialChanges);
             tmpHistory.total += value;
@@ -60,6 +66,8 @@ public class Statistics {
     }
 
     static public void partialReportOver(Tag tag) {
+        if(!LOG.isDebugEnabled())
+            return;
         synchronized (histories) {
             History tmpHistory = getHistory(tag, partialChanges);
             if (tmpHistory.total == 0)
@@ -72,6 +80,8 @@ public class Statistics {
     }
 
     static public void fullReport(Tag tag, int value) {
+        if(!LOG.isDebugEnabled())
+            return;
         synchronized (histories) {
             if (value == 0)
                 return;
@@ -83,7 +93,7 @@ public class Statistics {
 
     static long lastReportTime = System.currentTimeMillis();
     static final long reportInterval = 2000;
-    static public boolean skipReport() {
+    static private boolean skipReport() {
         long currentTimeMillis = System.currentTimeMillis();
         if (currentTimeMillis - lastReportTime > reportInterval) {
             lastReportTime = currentTimeMillis;
@@ -92,18 +102,20 @@ public class Statistics {
         return true;
     }
     static public void println() {
+        if(!LOG.isDebugEnabled())
+            return;
         synchronized (histories) {
             if (skipReport())
                 return;
-            System.out.print("Statistics: ");
+            StringBuffer tobelogged = new StringBuffer("Statistics: ");
             for (Map.Entry<Tag, History> entry : histories.entrySet()) {
                 Tag tag = entry.getKey();
                 History history = entry.getValue();
-                System.out.print(tag + "Cnt " + history.cnt + " ");
-                System.out.print(tag + "Sum " + history.total + " ");
-                System.out.print(tag + "Avg " + (float) history.total / history.cnt + " ");
+                tobelogged.append(tag + "Cnt " + history.cnt + " ");
+                tobelogged.append(tag + "Sum " + history.total + " ");
+                tobelogged.append(tag + "Avg " + (float) history.total / history.cnt + " ");
             }
-            System.out.println();
+            LOG.debug(tobelogged);
         }
     }
 }

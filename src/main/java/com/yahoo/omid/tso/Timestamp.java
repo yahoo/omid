@@ -23,69 +23,69 @@ package com.yahoo.omid.tso;
  */
 public class Timestamp {
 
-   public static int counter = 0;
+    public static int counter = 0;
 
-   /**
-    * the actual timestamp
-    */
-   private long timestamp;
+    /**
+     * the actual timestamp
+     */
+    private long timestamp;
 
-   /**
-    * getter and setter
-    */
-   public long get() {
-      return timestamp;
-   }
+    /**
+     * getter and setter
+     */
+    public long get() {
+        return timestamp;
+    }
 
-   public void set(long t) {
-      timestamp = t;
-   }
+    public void set(long t) {
+        timestamp = t;
+    }
 
-   public void set(Timestamp tr) {
-      timestamp = tr.get();
-   }
+    public void set(Timestamp tr) {
+        timestamp = tr.get();
+    }
 
-   /**
-    * monotonically increase the timestamp value
-    */
-   public void inc() {
-      timestamp++;
-   }
+    /**
+     * monotonically increase the timestamp value
+     */
+    public void inc() {
+        timestamp++;
+    }
 
-   /**
-    * compare two timestamps
-    * return true if this.timestamp > t
-    */
-   public boolean greaterThan(Timestamp t) {
-      return timestamp > t.get();
-   }
+    /**
+     * compare two timestamps
+     * return true if this.timestamp > t
+     */
+    public boolean greaterThan(Timestamp t) {
+        return timestamp > t.get();
+    }
 
-   /**
-    * Constructor 
-    * @param t
-    */
-   public Timestamp(long t) {
-      this.set(t);
-      counter++;
-   }
+    /**
+     * Constructor 
+     * @param t
+     */
+    public Timestamp(long t) {
+        this.set(t);
+        counter++;
+    }
 
-   public void finalize() {
-      counter--;
-   }
+    public void finalize() {
+        counter--;
+    }
 
-   /**
-    * Constructor 
-    * @param tr
-    */
-   public Timestamp(Timestamp tr) {
-      this.set(tr);
-      counter++;
-   }
+    /**
+     * Constructor 
+     * @param tr
+     */
+    public Timestamp(Timestamp tr) {
+        this.set(tr);
+        counter++;
+    }
 
-   @Override
-      public String toString() {
-         return "Timestamp: " + timestamp;
-      }
+    @Override
+    public String toString() {
+        return "Timestamp: " + timestamp;
+    }
 }
 
 

@@ -19,6 +19,7 @@ package com.yahoo.omid.tso;
 import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.ArrayList;
 
 public class Elder implements Comparable<Elder> {
 
@@ -53,10 +54,20 @@ public class Elder implements Comparable<Elder> {
         return false;
     }
 
+    Integer hash = null;
+    @Override
     public int hashCode() {
-        return (int)getId();
+        if (hash != null)
+            return hash;
+        final int prime = 31;
+        int h = 1;
+        int id = (int)getId();
+        h = prime * h + (int) (id ^ (id >>> 32));
+        hash = h;
+        return hash;
     }
 
+    @Override
     public String toString() {
         return "Elder id=" + getId();
     }

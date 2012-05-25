@@ -16,6 +16,8 @@
 
 package com.yahoo.omid.client;
 
+import java.util.Arrays;
+
 //A wrapper for both column family and the qualifier
 //Make it easier to be used in maps and hash maps
 public class ColumnFamilyAndQuantifier {
@@ -27,36 +29,24 @@ public class ColumnFamilyAndQuantifier {
         qualifier = q;
     }
     @Override
-        public boolean equals(Object o) {
-            if (o instanceof ColumnFamilyAndQuantifier) {
-                ColumnFamilyAndQuantifier other = (ColumnFamilyAndQuantifier) o;
-                if (family.length != other.family.length || qualifier.length != other.qualifier.length)
-                    return false;
-                for (int i = 0; i < family.length; i++)
-                    if (family[i] != other.family[i])
-                        return false;
-                for (int i = 0; i < qualifier.length; i++)
-                    if (qualifier[i] != other.qualifier[i])
-                        return false;
-                return true;
-            }
-            return false;
+    public boolean equals(Object o) {
+        if (o instanceof ColumnFamilyAndQuantifier) {
+            ColumnFamilyAndQuantifier other = (ColumnFamilyAndQuantifier) o;
+            if (family.length != other.family.length || qualifier.length != other.qualifier.length)
+                return false;
+            return (Arrays.equals(family, other.family) && Arrays.equals(qualifier, other.qualifier));
         }
+        return false;
+    }
     @Override
-        public int hashCode() {
-            if (hash != null)
-                return hash;
-            int h = 0;
-            h = computeHash(h, family);
-            h = computeHash(h, qualifier);
-            hash = h;
-            return h;
-        }
-    private int computeHash(int hash, byte[] larray) {
-        hash += larray.length;
-        for (int i = 0; i < larray.length; i++) {
-            hash += larray[i];
-        }
-        return hash;
+    public int hashCode() {
+        if (hash != null)
+            return hash;
+        final int prime = 31;
+        int h = 1;
+        h = prime * h + Arrays.hashCode(family);
+        h = prime * h + Arrays.hashCode(qualifier);
+        hash = h;
+        return h;
     }
 }

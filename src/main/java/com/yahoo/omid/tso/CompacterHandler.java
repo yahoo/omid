@@ -56,11 +56,11 @@ public class CompacterHandler extends SimpleChannelHandler {
             this.sharedState = sharedState;
         }
         @Override
-            public void run() {
-                long timestamp = sharedState.uncommited.getFirstUncommitted();
-                //         System.out.println("sending " + timestamp);
-                channelGroup.write(new MinimumTimestamp(timestamp));
-            }
+        public void run() {
+            long timestamp = sharedState.uncommited.getFirstUncommitted();
+            //         System.out.println("sending " + timestamp);
+            channelGroup.write(new MinimumTimestamp(timestamp));
+        }
     }
 
     public void stop() {

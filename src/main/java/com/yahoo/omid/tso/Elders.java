@@ -22,21 +22,22 @@ import java.util.HashSet;
 import java.util.TreeSet;
 import java.util.PriorityQueue;
 import java.util.Iterator;
+import java.util.ArrayList;
 
 public class Elders {
     //set is efficient for membership checking
-    protected HashSet<Elder> setofelders;
+    HashSet<Elder> setOfElders;
     // The list of the failed elders: the elders that did not reincarnte in a timely manner
-    protected TreeSet<Elder> failedElders;
+    TreeSet<Elder> failedElders;
     //the eldest of elders: the elder with min ts
-    protected Elder eldest = null;
-    protected boolean eldestChangedSinceLastProbe = false;
+    Elder eldest = null;
+    boolean eldestChangedSinceLastProbe = false;
     //heap is efficient for advancing largestDeletedTimestamp
     //heap.peek is always valid but the other members might be stale
-    protected PriorityQueue<Elder> heapofelders;
+    PriorityQueue<Elder> heapOfElders;
     public Elders() {
-        setofelders = new HashSet<Elder>();
-        heapofelders = new PriorityQueue<Elder>();
+        setOfElders = new HashSet<Elder>();
+        heapOfElders = new PriorityQueue<Elder>();
         failedElders = new TreeSet<Elder>();
     }
 
@@ -58,7 +59,7 @@ public class Elders {
     }
 
     //check if the eldest is still eldest
-    protected void updateEldest(Elder newElder) {
+    void updateEldest(Elder newElder) {
         assert(newElder != null);
         Elder oldEldest = eldest;
         if (eldest == null || eldest.getId() > newElder.getId())
@@ -68,7 +69,7 @@ public class Elders {
     }
 
     //the eldest is removed, elect new eldest
-    protected void setEldest() {
+    void setEldest() {
         Elder oldEldest = eldest;
         //a failed elder is elder than a non-failed elder
         if (failedElders.size() > 0) {
@@ -77,22 +78,22 @@ public class Elders {
         }
         //then select eldest among normal elders
         //GC invalid peeks of the heap
-        while (heapofelders.size() > 0 && !setofelders.contains(heapofelders.peek()))
-            heapofelders.poll();
-        if (heapofelders.size() == 0)
+        while (heapOfElders.size() > 0 && !setOfElders.contains(heapOfElders.peek()))
+            heapOfElders.poll();
+        if (heapOfElders.size() == 0)
             eldest = null;
         else
-            eldest = heapofelders.peek();
+            eldest = heapOfElders.peek();
         if (eldest != oldEldest)
             eldestChangedSinceLastProbe = true;
     }
 
-    public void addElder(long ts, long tc, RowKey[] wwRows) {
+    public void addElder(long ts, long tc, ArrayList<RowKey> rowsWithWriteWriteConflict) {
         synchronized (this) {
             Elder e = new Elder(ts, tc);
             //TODO: store the rest as well
-            heapofelders.offer(e);
-            setofelders.add(e);
+            heapOfElders.offer(e);
+            setOfElders.add(e);
             updateEldest(e);
             //System.out.println("WWWWWW " + ts);
         }
@@ -103,7 +104,7 @@ public class Elders {
         synchronized (this) {
             assert(eldest == null || eldest.getId() <= id);
             Elder e = new Elder(id);
-            boolean isStillElder = setofelders.remove(e);
+            boolean isStillElder = setOfElders.remove(e);
             itWasFailed = false;
             if (!isStillElder)//then it is a failed elder
                 itWasFailed = failedElders.remove(e);
@@ -117,9 +118,9 @@ public class Elders {
     public Set<Elder> raiseLargestDeletedTransaction(long id) {
         Set<Elder> failed = null;
         synchronized (this) {
-            while (heapofelders.size() > 0 && heapofelders.peek().getId() < id) {
-                Elder e = heapofelders.poll();
-                boolean isStillElder = setofelders.remove(e);
+            while (heapOfElders.size() > 0 && heapOfElders.peek().getId() < id) {
+                Elder e = heapOfElders.poll();
+                boolean isStillElder = setOfElders.remove(e);
                 if (isStillElder) {
                     if (failed == null)
                         failed = new TreeSet<Elder>();

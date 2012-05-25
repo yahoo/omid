@@ -30,92 +30,92 @@ import com.yahoo.omid.tso.TSOMessage;
  *
  */
 public class CommitRequest implements TSOMessage {
-   
-   /**
-    * Starting timestamp
-    */
-   public long startTimestamp;
-   
-   public CommitRequest() {
-   }
 
-   public CommitRequest(long startTimestamp) {
-      this.startTimestamp = startTimestamp;
-      this.writtenRows = new RowKey[0];
-      this.readRows = new RowKey[0];
-   }
-   
-   public CommitRequest(long startTimestamp, RowKey[] writtenRows) {
-      this.startTimestamp = startTimestamp;
-      this.writtenRows = writtenRows;
-      this.readRows = new RowKey[0];
-   }
-   
-   public CommitRequest(long startTimestamp, RowKey[] writtenRows, RowKey[] readRows) {
-      this.startTimestamp = startTimestamp;
-      this.writtenRows = writtenRows;
-      this.readRows = readRows;
-   }
+    /**
+     * Starting timestamp
+     */
+    public long startTimestamp;
 
-   /**
-    * Modified rows' ids
-    */
-   public RowKey[] writtenRows;
-   public RowKey[] readRows;
+    public CommitRequest() {
+    }
 
-   @Override
-      public String toString() {
-         return "CommitRequest: T_s:" + startTimestamp;
-      }
+    public CommitRequest(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
+        this.writtenRows = new RowKey[0];
+        this.readRows = new RowKey[0];
+    }
 
-   
-   static private IndexOutOfBoundsException ex = new IndexOutOfBoundsException();
-   @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
-//      int totalSize = aInputStream.readInt();
+    public CommitRequest(long startTimestamp, RowKey[] writtenRows) {
+        this.startTimestamp = startTimestamp;
+        this.writtenRows = writtenRows;
+        this.readRows = new RowKey[0];
+    }
+
+    public CommitRequest(long startTimestamp, RowKey[] writtenRows, RowKey[] readRows) {
+        this.startTimestamp = startTimestamp;
+        this.writtenRows = writtenRows;
+        this.readRows = readRows;
+    }
+
+    /**
+     * Modified rows' ids
+     */
+    public RowKey[] writtenRows;
+    public RowKey[] readRows;
+
+    @Override
+    public String toString() {
+        return "CommitRequest: T_s:" + startTimestamp;
+    }
+
+
+    static private IndexOutOfBoundsException ex = new IndexOutOfBoundsException();
+    @Override
+    public void readObject(ChannelBuffer aInputStream)
+    throws IOException {
+    //      int totalSize = aInputStream.readInt();
 //      if (totalSize < aInputStream.readableBytes()) {
 //       throw ex;   
 //      }
-      long l = aInputStream.readLong();
-      startTimestamp = l;
-      //LOG.error("tid: " + startTimestamp + " capacity: " + aInputStream.capacity());
-      int size = aInputStream.readInt();
-      //      LOG.error("size: " + size);
-      writtenRows = new RowKey[size];
-      for (int i = 0; i < size; i++) {
-         writtenRows[i] = RowKey.readObject(aInputStream);
-      }
-      size = aInputStream.readInt();
-      readRows = new RowKey[size];
-      for (int i = 0; i < size; i++) {
-         readRows[i] = RowKey.readObject(aInputStream);
-      }
-   }
+    long l = aInputStream.readLong();
+    startTimestamp = l;
+    //LOG.error("tid: " + startTimestamp + " capacity: " + aInputStream.capacity());
+    int size = aInputStream.readInt();
+    //      LOG.error("size: " + size);
+    writtenRows = new RowKey[size];
+    for (int i = 0; i < size; i++) {
+        writtenRows[i] = RowKey.readObject(aInputStream);
+    }
+    size = aInputStream.readInt();
+    readRows = new RowKey[size];
+    for (int i = 0; i < size; i++) {
+        readRows[i] = RowKey.readObject(aInputStream);
+    }
+    }
 
-   @Override
-   public void writeObject(ChannelBuffer buffer)  {
-   }
+    @Override
+    public void writeObject(ChannelBuffer buffer)  {
+    }
 
-   @Override
-  public void writeObject(DataOutputStream aOutputStream)
-      throws IOException {
-//       int size = 12;
+    @Override
+    public void writeObject(DataOutputStream aOutputStream)
+    throws IOException {
+    //       int size = 12;
 //       for (RowKey r: rows) {
 //           size += 2;
 //           size += r.getRow().length;
 //           size += r.getTable().length;
 //        }
 //       aOutputStream.writeInt(size);
-      aOutputStream.writeLong(startTimestamp);
-      aOutputStream.writeInt(writtenRows.length);
-      for (RowKey r: writtenRows) {
-         r.writeObject(aOutputStream);
-      }
-      aOutputStream.writeInt(readRows.length);
-      for (RowKey r: readRows) {
-         r.writeObject(aOutputStream);
-      }
-   }
+    aOutputStream.writeLong(startTimestamp);
+    aOutputStream.writeInt(writtenRows.length);
+    for (RowKey r: writtenRows) {
+        r.writeObject(aOutputStream);
+    }
+    aOutputStream.writeInt(readRows.length);
+    for (RowKey r: readRows) {
+        r.writeObject(aOutputStream);
+    }
+    }
 }
 

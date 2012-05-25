@@ -38,7 +38,6 @@ public class TestCommitReport extends TSOTestBase {
       clientHandler.sendMessage(new CommitRequest(tr1.timestamp));
       CommitResponse cr1 = clientHandler.receiveMessage(CommitResponse.class);
       assertTrue(cr1.committed);
-      //Changed by Maysam Yabandeh
       //For read-only transactions, Tc=Ts is valid
       assertTrue(cr1.commitTimestamp >= tr1.timestamp);
       //assertTrue(cr1.commitTimestamp > tr1.timestamp);
@@ -51,7 +50,6 @@ public class TestCommitReport extends TSOTestBase {
       secondClientHandler.sendMessage(new CommitRequest(tr2.timestamp));
       CommitResponse cr2 = secondClientHandler.receiveMessage(CommitResponse.class);
       assertTrue(cr2.committed);
-      //Changed by Maysam Yabandeh
       //For read-only transactions, Tc=Ts is valid
       assertTrue(cr2.commitTimestamp >= tr2.timestamp);
       //assertTrue(cr2.commitTimestamp > tr2.timestamp);

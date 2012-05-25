@@ -48,7 +48,7 @@ $(TSO_COMMITHASHMAP_SO): nativelib.o $(DEP_LIBS)
 	$(LDSHARED) -o $@ $(LDFLAGS) nativelib.o $(LIBS)
 
 com_yahoo_omid_tso_CommitHashMap.h: nativelib.cc
-	javah -classpath ../../../target/omid-1.0-SNAPSHOT.jar -jni com.yahoo.omid.tso.CommitHashMap
+	javah -classpath ../../../target/classes -jni com.yahoo.omid.tso.CommitHashMap
 
 clean: 
 	rm -f nativelib.o $(TSO_COMMITHASHMAP_SO)

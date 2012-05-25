@@ -28,6 +28,7 @@ import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
+import com.yahoo.omid.client.TSOClient;
 
 public class TestReadAlgorithm extends TSOTestBase {
    
@@ -57,14 +58,19 @@ public class TestReadAlgorithm extends TSOTestBase {
       TimestampResponse tr4 = secondClientHandler.receiveMessage(TimestampResponse.class);
       
       // Transaction half aborted
-      assertFalse(secondClientHandler.validRead(tr3.timestamp, tr4.timestamp));
+      assertFalse(validRead(secondClientHandler, tr3.timestamp, tr4.timestamp));
       
       // Transaction committed after start timestamp
-      assertFalse(secondClientHandler.validRead(tr2.timestamp, tr1.timestamp));
+      assertFalse(validRead(secondClientHandler, tr2.timestamp, tr1.timestamp));
 
       // Transaction committed before start timestamp
-      assertTrue(secondClientHandler.validRead(tr2.timestamp, tr4.timestamp));
+      assertTrue(validRead(secondClientHandler, tr2.timestamp, tr4.timestamp));
 
+   }
+
+   private boolean validRead(TestClientHandler handler, long transaction, long startTimestamp) throws Exception {
+       long Tc = handler.commitTimestamp(transaction, startTimestamp);
+       return (Tc != TSOClient.INVALID_READ);
    }
    
 }

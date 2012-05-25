@@ -28,6 +28,8 @@ import org.apache.hadoop.hbase.filter.*;
 /**
  * Filter that sets both minTimestamp and minVersions
  * Assumes that there is only one column in the output
+ * This filter is more optimized than MinVersionsFilter if
+ * we know that the get asks for a single column qualifier
  * @maysam
  */
 public class MinVersionsSingleColumnFilter extends FilterBase {
@@ -59,30 +61,30 @@ public class MinVersionsSingleColumnFilter extends FilterBase {
     }
 
     @Override
-        public ReturnCode filterKeyValue(KeyValue v) {
-            long version = v.getTimestamp();
-            if (version >= endTime)
-                return ReturnCode.SKIP;
-            if (includedVersions < minVersions || version > startTime) {
-                includedVersions++;
-                return ReturnCode.INCLUDE;
-            }
-            return ReturnCode.NEXT_COL;
+    public ReturnCode filterKeyValue(KeyValue v) {
+        long version = v.getTimestamp();
+        if (version >= endTime)
+            return ReturnCode.SKIP;
+        if (includedVersions < minVersions || version > startTime) {
+            includedVersions++;
+            return ReturnCode.INCLUDE;
         }
+        return ReturnCode.NEXT_COL;
+    }
 
     @Override
-        public void readFields(DataInput in) throws IOException {
-            this.startTime = in.readLong();
-            this.endTime = in.readLong();
-            this.minVersions = in.readInt();
-            init();
-        }
+    public void readFields(DataInput in) throws IOException {
+        this.startTime = in.readLong();
+        this.endTime = in.readLong();
+        this.minVersions = in.readInt();
+        init();
+    }
 
     @Override
-        public void write(DataOutput out) throws IOException {
-            out.writeLong(this.startTime);
-            out.writeLong(this.endTime);
-            out.writeInt(this.minVersions);
-        }
+    public void write(DataOutput out) throws IOException {
+        out.writeLong(this.startTime);
+        out.writeLong(this.endTime);
+        out.writeInt(this.minVersions);
+    }
 }
 
