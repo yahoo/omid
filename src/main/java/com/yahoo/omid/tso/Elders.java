@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.TreeSet;
 import java.util.PriorityQueue;
 import java.util.Iterator;
+import java.util.ArrayList;
 
 public class Elders {
     //set is efficient for membership checking
@@ -87,7 +88,7 @@ public class Elders {
             eldestChangedSinceLastProbe = true;
     }
 
-    public void addElder(long ts, long tc, RowKey[] wwRows) {
+    public void addElder(long ts, long tc, ArrayList<RowKey> rowsWithWriteWriteConflict) {
         synchronized (this) {
             Elder e = new Elder(ts, tc);
             //TODO: store the rest as well

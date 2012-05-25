@@ -29,40 +29,40 @@ import com.yahoo.omid.tso.TSOMessage;
  *
  */
 public class AbortedTransactionReport implements TSOMessage {   
-   /**
-    * Starting timestamp
-    */
-   public long startTimestamp;
+    /**
+     * Starting timestamp
+     */
+    public long startTimestamp;
 
-   public AbortedTransactionReport() {
-   }
-   
-   public AbortedTransactionReport(long startTimestamp) {
-      this.startTimestamp = startTimestamp;
-   }
+    public AbortedTransactionReport() {
+    }
 
-   @Override
-      public String toString() {
-         return "Aborted Transaction Report: T_s:" + startTimestamp;
-      }
+    public AbortedTransactionReport(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
+    }
 
-   @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
-      
-      startTimestamp = aInputStream.readLong();
-   }
+    @Override
+    public String toString() {
+        return "Aborted Transaction Report: T_s:" + startTimestamp;
+    }
 
-   @Override
-  public void writeObject(DataOutputStream aOutputStream)
-      throws IOException {
-      aOutputStream.writeLong(startTimestamp);
-   }
+    @Override
+    public void readObject(ChannelBuffer aInputStream)
+    throws IOException {
 
-   @Override
-  public void writeObject(ChannelBuffer buffer)
-      {
-      buffer.writeLong(startTimestamp);
-   }
+    startTimestamp = aInputStream.readLong();
+    }
+
+    @Override
+    public void writeObject(DataOutputStream aOutputStream)
+    throws IOException {
+    aOutputStream.writeLong(startTimestamp);
+    }
+
+    @Override
+    public void writeObject(ChannelBuffer buffer)
+    {
+        buffer.writeLong(startTimestamp);
+    }
 }
 

@@ -50,28 +50,28 @@ public class ReincarnationReport implements TSOMessage {
     }
 
     @Override
-        public String toString() {
-            return "ReincarnationReport: T_s:" + startTimestamp;
-        }
+    public String toString() {
+        return "ReincarnationReport: T_s:" + startTimestamp;
+    }
 
     @Override
-        public void readObject(ChannelBuffer aInputStream) 
-        throws IOException {
-        startTimestamp = aInputStream.readLong();
-        }
+    public void readObject(ChannelBuffer aInputStream) 
+    throws IOException {
+    startTimestamp = aInputStream.readLong();
+    }
 
     @Override
-        public void writeObject(DataOutputStream aOutputStream) 
-        throws IOException {
-        aOutputStream.writeLong(startTimestamp);
-        }
+    public void writeObject(DataOutputStream aOutputStream) 
+    throws IOException {
+    aOutputStream.writeLong(startTimestamp);
+    }
 
 
     @Override
-        public void writeObject(ChannelBuffer buffer)
-        {
-            buffer.writeLong(startTimestamp);
-        }
+    public void writeObject(ChannelBuffer buffer)
+    {
+        buffer.writeLong(startTimestamp);
+    }
 }
 
 

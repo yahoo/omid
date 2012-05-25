@@ -462,31 +462,31 @@ public class TSOClient extends SimpleChannelHandler {
     }
 
     @Override
-        synchronized
-        public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) {
-            e.getChannel().getPipeline().addFirst("decoder", new TSODecoder());
-            e.getChannel().getPipeline().addAfter("decoder", "encoder",
-                    new TSOEncoder());
-        }
+    synchronized
+    public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e) {
+        e.getChannel().getPipeline().addFirst("decoder", new TSODecoder());
+        e.getChannel().getPipeline().addAfter("decoder", "encoder",
+                new TSOEncoder());
+    }
 
     /**
      * Starts the traffic
      */
     @Override
-        synchronized
-        public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
-            synchronized (state) {
-                channel = e.getChannel();
-                state = State.CONNECTED;
-                retries = 0;
-            }
-            clearState();
-            Op o = queuedOps.poll();;
-            while (o != null && state == State.CONNECTED) {
-                o.execute(channel);
-                o = queuedOps.poll();
-            }
+    synchronized
+    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
+        synchronized (state) {
+            channel = e.getChannel();
+            state = State.CONNECTED;
+            retries = 0;
         }
+        clearState();
+        Op o = queuedOps.poll();;
+        while (o != null && state == State.CONNECTED) {
+            o.execute(channel);
+            o = queuedOps.poll();
+        }
+    }
 
     private void clearState() {
         committed = new Committed();
@@ -497,14 +497,14 @@ public class TSOClient extends SimpleChannelHandler {
     }
 
     @Override
-        synchronized
-        public void channelDisconnected(ChannelHandlerContext ctx, ChannelStateEvent e)
-        throws Exception {
-        synchronized(state) {
-            channel = null;
-            state = State.DISCONNECTED;
-        }
-        }
+    synchronized
+    public void channelDisconnected(ChannelHandlerContext ctx, ChannelStateEvent e)
+    throws Exception {
+    synchronized(state) {
+        channel = null;
+        state = State.DISCONNECTED;
+    }
+    }
 
     public static final long INVALID_READ = -2;
     public static final long LOST_TC = -1;
@@ -545,121 +545,121 @@ public class TSOClient extends SimpleChannelHandler {
      * When a message is received, handle it based on its type
      */
     @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
-            if (LOG.isTraceEnabled()) {
-                LOG.trace("messageReceived " + e.getMessage());
-            }
-            Object msg = e.getMessage();
-            if (msg instanceof CommitResponse) {
-                CommitResponse r = (CommitResponse)msg;
-                CommitCallback cb = null;
-                synchronized (commitCallbacks) {
-                    cb = commitCallbacks.remove(r.startTimestamp);
-                }
-                if (cb == null) {
-                    LOG.error("Received a commit response for a nonexisting commit");
-                    return;
-                }
-                cb.complete(r.committed ? Result.OK : Result.ABORTED, r.commitTimestamp, r.wwRows);
-            } else if (msg instanceof TimestampResponse) {
-                CreateCallback cb = createCallbacks.poll();
-                long timestamp = ((TimestampResponse)msg).timestamp;
-                if (!hasConnectionTimestamp || timestamp < connectionTimestamp) {
-                    hasConnectionTimestamp = true;
-                    connectionTimestamp = timestamp;
-                }
-                if (cb == null) {
-                    LOG.error("Receiving a timestamp response, but none requested: " + timestamp);
-                    return;
-                }
-                cb.complete(timestamp);
-            } else if (msg instanceof CommitQueryResponse) {
-                CommitQueryResponse r = (CommitQueryResponse)msg;
-                if (r.commitTimestamp != 0) {
-                    committed.commit(r.queryTimestamp, r.commitTimestamp);
-                } else if (r.committed) {
-                    committed.commit(r.queryTimestamp, largestDeletedTimestamp);
-                }
-                List<CommitQueryCallback> cbs = null;
-                synchronized (isCommittedCallbacks) {
-                    cbs = isCommittedCallbacks.remove(r.startTimestamp);
-                }
-                if (cbs == null) {
-                    LOG.error("Received a commit query response for a nonexisting request");
-                    return;
-                }
-                for (CommitQueryCallback cb : cbs) {
-                    cb.complete(r.committed, r.commitTimestamp, r.retry);
-                }
-            } else if (msg instanceof CommittedTransactionReport) {
-                CommittedTransactionReport ctr = (CommittedTransactionReport) msg;
-                committed.commit(ctr.startTimestamp, ctr.commitTimestamp);
-                //Always add (Tc, Tc) as well since some transactions might be elders and reinsert their written data
-                committed.commit(ctr.commitTimestamp, ctr.commitTimestamp);
-            } else if (msg instanceof FullAbortReport) {
-                FullAbortReport r = (FullAbortReport) msg;
-                aborted.remove(r.startTimestamp);
-            } else if (msg instanceof FailedElderReport) {
-                FailedElderReport r = (FailedElderReport) msg;
-                failedElders.put(r.startTimestamp, r.commitTimestamp);
-                LOG.warn("Client: " + r);
-            } else if (msg instanceof EldestUpdate) {
-                EldestUpdate r = (EldestUpdate) msg;
-                eldest = r.startTimestamp;
-                //LOG.warn("Client: " + r);
-            } else if (msg instanceof ReincarnationReport) {
-                ReincarnationReport r = (ReincarnationReport) msg;
-                Long Tc = failedElders.remove(r.startTimestamp);
-                boolean res = Tc != null;
-                LOG.warn("Client: " + res + " " + r);
-            } else if (msg instanceof AbortedTransactionReport) {
-                AbortedTransactionReport r = (AbortedTransactionReport) msg;
-                aborted.add(r.startTimestamp);
-            } else if (msg instanceof LargestDeletedTimestampReport) {
-                LargestDeletedTimestampReport r = (LargestDeletedTimestampReport) msg;
-                largestDeletedTimestamp = r.largestDeletedTimestamp;
-                committed.raiseLargestDeletedTransaction(r.largestDeletedTimestamp);
-            } else {
-                LOG.error("Unknown message received " +  msg);
-            }
-            processMessage((TSOMessage) msg);
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("messageReceived " + e.getMessage());
         }
+        Object msg = e.getMessage();
+        if (msg instanceof CommitResponse) {
+            CommitResponse r = (CommitResponse)msg;
+            CommitCallback cb = null;
+            synchronized (commitCallbacks) {
+                cb = commitCallbacks.remove(r.startTimestamp);
+            }
+            if (cb == null) {
+                LOG.error("Received a commit response for a nonexisting commit");
+                return;
+            }
+            cb.complete(r.committed ? Result.OK : Result.ABORTED, r.commitTimestamp, r.rowsWithWriteWriteConflict);
+        } else if (msg instanceof TimestampResponse) {
+            CreateCallback cb = createCallbacks.poll();
+            long timestamp = ((TimestampResponse)msg).timestamp;
+            if (!hasConnectionTimestamp || timestamp < connectionTimestamp) {
+                hasConnectionTimestamp = true;
+                connectionTimestamp = timestamp;
+            }
+            if (cb == null) {
+                LOG.error("Receiving a timestamp response, but none requested: " + timestamp);
+                return;
+            }
+            cb.complete(timestamp);
+        } else if (msg instanceof CommitQueryResponse) {
+            CommitQueryResponse r = (CommitQueryResponse)msg;
+            if (r.commitTimestamp != 0) {
+                committed.commit(r.queryTimestamp, r.commitTimestamp);
+            } else if (r.committed) {
+                committed.commit(r.queryTimestamp, largestDeletedTimestamp);
+            }
+            List<CommitQueryCallback> cbs = null;
+            synchronized (isCommittedCallbacks) {
+                cbs = isCommittedCallbacks.remove(r.startTimestamp);
+            }
+            if (cbs == null) {
+                LOG.error("Received a commit query response for a nonexisting request");
+                return;
+            }
+            for (CommitQueryCallback cb : cbs) {
+                cb.complete(r.committed, r.commitTimestamp, r.retry);
+            }
+        } else if (msg instanceof CommittedTransactionReport) {
+            CommittedTransactionReport ctr = (CommittedTransactionReport) msg;
+            committed.commit(ctr.startTimestamp, ctr.commitTimestamp);
+            //Always add (Tc, Tc) as well since some transactions might be elders and reinsert their written data
+            committed.commit(ctr.commitTimestamp, ctr.commitTimestamp);
+        } else if (msg instanceof FullAbortReport) {
+            FullAbortReport r = (FullAbortReport) msg;
+            aborted.remove(r.startTimestamp);
+        } else if (msg instanceof FailedElderReport) {
+            FailedElderReport r = (FailedElderReport) msg;
+            failedElders.put(r.startTimestamp, r.commitTimestamp);
+            LOG.warn("Client: " + r);
+        } else if (msg instanceof EldestUpdate) {
+            EldestUpdate r = (EldestUpdate) msg;
+            eldest = r.startTimestamp;
+            //LOG.warn("Client: " + r);
+        } else if (msg instanceof ReincarnationReport) {
+            ReincarnationReport r = (ReincarnationReport) msg;
+            Long Tc = failedElders.remove(r.startTimestamp);
+            boolean res = Tc != null;
+            LOG.warn("Client: " + res + " " + r);
+        } else if (msg instanceof AbortedTransactionReport) {
+            AbortedTransactionReport r = (AbortedTransactionReport) msg;
+            aborted.add(r.startTimestamp);
+        } else if (msg instanceof LargestDeletedTimestampReport) {
+            LargestDeletedTimestampReport r = (LargestDeletedTimestampReport) msg;
+            largestDeletedTimestamp = r.largestDeletedTimestamp;
+            committed.raiseLargestDeletedTransaction(r.largestDeletedTimestamp);
+        } else {
+            LOG.error("Unknown message received " +  msg);
+        }
+        processMessage((TSOMessage) msg);
+    }
 
     @Override
-        public void exceptionCaught(ChannelHandlerContext ctx,
-                ExceptionEvent e)
-        throws Exception {
-        System.out.println("Unexpected exception " + e.getCause());
-        e.getCause().printStackTrace();
+    public void exceptionCaught(ChannelHandlerContext ctx,
+            ExceptionEvent e)
+    throws Exception {
+    System.out.println("Unexpected exception " + e.getCause());
+    e.getCause().printStackTrace();
 
-        synchronized(state) {
+    synchronized(state) {
 
-            if (state == State.CONNECTING) {
-                state = State.RETRY_CONNECT_WAIT;
-                if (LOG.isTraceEnabled()) {
-                    LOG.trace("Retrying connect in " + retry_delay_ms + "ms " + retries);
-                }
-                try {
-                    retryTimer.schedule(new TimerTask() {
-                        public void run() {
-                            synchronized (state) {
-                                state = State.DISCONNECTED;
-                                try {
-                                    connectIfNeeded();
-                                } catch (IOException e) {
-                                    bailout(e);
-                                }
+        if (state == State.CONNECTING) {
+            state = State.RETRY_CONNECT_WAIT;
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("Retrying connect in " + retry_delay_ms + "ms " + retries);
+            }
+            try {
+                retryTimer.schedule(new TimerTask() {
+                    public void run() {
+                        synchronized (state) {
+                            state = State.DISCONNECTED;
+                            try {
+                                connectIfNeeded();
+                            } catch (IOException e) {
+                                bailout(e);
                             }
                         }
-                    }, retry_delay_ms);
-                } catch (Exception cause) {
-                    bailout(cause);
-                }
-            } else {
-                LOG.error("Exception on channel", e.getCause());
+                    }
+                }, retry_delay_ms);
+            } catch (Exception cause) {
+                bailout(cause);
             }
+        } else {
+            LOG.error("Exception on channel", e.getCause());
         }
-        }
+    }
+    }
 
     public void bailout(Exception cause) {
         synchronized (state) {

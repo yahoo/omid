@@ -323,7 +323,7 @@ public class TSOHandler extends SimpleChannelHandler {
                             toWAL.writeByte(LoggerProtocol.COMMIT);
                             toWAL.writeLong(msg.startTimestamp);
                             toWAL.writeLong(reply.commitTimestamp);//Tc is not necessary in theory, since we abort the in-progress txn after recovery, but it makes it easier for the recovery algorithm to bypass snapshotting
-                            if (reply.wwRowsLength > 0) {//ww conflict
+                            if (reply.rowsWithWriteWriteConflict != null && reply.rowsWithWriteWriteConflict.size() > 0) {//ww conflict
                                 //TODO: merge it with COMMIT entry
                                 toWAL.writeByte(LoggerProtocol.ELDER);
                                 toWAL.writeLong(msg.startTimestamp);
@@ -335,7 +335,7 @@ public class TSOHandler extends SimpleChannelHandler {
                         //c) commit the transaction
                         //newmax = sharedState.hashmap.setCommitted(msg.startTimestamp, reply.commitTimestamp, newmax);
                         newmax = sharedState.processCommit(msg.startTimestamp, reply.commitTimestamp, newmax);
-                        if (reply.wwRowsLength > 0) {//if it is supposed to be reincarnated, also map Tc to Tc just in case of a future query.
+                        if (reply.rowsWithWriteWriteConflict != null && reply.rowsWithWriteWriteConflict.size() > 0) {//if it is supposed to be reincarnated, also map Tc to Tc just in case of a future query.
                             newmax = sharedState.hashmap.setCommitted(reply.commitTimestamp, reply.commitTimestamp, newmax);
                         }
                         //d) report the commit to the immdediate next txn
@@ -504,11 +504,9 @@ public class TSOHandler extends SimpleChannelHandler {
 
     protected void reportEldestIfChanged(CommitResponse reply, CommitRequest msg) {
         //2. add it to elders list
-        if (reply.wwRowsLength > 0) {
-            RowKey[] wwRows = new RowKey[reply.wwRowsLength];
-            for (int i = 0; i < reply.wwRowsLength; i++)
-                wwRows[i] = reply.wwRows[i];
-            sharedState.elders.addElder(msg.startTimestamp, reply.commitTimestamp, wwRows);
+        if (reply.rowsWithWriteWriteConflict != null && reply.rowsWithWriteWriteConflict.size() > 0) {
+            ArrayList<RowKey> rowsWithWriteWriteConflict = new ArrayList<RowKey>(reply.rowsWithWriteWriteConflict);
+            sharedState.elders.addElder(msg.startTimestamp, reply.commitTimestamp, rowsWithWriteWriteConflict);
             if (sharedState.elders.isEldestChangedSinceLastProbe()) {
                 LOG.warn("eldest is changed: " + msg.startTimestamp);
                 synchronized (sharedMsgBufLock) {
@@ -532,11 +530,10 @@ public class TSOHandler extends SimpleChannelHandler {
     protected void aWWconflictDetected(CommitResponse reply, CommitRequest msg, RowKey wwRow) {
         //Since we abort only for read-write conflicts, here we just keep track of elders (transactions with ww conflict) and tell them to reincarnate themselves by reinserting the items with ww conflict
         //1. add it to the reply to the lients
-        if (reply.wwRows == null)
+        if (reply.rowsWithWriteWriteConflict == null)
             //I do not know the size, so I create the longest needed
-            reply.wwRows = new RowKey[msg.writtenRows.length];
-        reply.wwRows[reply.wwRowsLength] = wwRow;
-        reply.wwRowsLength++;
+            reply.rowsWithWriteWriteConflict = new ArrayList<RowKey>(msg.writtenRows.length);
+        reply.rowsWithWriteWriteConflict.add(wwRow);
     }
 
     /**

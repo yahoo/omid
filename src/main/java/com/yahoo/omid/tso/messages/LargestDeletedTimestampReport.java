@@ -30,40 +30,40 @@ import com.yahoo.omid.tso.TSOMessage;
  *
  */
 public class LargestDeletedTimestampReport implements TSOMessage {   
-   /**
-    * Starting timestamp
-    */
-   public long largestDeletedTimestamp;
-   
-   public LargestDeletedTimestampReport() {
-   }
-   
-   public LargestDeletedTimestampReport(long largestDeletedTimestamp) {
-      this.largestDeletedTimestamp = largestDeletedTimestamp;
-   }
+    /**
+     * Starting timestamp
+     */
+    public long largestDeletedTimestamp;
 
-   @Override
-      public String toString() {
-         return "Largest Deleted Timestamp Report: T_s:" + largestDeletedTimestamp;
-      }
+    public LargestDeletedTimestampReport() {
+    }
 
-   @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
-      
-      largestDeletedTimestamp = aInputStream.readLong();
-   }
+    public LargestDeletedTimestampReport(long largestDeletedTimestamp) {
+        this.largestDeletedTimestamp = largestDeletedTimestamp;
+    }
 
-   @Override
-  public void writeObject(DataOutputStream aOutputStream)
-      throws IOException {
-      aOutputStream.writeLong(largestDeletedTimestamp);
-   }
+    @Override
+    public String toString() {
+        return "Largest Deleted Timestamp Report: T_s:" + largestDeletedTimestamp;
+    }
 
-   @Override
-  public void writeObject(ChannelBuffer buffer)
-       {
-      buffer.writeLong(largestDeletedTimestamp);
-   }
+    @Override
+    public void readObject(ChannelBuffer aInputStream)
+    throws IOException {
+
+    largestDeletedTimestamp = aInputStream.readLong();
+    }
+
+    @Override
+    public void writeObject(DataOutputStream aOutputStream)
+    throws IOException {
+    aOutputStream.writeLong(largestDeletedTimestamp);
+    }
+
+    @Override
+    public void writeObject(ChannelBuffer buffer)
+    {
+        buffer.writeLong(largestDeletedTimestamp);
+    }
 }
 

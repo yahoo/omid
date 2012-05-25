@@ -61,30 +61,30 @@ public class MinVersionsSingleColumnFilter extends FilterBase {
     }
 
     @Override
-        public ReturnCode filterKeyValue(KeyValue v) {
-            long version = v.getTimestamp();
-            if (version >= endTime)
-                return ReturnCode.SKIP;
-            if (includedVersions < minVersions || version > startTime) {
-                includedVersions++;
-                return ReturnCode.INCLUDE;
-            }
-            return ReturnCode.NEXT_COL;
+    public ReturnCode filterKeyValue(KeyValue v) {
+        long version = v.getTimestamp();
+        if (version >= endTime)
+            return ReturnCode.SKIP;
+        if (includedVersions < minVersions || version > startTime) {
+            includedVersions++;
+            return ReturnCode.INCLUDE;
         }
+        return ReturnCode.NEXT_COL;
+    }
 
     @Override
-        public void readFields(DataInput in) throws IOException {
-            this.startTime = in.readLong();
-            this.endTime = in.readLong();
-            this.minVersions = in.readInt();
-            init();
-        }
+    public void readFields(DataInput in) throws IOException {
+        this.startTime = in.readLong();
+        this.endTime = in.readLong();
+        this.minVersions = in.readInt();
+        init();
+    }
 
     @Override
-        public void write(DataOutput out) throws IOException {
-            out.writeLong(this.startTime);
-            out.writeLong(this.endTime);
-            out.writeInt(this.minVersions);
-        }
+    public void write(DataOutput out) throws IOException {
+        out.writeLong(this.startTime);
+        out.writeLong(this.endTime);
+        out.writeInt(this.minVersions);
+    }
 }
 

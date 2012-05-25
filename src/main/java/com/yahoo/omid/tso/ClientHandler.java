@@ -163,53 +163,53 @@ public class ClientHandler extends TSOClient {
      * Starts the traffic
      */
     @Override
-        public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
-            super.channelConnected(ctx, e);
-            try {
-                Thread.sleep(15000);
-            } catch (InterruptedException e1) {
-                //ignore
-            }
-            startDate = new Date();
-            channel = e.getChannel();
-            startTransaction();
+    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
+        super.channelConnected(ctx, e);
+        try {
+            Thread.sleep(15000);
+        } catch (InterruptedException e1) {
+            //ignore
         }
+        startDate = new Date();
+        channel = e.getChannel();
+        startTransaction();
+    }
 
     /**
      * If write of Commit Request was not possible before, just do it now
      */
     @Override
-        public void channelInterestChanged(ChannelHandlerContext ctx, ChannelStateEvent e) {
-            startTransaction();
-        }
+    public void channelInterestChanged(ChannelHandlerContext ctx, ChannelStateEvent e) {
+        startTransaction();
+    }
 
     /**
      * When the channel is closed, print result
      */
     @Override
-        public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-            super.channelClosed(ctx, e);
-            stopDate = new Date();
-            String MB = String.format("Memory Used: %8.3f MB", (Runtime.getRuntime().totalMemory() - Runtime.getRuntime()
-                        .freeMemory()) / 1048576.0);
-            String Mbs = String.format("%9.3f TPS",
-                    ((nbMessage - curMessage) * 1000 / (float) (stopDate.getTime() - (startDate != null ? startDate.getTime()
-                            : 0))));
-            System.out.println(MB + " " + Mbs);
-        }
+    public void channelClosed(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+        super.channelClosed(ctx, e);
+        stopDate = new Date();
+        String MB = String.format("Memory Used: %8.3f MB", (Runtime.getRuntime().totalMemory() - Runtime.getRuntime()
+                    .freeMemory()) / 1048576.0);
+        String Mbs = String.format("%9.3f TPS",
+                ((nbMessage - curMessage) * 1000 / (float) (stopDate.getTime() - (startDate != null ? startDate.getTime()
+                        : 0))));
+        System.out.println(MB + " " + Mbs);
+    }
 
     /**
      * When a message is received, handle it based on its type
      * @throws IOException 
      */
     @Override
-        protected void processMessage(TSOMessage msg) {
-            if (msg instanceof CommitResponse) {
-                handle((CommitResponse) msg);
-            } else if (msg instanceof TimestampResponse) {
-                handle((TimestampResponse) msg);
-            }
+    protected void processMessage(TSOMessage msg) {
+        if (msg instanceof CommitResponse) {
+            handle((CommitResponse) msg);
+        } else if (msg instanceof TimestampResponse) {
+            handle((TimestampResponse) msg);
         }
+    }
 
     /**
      * Handle the TimestampResponse message
@@ -256,9 +256,9 @@ public class ClientHandler extends TSOClient {
                 lastTimeout = timeout;
             }
             //report the reincarnation
-            if (msg.wwRows != null) {
-                for (RowKey r: msg.wwRows)
-                    System.out.println("WW " + msg.startTimestamp + " " + msg.commitTimestamp + " row is: ");
+            if (msg.rowsWithWriteWriteConflict != null) {
+                for (RowKey r: msg.rowsWithWriteWriteConflict)
+                    LOG.warn("WW " + msg.startTimestamp + " " + msg.commitTimestamp + " row is: ");
                 try {
                     super.completeReincarnation(msg.startTimestamp, new SyncReincarnationCompleteCallback());
                 } catch (IOException e) {
@@ -284,16 +284,16 @@ public class ClientHandler extends TSOClient {
     }
 
     @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-            if (e.getCause() instanceof IOException) {
-                LOG.warn("IOException from downstream.", e.getCause());
-            } else {
-                LOG.warn("Unexpected exception from downstream.", e.getCause());
-            }
-            // Offer default object
-            answer.offer(false);
-            Channels.close(e.getChannel());
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
+        if (e.getCause() instanceof IOException) {
+            LOG.warn("IOException from downstream.", e.getCause());
+        } else {
+            LOG.warn("Unexpected exception from downstream.", e.getCause());
         }
+        // Offer default object
+        answer.offer(false);
+        Channels.close(e.getChannel());
+    }
 
     private java.util.Random rnd;
 

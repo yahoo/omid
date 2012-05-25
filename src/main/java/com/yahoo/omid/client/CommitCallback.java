@@ -18,8 +18,9 @@ package com.yahoo.omid.client;
 
 import com.yahoo.omid.client.TSOClient.Result;
 import com.yahoo.omid.tso.RowKey;
+import java.util.ArrayList;
 
 public interface CommitCallback extends Callback {
-    public void complete(Result res, long commitTimestamp, RowKey[] wwRows);
+    public void complete(Result res, long commitTimestamp, ArrayList<RowKey> rowsWithWriteWriteConflict);
 }
 
