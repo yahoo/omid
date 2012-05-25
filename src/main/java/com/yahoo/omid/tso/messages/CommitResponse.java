@@ -104,8 +104,9 @@ public class CommitResponse implements TSOMessage {
             aOutputStream.writeLong(commitTimestamp);
         //serialize the rows with ww conflict
         //some items in rowsWithWriteWriteConflict might be null, so write as much as exist
-        aOutputStream.writeInt(rowsWithWriteWriteConflict.size());
-        for (int i = 0; i < rowsWithWriteWriteConflict.size(); i++)
+        int size = rowsWithWriteWriteConflict == null ? 0 : rowsWithWriteWriteConflict.size();
+        aOutputStream.writeInt(size);
+        for (int i = 0; i < size; i++)
             rowsWithWriteWriteConflict.get(i).writeObject(aOutputStream);
     }
 }
