@@ -20,14 +20,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.yahoo.omid.tso.persistence.LoggerException.Code;
-import com.yahoo.omid.tso.persistence.BookKeeperStateBuilder;
-import com.yahoo.omid.tso.persistence.StateLogger;
-import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+import com.yahoo.omid.tso.persistence.LoggerException.Code;
+import com.yahoo.omid.tso.persistence.StateLogger;
 
 
 /**
@@ -191,16 +191,18 @@ public class TSOState {
    
    public TSOState(StateLogger logger, TimestampOracle timestampOracle) {
        this.timestampOracle = timestampOracle;
-       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = this.timestampOracle.get();
-       this.uncommited = new Uncommited(largestDeletedTimestamp);
+       this.previousLargestDeletedTimestamp = this.timestampOracle.get();
+       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp;
+       this.uncommited = new Uncommited(timestampOracle.first());
        this.logger = logger;
    }
    
    public TSOState(TimestampOracle timestampOracle) {
-       this.timestampOracle = timestampOracle;
-       this.largestDeletedTimestamp = this.previousLargestDeletedTimestamp = timestampOracle.get();
-       this.uncommited = new Uncommited(largestDeletedTimestamp);
-       this.logger = null;
-    }
+       this(null, timestampOracle);
+   }
+
+   public void initialize() {
+      this.uncommited = new Uncommited(timestampOracle.first());
+   }
 }
 

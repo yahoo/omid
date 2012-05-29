@@ -17,12 +17,10 @@
 
 package com.yahoo.omid.tso.persistence;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Enumeration;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 
 import org.apache.bookkeeper.client.AsyncCallback.OpenCallback;
 import org.apache.bookkeeper.client.AsyncCallback.ReadCallback;
@@ -31,26 +29,21 @@ import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
+import org.apache.zookeeper.AsyncCallback.StringCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
-import org.apache.zookeeper.AsyncCallback.StatCallback;
-import org.apache.zookeeper.AsyncCallback.StringCallback;
-import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.ZooDefs.Ids;
-
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.Stat;
 
 import com.yahoo.omid.tso.TSOServerConfig;
 import com.yahoo.omid.tso.TSOState;
 import com.yahoo.omid.tso.TimestampOracle;
-import com.yahoo.omid.tso.persistence.BookKeeperStateLogger.LedgerIdCreateCallback;
-import com.yahoo.omid.tso.persistence.BookKeeperStateLogger.LoggerWatcher;
-import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.BuilderInitCallback;
 import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.LoggerInitCallback;
 import com.yahoo.omid.tso.persistence.LoggerException.Code;
 
@@ -73,12 +66,14 @@ public class BookKeeperStateBuilder extends StateBuilder {
      * It provides a good degree of parallelism.
      */
     private static final long BKREADBATCHSIZE = 50;
+    private static final int PARALLEL_READS = 4;
 
     public static TSOState getState(TSOServerConfig config){
         TSOState returnValue;
-        if(config.getZkServers() == null){
+        if(!config.isRecoveryEnabled()){
             LOG.warn("Logger is disabled");
             returnValue = new TSOState(new TimestampOracle());
+            returnValue.initialize();
         } else {
             BookKeeperStateBuilder builder = new BookKeeperStateBuilder(config);
             
@@ -99,11 +94,13 @@ public class BookKeeperStateBuilder extends StateBuilder {
     ZooKeeper zk;
     LoggerProtocol lp;
     boolean enabled;
+    Semaphore throttleReads;
     TSOServerConfig config;
     
     BookKeeperStateBuilder(TSOServerConfig config) {
         this.timestampOracle = new TimestampOracle();
         this.config = config;
+        this.throttleReads = new Semaphore(PARALLEL_READS);
     }
 
     /**
@@ -112,9 +109,11 @@ public class BookKeeperStateBuilder extends StateBuilder {
      */
     class Context {
         TSOState state = null;
+        TSOServerConfig config = null;
         boolean ready = false;
         boolean hasState = false;
         boolean hasLogger = false;
+        int pending = 0;
         StateLogger logger;
         
         synchronized void setState(TSOState state){
@@ -139,9 +138,27 @@ public class BookKeeperStateBuilder extends StateBuilder {
                 notify();
             }
         }
-        
+
+        synchronized private void incrementPending(){
+           pending++;
+        }
+
+        synchronized private void decrementPending(){
+           pending--;
+        }
+
+        synchronized void abort() {
+           this.ready = true;
+           this.state = null;
+           notify();
+        }
+
         synchronized boolean isReady(){
             return ready;
+        }
+
+        synchronized boolean isFinished(){
+           return ready && pending == 0;
         }
     }
     
@@ -205,6 +222,7 @@ public class BookKeeperStateBuilder extends StateBuilder {
      */
     class LoggerExecutor implements ReadCallback {
         public void readComplete(int rc, LedgerHandle lh, Enumeration<LedgerEntry> entries, Object ctx){
+            throttleReads.release();
             if(rc != BKException.Code.OK){
                 LOG.error("Error while reading ledger entries." + BKException.getMessage(rc));
                 ((BookKeeperStateBuilder.Context) ctx).setState(null);
@@ -212,11 +230,12 @@ public class BookKeeperStateBuilder extends StateBuilder {
                 while(entries.hasMoreElements()){
                     LedgerEntry le = entries.nextElement();
                     lp.execute(ByteBuffer.wrap(le.getEntry()));
-                                       
-                    if(le.getEntryId() == 0){
+
+                    if(lp.finishedRecovery() || le.getEntryId() == 0){
                         ((BookKeeperStateBuilder.Context) ctx).setState(lp.getState());
                     }
                 }
+                ((BookKeeperStateBuilder.Context) ctx).decrementPending();
             }
         }
     }
@@ -255,6 +274,7 @@ public class BookKeeperStateBuilder extends StateBuilder {
          */
               
         Context ctx = new Context();
+        ctx.config = this.config;
         
         zk.create(LoggerConstants.OMID_LOCK_PATH, 
                                         new byte[0], 
@@ -279,10 +299,9 @@ public class BookKeeperStateBuilder extends StateBuilder {
         
         try{
             synchronized(ctx){
-                int counter = 0;
-                while(!ctx.isReady() || (counter > 10)){
-                    ctx.wait(1000);
-                    counter++;
+                if(!ctx.isFinished()){
+                    // TODO make configurable maximum waiting
+                    ctx.wait();
                 }           
             }
         } catch (InterruptedException e) {
@@ -345,6 +364,15 @@ public class BookKeeperStateBuilder extends StateBuilder {
                 } else {
                     long counter = lh.getLastAddConfirmed();
                     while(counter >= 0){
+                        try {
+                           throttleReads.acquire();
+                        } catch (InterruptedException e) {
+                           LOG.error("Couldn't build state", e);
+                           ((Context) ctx).abort();
+                           break;
+                        }
+                        if (((Context) ctx).isReady()) break;
+                        ((Context) ctx).incrementPending();
                         long nextBatch = Math.max(counter - BKREADBATCHSIZE + 1, 0);
                         lh.asyncReadEntries(nextBatch, counter, new LoggerExecutor(), ctx);
                         counter -= BKREADBATCHSIZE;

@@ -65,9 +65,12 @@ public class TSOSharedMessageBuffer {
        
        public ReadingBuffer(Channel channel) {
            this.channel = channel;
-           this.readingBuffer = currentBuffer.reading(this);
-           this.readBuffer = readingBuffer.buffer;
-           this.readerIndex = readBuffer.writerIndex();
+       }
+
+       public void initializeIndexes() {
+          this.readingBuffer = currentBuffer.reading(this);
+          this.readBuffer = readingBuffer.buffer;
+          this.readerIndex = readBuffer.writerIndex();
        }
 
        public void flush() {

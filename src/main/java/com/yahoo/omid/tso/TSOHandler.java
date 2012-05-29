@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -30,8 +31,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.bookkeeper.client.AsyncCallback.AddCallback;
-import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -44,7 +43,6 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
 
 import com.yahoo.omid.tso.TSOSharedMessageBuffer.ReadingBuffer;
 import com.yahoo.omid.tso.messages.AbortRequest;
@@ -84,7 +82,6 @@ public class TSOHandler extends SimpleChannelHandler {
     * Channel Group
     */
    private ChannelGroup channelGroup = null;
-   private static ChannelGroup clientChannels = new DefaultChannelGroup("clients");
    
    private Map<Channel, ReadingBuffer> messageBuffersMap = new HashMap<Channel, ReadingBuffer>();
    
@@ -99,8 +96,10 @@ public class TSOHandler extends SimpleChannelHandler {
    private TSOState sharedState;
    
    private FlushThread flushThread;
-   private ScheduledExecutorService executor;
+   private ScheduledExecutorService scheduledExecutor;
    private ScheduledFuture<?> flushFuture;
+
+   private ExecutorService executor;
 
    /**
     * Constructor
@@ -110,8 +109,11 @@ public class TSOHandler extends SimpleChannelHandler {
       this.channelGroup = channelGroup;
       this.timestampOracle = state.getSO();
       this.sharedState = state;
+   }
+
+   public void start() {
       this.flushThread = new FlushThread();
-      this.executor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+      this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
          @Override
          public Thread newThread(Runnable r) {
             Thread t = new Thread(Thread.currentThread().getThreadGroup(), r);
@@ -120,7 +122,8 @@ public class TSOHandler extends SimpleChannelHandler {
             return t;
          }
       });
-      this.flushFuture = executor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
+      this.flushFuture = scheduledExecutor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
+      this.executor = Executors.newSingleThreadExecutor();
    }
 
    /**
@@ -150,11 +153,9 @@ public class TSOHandler extends SimpleChannelHandler {
    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
       Object msg = e.getMessage();
       if (msg instanceof TimestampRequest) {
-         // System.out.println("Receive TimestampRequest .......................");
          handle((TimestampRequest) msg, ctx);
          return;
       } else if (msg instanceof CommitRequest) {
-         // System.out.println("Receive CommitRequest .......................");
          handle((CommitRequest) msg, ctx);
          return;
       } else if (msg instanceof FullAbortReport) {
@@ -198,27 +199,34 @@ public class TSOHandler extends SimpleChannelHandler {
         }
 
         ReadingBuffer buffer;
+        Channel channel = null;
+        boolean bootstrap = false;
         synchronized (messageBuffersMap) {
             buffer = messageBuffersMap.get(ctx.getChannel());
             if (buffer == null) {
-                synchronized (sharedState) {
-                    synchronized (sharedMsgBufLock) {
-                        Channel channel = ctx.getChannel();
-                        channel.write(new CommittedTransactionReport(sharedState.latestStartTimestamp, sharedState.latestCommitTimestamp));
-                        for (Long halfAborted : sharedState.hashmap.halfAborted) {
-                           channel.write(new AbortedTransactionReport(halfAborted));
-                        }
-                        channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
-                        channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
-                        channel.write(new LargestDeletedTimestampReport(sharedState.largestDeletedTimestamp));
-                        buffer = sharedState.sharedMessageBuffer.new ReadingBuffer(channel);
-                        messageBuffersMap.put(channel, buffer);
-                        channelGroup.add(channel);
-                        clientChannels.add(channel);
-                        LOG.warn("Channel connected: " + messageBuffersMap.size());
-                    }
-                }
+                 synchronized (sharedMsgBufLock) {
+                     bootstrap = true;
+                     channel = ctx.getChannel();
+                     buffer = sharedState.sharedMessageBuffer.new ReadingBuffer(channel);
+                     messageBuffersMap.put(channel, buffer);
+                     channelGroup.add(channel);
+                     LOG.warn("Channel connected: " + messageBuffersMap.size());
+                 }
             }
+        }
+        if (bootstrap) {
+           synchronized (sharedState) {
+              synchronized (sharedMsgBufLock) {
+                 channel.write(new CommittedTransactionReport(sharedState.latestStartTimestamp, sharedState.latestCommitTimestamp));
+                 channel.write(new AbortedTransactionReport(sharedState.latestHalfAbortTimestamp));
+                 channel.write(new FullAbortReport(sharedState.latestFullAbortTimestamp));
+                 channel.write(new LargestDeletedTimestampReport(sharedState.largestDeletedTimestamp));
+                 buffer.initializeIndexes();
+              }
+           }
+           for (AbortedTransaction halfAborted : sharedState.hashmap.halfAborted) {
+              channel.write(new AbortedTransactionReport(halfAborted.getStartTimestamp()));
+           }
         }
         synchronized (sharedMsgBufLock) {
             sharedState.sharedMessageBuffer.writeTimestamp(timestamp);
@@ -237,20 +245,52 @@ public class TSOHandler extends SimpleChannelHandler {
    
    private Object sharedMsgBufLock = new Object();
    private Object callbackLock = new Object();
+   private AddRecordCallback noCallback = new AddRecordCallback() {
+      @Override
+      public void addRecordComplete(int rc, Object ctx) {
+      }
+   };
+
+   private Runnable createAbortedSnaphostTask = new Runnable() {
+      @Override
+      public void run() {
+         createAbortedSnapshot();
+      }
+   };
+
+   public void createAbortedSnapshot() {
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      DataOutputStream toWAL = new DataOutputStream(baos);
+
+      long snapshot = sharedState.hashmap.getAndIncrementAbortedSnapshot();
+
+      try {
+         toWAL.writeByte(LoggerProtocol.SNAPSHOT);
+         toWAL.writeLong(snapshot);
+         for (AbortedTransaction aborted : sharedState.hashmap.halfAborted) {
+            // ignore aborted transactions from last snapshot
+            if (aborted.getSnapshot() < snapshot) {
+               toWAL.writeByte(LoggerProtocol.ABORT);
+               toWAL.writeLong(aborted.getStartTimestamp());
+            }
+         }
+      } catch (IOException e) {
+         // can't happen
+         throw new RuntimeException(e);
+      }
+
+      sharedState.addRecord(baos.toByteArray(), noCallback, null);
+   }
    
    /**
     * Handle the CommitRequest message
     */
    public void handle(CommitRequest msg, ChannelHandlerContext ctx) {
       CommitResponse reply = new CommitResponse(msg.startTimestamp);
-      long time = 0;//System.nanoTime();
-      long timeAfter;
       ByteArrayOutputStream baos = sharedState.baos;
       DataOutputStream toWAL  = sharedState.toWAL;
       synchronized (sharedState) {
-         timeAfter = 0;//System.nanoTime();
-         waitTime += (timeAfter - time);
-         time = timeAfter;
          //0. check if it should abort
          if (msg.startTimestamp < timestampOracle.first()) {
             reply.committed = false;
@@ -258,28 +298,23 @@ public class TSOHandler extends SimpleChannelHandler {
          } else if (msg.startTimestamp < sharedState.largestDeletedTimestamp) {
             // Too old
             reply.committed = false;//set as abort
-//            LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
+            LOG.warn("Too old starttimestamp: ST "+ msg.startTimestamp +" MAX " + sharedState.largestDeletedTimestamp);
          } else {
             //1. check the write-write conflicts
             for (RowKey r: msg.rows) {
                long value;
                value = sharedState.hashmap.get(r.getRow(), r.getTable(), r.hashCode());
                if (value != 0 && value > msg.startTimestamp) {
-                  //System.out.println("Abort...............");
                   reply.committed = false;//set as abort
                   break;
                } else if (value == 0 && sharedState.largestDeletedTimestamp > msg.startTimestamp) {
                   //then it could have been committed after start timestamp but deleted by recycling
-                  System.out.println("Old............... " + sharedState.largestDeletedTimestamp + " " + msg.startTimestamp);
+                  LOG.warn("Old transaction {Start timestamp  "  + msg.startTimestamp + "} {Largest deleted timestamp " + sharedState.largestDeletedTimestamp + "}");
                   reply.committed = false;//set as abort
                   break;
                }
             }
          }
-
-         timeAfter = 0;//System.nanoTime();
-         checkTime += (timeAfter - time);
-         time = timeAfter;
 
          if (reply.committed) {
             //2. commit
@@ -289,32 +324,31 @@ public class TSOHandler extends SimpleChannelHandler {
               sharedState.uncommited.commit(msg.startTimestamp);
               reply.commitTimestamp = commitTimestamp;
               if (msg.rows.length > 0) {
-                  if(LOG.isDebugEnabled()){
-                      LOG.debug("Adding commit to WAL");
+                  if(LOG.isTraceEnabled()){
+                      LOG.trace("Adding commit to WAL");
                   }
                   toWAL.writeByte(LoggerProtocol.COMMIT);
                   toWAL.writeLong(msg.startTimestamp);
                   toWAL.writeLong(commitTimestamp);
-//                  toWAL.writeByte(msg.rows.length);
+
+                  long oldLargestDeletedTimestamp = sharedState.largestDeletedTimestamp;
    
                   for (RowKey r: msg.rows) {
-//                     toWAL.write(r.getRow(), 0, r.getRow().length);
-                     sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(), 
+                     sharedState.largestDeletedTimestamp = sharedState.hashmap.put(r.getRow(),
                                                      r.getTable(), 
                                                      commitTimestamp, 
                                                      r.hashCode(), 
-                                                     sharedState.largestDeletedTimestamp);
+                                                     oldLargestDeletedTimestamp);
                   }
 
                   sharedState.processCommit(msg.startTimestamp, commitTimestamp);
-                  if (sharedState.largestDeletedTimestamp > sharedState.previousLargestDeletedTimestamp) {
+                  if (sharedState.largestDeletedTimestamp > oldLargestDeletedTimestamp) {
                      toWAL.writeByte(LoggerProtocol.LARGESTDELETEDTIMESTAMP);
                      toWAL.writeLong(sharedState.largestDeletedTimestamp);
                      Set<Long> toAbort = sharedState.uncommited.raiseLargestDeletedTransaction(sharedState.largestDeletedTimestamp);
-//                     if (!toAbort.isEmpty()) {
-//                         LOG.warn("Slow transactions after raising max: " + toAbort);
-//                         System.out.println("largest deleted ts: " + sharedState.largestDeletedTimestamp);
-//                     }
+                     if (LOG.isWarnEnabled() && !toAbort.isEmpty()) {
+                        LOG.warn("Slow transactions after raising max: " + toAbort.size());
+                     }
                      synchronized (sharedMsgBufLock) {
                         for (Long id : toAbort) {
                            sharedState.hashmap.setHalfAborted(id);
@@ -322,6 +356,10 @@ public class TSOHandler extends SimpleChannelHandler {
                         }
                         queueLargestIncrease(sharedState.largestDeletedTimestamp);
                      }
+                  }
+                  if (sharedState.largestDeletedTimestamp > sharedState.previousLargestDeletedTimestamp + TSOState.MAX_ITEMS) {
+                     // schedule snapshot
+                     executor.submit(createAbortedSnaphostTask);
                      sharedState.previousLargestDeletedTimestamp = sharedState.largestDeletedTimestamp;
                   }
                   synchronized (sharedMsgBufLock) {
@@ -348,16 +386,12 @@ public class TSOHandler extends SimpleChannelHandler {
          
          TSOHandler.transferredBytes.incrementAndGet();
 
-         timeAfter = 0;//System.nanoTime();
-         commitTime += (timeAfter - time);
-         time = timeAfter;
-
          ChannelandMessage cam = new ChannelandMessage(ctx, reply);
 
          sharedState.nextBatch.add(cam);
          if (sharedState.baos.size() >= TSOState.BATCH_SIZE) {
-             if(LOG.isDebugEnabled()){
-                 LOG.debug("Going to add record of size " + sharedState.baos.size());
+             if(LOG.isTraceEnabled()){
+                 LOG.trace("Going to add record of size " + sharedState.baos.size());
              }
             //sharedState.lh.asyncAddEntry(baos.toByteArray(), this, sharedState.nextBatch);
             sharedState.addRecord(baos.toByteArray(), 
@@ -421,8 +455,8 @@ public class TSOHandler extends SimpleChannelHandler {
 
    public void flush() {
       synchronized (sharedState) {
-          if(LOG.isDebugEnabled()){
-              LOG.debug("Adding record, size: " + sharedState.baos.size());
+          if(LOG.isTraceEnabled()){
+              LOG.trace("Adding record, size: " + sharedState.baos.size());
           }
          sharedState.addRecord(sharedState.baos.toByteArray(), new AddRecordCallback() {
              @Override
@@ -445,7 +479,7 @@ public class TSOHandler extends SimpleChannelHandler {
          sharedState.nextBatch = new ArrayList<ChannelandMessage>(sharedState.nextBatch.size() + 5);
          sharedState.baos.reset();
          if (flushFuture.cancel(false)) {
-            flushFuture = executor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
+            flushFuture = scheduledExecutor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
          }
       }
    }
@@ -459,14 +493,14 @@ public class TSOHandler extends SimpleChannelHandler {
          if (sharedState.nextBatch.size() > 0) {
             synchronized (sharedState) {
                if (sharedState.nextBatch.size() > 0) {
-                   if(LOG.isDebugEnabled()){
-                       LOG.debug("Flushing log batch.");
+                   if(LOG.isTraceEnabled()){
+                       LOG.trace("Flushing log batch.");
                    }
                   flush();
                }
             }
          }
-         flushFuture = executor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
+         flushFuture = scheduledExecutor.schedule(flushThread, TSOState.FLUSH_TIMEOUT, TimeUnit.MILLISECONDS);
       }
    }
    

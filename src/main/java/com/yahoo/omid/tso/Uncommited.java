@@ -20,7 +20,11 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class Uncommited {
+   private static final Logger LOG = LoggerFactory.getLogger(TSOHandler.class);
    
    private static final int BKT_NUMBER = 1 << 10; // 2 ^ 10
 
@@ -28,26 +32,18 @@ public class Uncommited {
    private int firstUncommitedBucket = 0;
    private long firstUncommitedAbsolute = 0;
    private int lastOpenedBucket = 0;
-   private final long first_start;
-   private boolean log = false;
 
    public Uncommited(long startTimestamp) {
-      first_start = startTimestamp;
       lastOpenedBucket = firstUncommitedBucket = getRelativePosition(startTimestamp);
       firstUncommitedAbsolute = getAbsolutePosition(startTimestamp);
       long ts = startTimestamp & ~(Bucket.getBucketSize() - 1);
-      System.out.println("Start TS : " + startTimestamp + " firstUncom: " + firstUncommitedBucket + " Mask:" + ts );
-      System.out.println("BKT_NUMBER : " + BKT_NUMBER + " BKT_SIZE: " + Bucket.getBucketSize());
+      LOG.debug("Start TS : " + startTimestamp + " firstUncom: " + firstUncommitedBucket + " Mask:" + ts );
+      LOG.debug("BKT_NUMBER : " + BKT_NUMBER + " BKT_SIZE: " + Bucket.getBucketSize());
       for (; ts <= startTimestamp; ++ts)
          commit(ts);
-      log = true;
    }
 
    public synchronized void commit(long id) {
-      if (log && id < first_start) {
-         System.out.println("id: " + id);
-         Thread.dumpStack();
-      }
       int position = getRelativePosition(id);
       Bucket bucket = buckets[position];
       if (bucket == null) {
@@ -83,9 +79,6 @@ public class Uncommited {
          Bucket bucket = buckets[i];
          if (bucket != null) {
             aborted.addAll(bucket.abortAllUncommited());
-//            if (!aborted.isEmpty()) {
-//               System.out.println("FirstUncommited: " + firstUncommitedBucket + "Bucket with aborts: "+i + " max bucket: " +maxBucket + " id " + id);
-//            }
             buckets[i] = null;
          }
       }

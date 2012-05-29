@@ -16,4 +16,9 @@ public class MinimumTimestamp implements Serializable {
       return timestamp;
    }
    
+   @Override
+   public String toString() {
+      return "{MinimumTimestamp " + timestamp + "}";
+   }
+
 }

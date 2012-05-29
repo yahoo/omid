@@ -19,7 +19,6 @@ package com.yahoo.omid.tso;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -37,8 +36,6 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
 
 import com.yahoo.omid.client.SyncAbortCompleteCallback;
 import com.yahoo.omid.client.SyncCommitCallback;
@@ -161,13 +158,9 @@ public class ClientHandler extends TSOClient {
    @Override
    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
       super.channelConnected(ctx, e);
-      try {
-         Thread.sleep(15000);
-      } catch (InterruptedException e1) {
-         //ignore
-      }
       startDate = new Date();
       channel = e.getChannel();
+      outstandingTransactions = 0;
       startTransaction();
    }
 
@@ -267,18 +260,6 @@ public class ClientHandler extends TSOClient {
 
    private long getSizeAborted() {
       return aborted.size() * 8 * 8;
-   }
-
-   @Override
-   public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-      if (e.getCause() instanceof IOException) {
-         LOG.warn("IOException from downstream.", e.getCause());
-      } else {
-         LOG.warn("Unexpected exception from downstream.", e.getCause());
-      }
-      // Offer default object
-      answer.offer(false);
-      Channels.close(e.getChannel());
    }
 
    private java.util.Random rnd;

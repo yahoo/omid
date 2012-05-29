@@ -35,6 +35,11 @@ import com.yahoo.omid.tso.messages.TimestampResponse;
 public class TestPersistence extends TSOTestBase {
     private static final Log LOG = LogFactory.getLog(TestPersistence.class);
    
+   @Override
+   protected boolean recoveryEnabled() {
+      return true;
+   }
+    
    @Test
    public void testCommit() throws Exception {
         
@@ -81,9 +86,7 @@ public class TestPersistence extends TSOTestBase {
    public void testBigLog() throws Exception {
       clientHandler.sendMessage(new TimestampRequest());
       clientHandler.receiveBootstrap();
-      clientHandler.receiveMessage(TimestampResponse.class);
 
-      clientHandler.sendMessage(new TimestampRequest());
       for (int i = 0; i < 10000; ++i) {
          Object msg;
          while (!((msg = clientHandler.receiveMessage()) instanceof TimestampResponse))

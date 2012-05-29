@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
 import org.jboss.netty.channel.ChannelPipeline;
@@ -35,8 +36,11 @@ import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
 import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
+import org.jboss.netty.util.ObjectSizeEstimator;
 
 import com.yahoo.omid.tso.persistence.BookKeeperStateBuilder;
+import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
+import com.yahoo.omid.tso.persistence.LoggerProtocol;
 
 /**
  * TSO Server with serialization
@@ -99,7 +103,12 @@ public class TSOServer implements Runnable {
         int maxThreads = 5;
         // Memory limitation: 1MB by channel, 1GB global, 100 ms of timeout
         ThreadPoolExecutor pipelineExecutor = new OrderedMemoryAwareThreadPoolExecutor(maxThreads, 1048576, 1073741824,
-                100, TimeUnit.MILLISECONDS, Executors.defaultThreadFactory());
+                100, TimeUnit.MILLISECONDS, new ObjectSizeEstimator() {
+                  @Override
+                  public int estimateSize(Object o) {
+                     return 1000;
+                  }
+               }, Executors.defaultThreadFactory());
 
         // This is the only object of timestamp oracle
         // TODO: make it singleton
@@ -111,6 +120,13 @@ public class TSOServer implements Runnable {
             LOG.error("Couldn't build state");
             return;
         }
+
+        state.addRecord(new byte[] { LoggerProtocol.LOGSTART }, new AddRecordCallback() {
+            @Override
+            public void addRecordComplete(int rc, Object ctx) {
+            }
+        }, null);
+
         TSOState.BATCH_SIZE = config.getBatchSize();
         System.out.println("PARAM MAX_ITEMS: " + TSOState.MAX_ITEMS);
         System.out.println("PARAM BATCH_SIZE: " + TSOState.BATCH_SIZE);
@@ -118,14 +134,25 @@ public class TSOServer implements Runnable {
         System.out.println("PARAM MAX_THREADS: " + maxThreads);
 
         final TSOHandler handler = new TSOHandler(channelGroup, state);
+        handler.start();
 
         bootstrap.setPipelineFactory(new TSOPipelineFactory(pipelineExecutor, handler));
         bootstrap.setOption("tcpNoDelay", false);
+        //setting buffer size can improve I/O
+        bootstrap.setOption("child.sendBufferSize", 1048576);
+        bootstrap.setOption("child.receiveBufferSize", 1048576);
+        // better to have an receive buffer predictor
+        bootstrap.setOption("receiveBufferSizePredictorFactory",
+              new AdaptiveReceiveBufferSizePredictorFactory());
+        //if the server is sending 1000 messages per sec, optimum write buffer water marks will
+        //prevent unnecessary throttling, Check NioSocketChannelConfig doc
+        bootstrap.setOption("writeBufferLowWaterMark", 32 * 1024);
+        bootstrap.setOption("writeBufferHighWaterMark", 64 * 1024);
+
         bootstrap.setOption("child.tcpNoDelay", false);
         bootstrap.setOption("child.keepAlive", true);
         bootstrap.setOption("child.reuseAddress", true);
         bootstrap.setOption("child.connectTimeoutMillis", 60000);
-        bootstrap.setOption("readWriteFair", true);
 
         // *** Start the Netty running ***
 

@@ -59,7 +59,7 @@ public class Bucket {
          return aborted;
       }
 
-      LOG.debug("Performing scanning...");
+      LOG.trace("Performing scanning...");
       
       for (int i = transactions.nextClearBit(firstUncommited); i >= 0
             && i <= lastCommited; i = transactions.nextClearBit(i + 1)) {
