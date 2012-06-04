@@ -3,6 +3,7 @@ package com.yahoo.omid.client.regionserver;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -28,7 +29,7 @@ import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 
-import com.yahoo.omid.client.ByteArray;
+import com.yahoo.omid.client.ColumnWrapper;
 import com.yahoo.omid.tso.messages.MinimumTimestamp;
 
 public class Compacter extends BaseRegionObserver {
@@ -98,8 +99,8 @@ public class Compacter extends BaseRegionObserver {
    private static class CompacterScanner implements InternalScanner {
       private InternalScanner internalScanner;
       private long minTimestamp;
-      private Set<ByteArray> columnsSeen = new HashSet<ByteArray>();
-      private ByteArray lastRowId = null;
+      private Set<ColumnWrapper> columnsSeen = new HashSet<ColumnWrapper>();
+      private byte [] lastRowId = null;
       
       public CompacterScanner(InternalScanner internalScanner, long minTimestamp) {
          this.minTimestamp = minTimestamp;
@@ -120,14 +121,14 @@ public class Compacter extends BaseRegionObserver {
             int toReceive = limit == -1 ? -1 : limit - result.size();
             moreRows = internalScanner.next(raw, toReceive);
             if (raw.size() > 0) {
-               ByteArray currentRowId = new ByteArray(raw.get(0).getRow());
-               if (!currentRowId.equals(lastRowId)) {
+               byte [] currentRowId = raw.get(0).getRow();
+               if (!Arrays.equals(currentRowId, lastRowId)) {
                   columnsSeen.clear();
                   lastRowId = currentRowId;
                }
             }
             for (KeyValue kv : raw) {
-               ByteArray column = new ByteArray(kv.getFamily(), kv.getQualifier());
+               ColumnWrapper column = new ColumnWrapper(kv.getFamily(), kv.getQualifier());
                if (columnsSeen.add(column) || kv.getTimestamp() > minTimestamp) {
                   result.add(kv);
                } else {

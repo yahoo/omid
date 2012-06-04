@@ -18,14 +18,12 @@ package com.yahoo.omid.client;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
-import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
@@ -52,23 +50,13 @@ public class TransactionalTable extends HTable {
    public static long elementsRead = 0;
    public static long extraGetsPerformed = 0;
    public static double extraVersionsAvg = 3;
-   
-   private static int CACHE_VERSIONS_OVERHEAD = 3;
-//   private int cacheVersions = 3;
-   public double versionsAvg = 3;
-   private static final double alpha = 0.975;
-//   private static final double betha = 1.25;
 
-//   private static Thread monitor = new ThroughputMonitor();
-//   private static boolean started = false;
-//   {
-//      synchronized(monitor) {
-//         if (!started) {
-//            started = true;
-//            monitor.start();
-//         }
-//      }
-//   }
+   /** We always ask for CACHE_VERSIONS_OVERHEAD extra versions */
+   private static int CACHE_VERSIONS_OVERHEAD = 3;
+   /** Average number of versions needed to reach the right snapshot */
+   public double versionsAvg = 3;
+   /** How fast do we adapt the average */
+   private static final double alpha = 0.975;
 
    public TransactionalTable(Configuration conf, byte[] tableName) throws IOException {
       super(conf, tableName);
@@ -86,13 +74,13 @@ public class TransactionalTable extends HTable {
     * @throws IOException
     */
    public Result get(TransactionState transactionState, final Get get) throws IOException {
+      final int requestedVersions = (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD);
       final long readTimestamp = transactionState.getStartTimestamp();
       final Get tsget = new Get(get.getRow());
       TimeRange timeRange = get.getTimeRange();
       long startTime = timeRange.getMin();
       long endTime = Math.min(timeRange.getMax(), readTimestamp + 1);
-//      int maxVersions = get.getMaxVersions();
-      tsget.setTimeRange(startTime, endTime).setMaxVersions((int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
+      tsget.setTimeRange(startTime, endTime).setMaxVersions(requestedVersions);
       Map<byte[], NavigableSet<byte[]>> kvs = get.getFamilyMap();
       for (Map.Entry<byte[], NavigableSet<byte[]>> entry : kvs.entrySet()) {
          byte[] family = entry.getKey();
@@ -105,23 +93,9 @@ public class TransactionalTable extends HTable {
             }
          }
       }
-//      Result result;
-//      Result filteredResult;
-//      do {
-//         result = super.get(tsget);
-//         filteredResult = filter(super.get(tsget), readTimestamp, maxVersions);
-//      } while (!result.isEmpty() && filteredResult == null);
       getsPerformed++;
-      Result result = filter(transactionState, super.get(tsget), readTimestamp, (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
-      return result == null ? new Result() : result;
-//      Scan scan = new Scan(get);
-//      scan.setRetainDeletesInOutput(true);
-//      ResultScanner rs = this.getScanner(transactionState, scan);
-//      Result r = rs.next();
-//      if (r == null) {
-//         r = new Result();
-//      }
-//      return r;
+      // Return the KVs that belong to the transaction snapshot, ask for more versions if needed
+      return new Result( filter(transactionState, super.get(tsget).list(), requestedVersions) );
    }
 
    /**
@@ -162,7 +136,8 @@ public class TransactionalTable extends HTable {
          }
       }
       if (issueGet) {
-         Result result = this.get(deleteG);
+         // It's better to perform a transactional get to avoid deleting more than necessary
+         Result result = this.get(transactionState, deleteG);
          for (Entry<byte[], NavigableMap<byte[], NavigableMap<Long, byte[]>>> entryF : result.getMap().entrySet()) {
             byte[] family = entryF.getKey();
             for (Entry<byte[], NavigableMap<Long, byte[]>> entryQ : entryF.getValue().entrySet()) {
@@ -200,6 +175,7 @@ public class TransactionalTable extends HTable {
 
       put(tsput);
    }
+
    /**
     * Transactional version of {@link HTable#getScanner(Scan)}
     * 
@@ -209,8 +185,6 @@ public class TransactionalTable extends HTable {
     */
    public ResultScanner getScanner(TransactionState transactionState, Scan scan) throws IOException {
       Scan tsscan = new Scan(scan);
-//      tsscan.setRetainDeletesInOutput(true);
-//      int maxVersions = scan.getMaxVersions();
       tsscan.setMaxVersions((int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
       tsscan.setTimeRange(0, transactionState.getStartTimestamp() + 1);
       ClientScanner scanner = new ClientScanner(transactionState, tsscan, (int) (versionsAvg + CACHE_VERSIONS_OVERHEAD));
@@ -218,139 +192,81 @@ public class TransactionalTable extends HTable {
       return scanner;
    }
 
-   private Result filter(TransactionState state, Result result, long startTimestamp, int localVersions) throws IOException {
-      if (result == null) {
-         return null;
-      }
-      List<KeyValue> kvs = result.list();
+   /**
+    * Filters the raw results returned from HBase and returns only those belonging to the current snapshot, as
+    * defined by the transactionState object. If the raw results don't contain enough information for a particular
+    * qualifier, it will request more versions from HBase.
+    *
+    * @param transactionState Defines the current snapshot
+    * @param kvs Raw KVs that we are going to filter
+    * @param localVersions Number of versions requested from hbase
+    * @return Filtered KVs belonging to the transaction snapshot
+    * @throws IOException
+    */
+   private List<KeyValue> filter(TransactionState transactionState, List<KeyValue> kvs, int localVersions) throws IOException {
+      final int requestVersions = localVersions * 2 + CACHE_VERSIONS_OVERHEAD;
       if (kvs == null) {
-         return result;
+         return Collections.emptyList();
       }
-      Map<ByteArray, Map<ByteArray, Integer>> occurrences = new HashMap<ByteArray, Map<ByteArray,Integer>>();
-      Map<ByteArray, Map<ByteArray, Long>> minTimestamp = new HashMap<ByteArray, Map<ByteArray,Long>>();
-      List<KeyValue> nonDeletes = new ArrayList<KeyValue>();
+
+      long startTimestamp = transactionState.getStartTimestamp();
+      // Filtered kvs
       List<KeyValue> filtered = new ArrayList<KeyValue>();
-      Map<ByteArray, Set<ByteArray>> read = new HashMap<ByteArray, Set<ByteArray>>();
-      DeleteTracker tracker = new DeleteTracker();
+      // Map from column to older uncommitted timestamp
+      List<Get> pendingGets = new ArrayList<Get>();
+      ColumnWrapper lastColumn = new ColumnWrapper(null, null);
+      long oldestUncommittedTS = Long.MAX_VALUE;
+      boolean validRead = true; 
+      // Number of versions needed to reach a committed value
+      int versionsProcessed = 0;
+
       for (KeyValue kv : kvs) {
-         ByteArray family = new ByteArray(kv.getFamily());
-         ByteArray qualifier = new ByteArray(kv.getQualifier());
-         Set<ByteArray> readQualifiers = read.get(family);
-         if (readQualifiers == null) {
-            readQualifiers = new HashSet<ByteArray>();
-            read.put(family, readQualifiers);
-         } else if (readQualifiers.contains(qualifier)) continue;
-//         RowKey rk = new RowKey(kv.getRow(), getTableName());
-         if (state.tsoclient.validRead(kv.getTimestamp(), startTimestamp)) {
-            if (!tracker.addDeleted(kv))
-               nonDeletes.add(kv);
-            {
-               // Read valid value
-               readQualifiers.add(qualifier);
-               
-//                statistics
-//               elementsGotten++;
-               Map<ByteArray, Integer> occurrencesCols = occurrences.get(family);
-               Integer times = null;
-               if (occurrencesCols != null) {
-                  times = occurrencesCols.get(qualifier);
-               }
-               if (times != null) {
-//                  elementsRead += times;
-                  versionsAvg = times > versionsAvg ? times : alpha * versionsAvg + (1 - alpha) * times;
-//                  extraVersionsAvg = times > extraVersionsAvg ? times : alpha * extraVersionsAvg + (1 - alpha) * times;
-               } else {
-//                  elementsRead++;
-                  versionsAvg = alpha * versionsAvg + (1 - alpha);
-//                  extraVersionsAvg = alpha * extraVersionsAvg + (1 - alpha);
-               }
-            }
-         } else {
-            Map<ByteArray, Integer> occurrencesCols = occurrences.get(family);
-            Map<ByteArray, Long> minTimestampCols = minTimestamp.get(family);
-            if (occurrencesCols == null) {
-               occurrencesCols = new HashMap<ByteArray, Integer>();
-               minTimestampCols = new HashMap<ByteArray, Long>();
-               occurrences.put(family, occurrencesCols);
-               minTimestamp.put(family, minTimestampCols);
-            }
-            Integer times = occurrencesCols.get(qualifier);
-            Long timestamp = minTimestampCols.get(qualifier);
-            if (times == null) {
-               times = 0;
-               timestamp = kv.getTimestamp();
-            }
-            times++;
-            timestamp = Math.min(timestamp, kv.getTimestamp());
-            if (times == localVersions) {
-               // We need to fetch more versions
+         ColumnWrapper currentColumn = new ColumnWrapper(kv.getFamily(), kv.getQualifier());
+         if (!currentColumn.equals(lastColumn)) {
+            // New column, if we didn't read a committed value for last one, add it to pending
+            if (!validRead && versionsProcessed == localVersions) {
                Get get = new Get(kv.getRow());
                get.addColumn(kv.getFamily(), kv.getQualifier());
-               get.setMaxVersions(localVersions);
-               Result r;
-               GOTRESULT: do {
-                  extraGetsPerformed++;
-                  get.setTimeRange(0, timestamp);
-                  r = this.get(get);
-                  List<KeyValue> list = r.list();
-                  if (list == null) break;
-                  for (KeyValue t : list) {
-                     times++;
-                     timestamp = Math.min(timestamp, t.getTimestamp());
-//                     rk = new RowKey(kv.getRow(), getTableName());
-                     if (state.tsoclient.validRead(t.getTimestamp(), startTimestamp)) {
-                        if (!tracker.addDeleted(t))
-                           nonDeletes.add(t);
-                        readQualifiers.add(qualifier);
-                        elementsGotten++;
-                        elementsRead += times;
-                        versionsAvg = times > versionsAvg ? times : alpha * versionsAvg + (1 - alpha) * times;
-                        extraVersionsAvg = times > extraVersionsAvg ? times : alpha * extraVersionsAvg + (1 - alpha) * times;
-                        break GOTRESULT;
-                     }
-                  }
-               } while (r.size() == localVersions);
-            } else {
-               occurrencesCols.put(qualifier, times);
-               minTimestampCols.put(qualifier, timestamp);
+               get.setMaxVersions(requestVersions); // TODO set maxVersions wisely
+               get.setTimeRange(0, oldestUncommittedTS - 1);
+               pendingGets.add(get);
             }
+            validRead = false;
+            versionsProcessed = 0;
+            oldestUncommittedTS = Long.MAX_VALUE;
+            lastColumn = currentColumn;
+         }
+         if (validRead) {
+            // If we already have a committed value for this column, skip kv
+            continue;
+         }
+         versionsProcessed++;
+         if (transactionState.tsoclient.validRead(kv.getTimestamp(), startTimestamp)) {
+            // Valid read, add it to result unless it's a delete
+            if (kv.getValueLength() > 0) {
+               filtered.add(kv);
+            }
+            validRead = true;
+            // Update versionsAvg: increase it quickly, decrease it slowly
+            versionsAvg =
+                  versionsProcessed > versionsAvg ?
+                        versionsProcessed :
+                        alpha * versionsAvg + (1 - alpha) * versionsProcessed;
+         } else {
+            // Uncomitted, keep track of oldest uncommitted timestamp
+            oldestUncommittedTS = Math.min(oldestUncommittedTS, kv.getTimestamp());
          }
       }
-      for (KeyValue kv : nonDeletes) {
-         if (!tracker.isDeleted(kv)) {
-            filtered.add(kv);
+
+      // If we have pending columns, request (and filter recursively) them
+      if (!pendingGets.isEmpty()) {
+         Result[] results = this.get(pendingGets);
+         for (Result r : results) {
+            filtered.addAll(filter(transactionState, r.list(), requestVersions));
          }
       }
-//      cacheVersions = (int) versionsAvg;
-      if (filtered.isEmpty()) {
-         return null;
-      }
-      return new Result(filtered);
-   }
-   
-   private class DeleteTracker {
-      Map<ByteArray, Long> deletedRows = new HashMap<ByteArray, Long>();
-      Map<ByteArray, Long> deletedFamilies = new HashMap<ByteArray, Long>();
-      Map<ByteArray, Long> deletedColumns = new HashMap<ByteArray, Long>();
-      
-      public boolean addDeleted(KeyValue kv) {
-         if (kv.getValue().length == 0) {
-            deletedColumns.put(new ByteArray(Bytes.add(kv.getFamily(), kv.getQualifier())), kv.getTimestamp());
-            return true;
-         }
-         return false;
-      }
-      
-      public boolean isDeleted(KeyValue kv) {
-         Long timestamp;
-         timestamp = deletedRows.get(new ByteArray(kv.getRow()));
-         if (timestamp != null && kv.getTimestamp() < timestamp) return true;
-         timestamp = deletedFamilies.get(new ByteArray(kv.getFamily()));
-         if (timestamp != null && kv.getTimestamp() < timestamp) return true;
-         timestamp = deletedColumns.get(new ByteArray(Bytes.add(kv.getFamily(), kv.getQualifier())));
-         if (timestamp != null && kv.getTimestamp() < timestamp) return true;
-         return false;
-      }
+      Collections.sort(filtered, KeyValue.COMPARATOR);
+      return filtered;
    }
 
    protected class ClientScanner extends HTable.ClientScanner {
@@ -365,72 +281,34 @@ public class TransactionalTable extends HTable {
 
       @Override
       public Result next() throws IOException {
-         Result result;
-         Result filteredResult;
-         do {
-            result = super.next();
-            filteredResult = filter(state, result, state.getStartTimestamp(), maxVersions);
-         } while(result != null && filteredResult == null);
-         return filteredResult;
-      }
-      
-      @Override
-      public Result[] next(int nbRows) throws IOException {
-         Result [] results = super.next(nbRows);
-         for (int i = 0; i < results.length; i++) {
-            results[i] = filter(state, results[i], state.getStartTimestamp(), maxVersions);
+         List<KeyValue> filteredResult = Collections.emptyList();
+         while (filteredResult.isEmpty()) {
+            Result result = super.next();
+            if (result == null) {
+               return null;
+            }
+            filteredResult = filter(state, result.list(), maxVersions);
          }
-         return results;
+         return new Result(filteredResult);
       }
 
+      // In principle no need to override, copied from super.next(int) to make sure it works even if super.next(int) 
+      // changes its implementation
+      @Override
+      public Result [] next(int nbRows) throws IOException {
+         // Collect values to be returned here
+         ArrayList<Result> resultSets = new ArrayList<Result>(nbRows);
+         for(int i = 0; i < nbRows; i++) {
+           Result next = next();
+           if (next != null) {
+             resultSets.add(next);
+           } else {
+             break;
+           }
+         }
+         return resultSets.toArray(new Result[resultSets.size()]);
+       }
+
    }
-   
-//   public static class ThroughputMonitor extends Thread {
-//      private static final Log LOG = LogFactory.getLog(ThroughputMonitor.class);
-//      
-//      /**
-//       * Constructor
-//       */
-//      public ThroughputMonitor() {
-//      }
-//      
-//      @Override
-//      public void run() {
-//         try {
-//            long oldAskedTSO = TSOClient.askedTSO;
-//            long oldElementsGotten = TransactionalTable.elementsGotten;
-//            long oldElementsRead = TransactionalTable.elementsRead;
-//            long oldExtraGetsPerformed = TransactionalTable.extraGetsPerformed;
-//            long oldGetsPerformed = TransactionalTable.getsPerformed;
-//            for (;;) {
-//               Thread.sleep(10000);
-//
-//               long newGetsPerformed = TransactionalTable.getsPerformed;
-//               long newElementsGotten = TransactionalTable.elementsGotten;
-//               long newElementsRead = TransactionalTable.elementsRead;
-//               long newExtraGetsPerformed = TransactionalTable.extraGetsPerformed;
-//               long newAskedTSO = TSOClient.askedTSO;
-//               
-//               System.out.println(String.format("TSO CLIENT: GetsPerformed: %d ElsGotten: %d ElsRead: %d ExtraGets: %d AskedTSO: %d AvgVersions: %f",
-//                     newGetsPerformed - oldGetsPerformed,
-//                     newElementsGotten - oldElementsGotten,
-//                     newElementsRead - oldElementsRead,
-//                     newExtraGetsPerformed - oldExtraGetsPerformed,
-//                     newAskedTSO - oldAskedTSO,
-//                     TransactionalTable.extraVersionsAvg)
-//                 );
-//
-//               oldAskedTSO = newAskedTSO;
-//               oldElementsGotten = newElementsGotten;
-//               oldElementsRead = newElementsRead;
-//               oldExtraGetsPerformed = newExtraGetsPerformed;
-//               oldGetsPerformed = newGetsPerformed;
-//            }
-//         } catch (InterruptedException e) {
-//            // Stop monitoring asked
-//            return;
-//         }
-//      }
-//   }
 
 }
