@@ -17,22 +17,22 @@
 package com.yahoo.omid.tso;
 
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class BufferPool {
 
-    private static Deque<ByteArrayOutputStream> pool = new ArrayDeque<ByteArrayOutputStream>();
+    private static BlockingQueue<ByteArrayOutputStream> pool = new LinkedBlockingQueue<ByteArrayOutputStream>();
     
-    public static synchronized ByteArrayOutputStream getBuffer() {
-        if (pool.isEmpty()) {
-            return new ByteArrayOutputStream(1500);
-        }
-        return pool.pollLast();
+    public static ByteArrayOutputStream getBuffer() {
+        ByteArrayOutputStream baos = pool.poll();
+        if (baos != null)
+            return baos;
+        return new ByteArrayOutputStream(1500);
     }
     
 
-    public static synchronized void pushBuffer(ByteArrayOutputStream buffer) {
+    public static void pushBuffer(ByteArrayOutputStream buffer) {
         pool.add(buffer);
     }
 }

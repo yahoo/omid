@@ -72,8 +72,7 @@ public class CommitResponse implements TSOMessage {
       }
 
    @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
+   public void readObject(ChannelBuffer aInputStream) {
       long l = aInputStream.readLong();
       startTimestamp = l;
       committed = aInputStream.readByte() == 1 ? true : false;

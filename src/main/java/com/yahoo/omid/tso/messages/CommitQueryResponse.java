@@ -50,8 +50,7 @@ public class CommitQueryResponse implements TSOMessage {
    }
 
    @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
+   public void readObject(ChannelBuffer aInputStream) {
       startTimestamp = aInputStream.readLong();
       queryTimestamp = aInputStream.readLong();
       commitTimestamp = aInputStream.readLong();

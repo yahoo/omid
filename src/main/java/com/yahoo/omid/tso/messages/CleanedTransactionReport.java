@@ -24,25 +24,25 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import com.yahoo.omid.tso.TSOMessage;
 
 /**
- * The message object that notifies clients of an aborted transaction
+ * The message object that notifies clients of a cleaned up aborted transaction
  * 
  */
-public class AbortedTransactionReport implements TSOMessage {
+public class CleanedTransactionReport implements TSOMessage {
     /**
      * Starting timestamp
      */
     public long startTimestamp;
 
-    public AbortedTransactionReport() {
+    public CleanedTransactionReport() {
     }
 
-    public AbortedTransactionReport(long startTimestamp) {
+    public CleanedTransactionReport(long startTimestamp) {
         this.startTimestamp = startTimestamp;
     }
 
     @Override
     public String toString() {
-        return "Aborted Transaction Report: T_s:" + startTimestamp;
+        return "Cleaned up Transaction Report: T_s:" + startTimestamp;
     }
 
     @Override
@@ -77,7 +77,7 @@ public class AbortedTransactionReport implements TSOMessage {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        AbortedTransactionReport other = (AbortedTransactionReport) obj;
+        CleanedTransactionReport other = (CleanedTransactionReport) obj;
         if (startTimestamp != other.startTimestamp)
             return false;
         return true;

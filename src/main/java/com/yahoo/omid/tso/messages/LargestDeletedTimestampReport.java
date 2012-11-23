@@ -18,52 +18,69 @@ package com.yahoo.omid.tso.messages;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import com.yahoo.omid.tso.TSOMessage;
 
 /**
- * The message object for sending a commit request to TSO
- * @author maysam
- *
+ * The message object that notifies clients about and increase of the largest deleted timestamp
+ * 
  */
-public class LargestDeletedTimestampReport implements TSOMessage {   
-   /**
-    * Starting timestamp
-    */
-   public long largestDeletedTimestamp;
-   
-   public LargestDeletedTimestampReport() {
-   }
-   
-   public LargestDeletedTimestampReport(long largestDeletedTimestamp) {
-      this.largestDeletedTimestamp = largestDeletedTimestamp;
-   }
+public class LargestDeletedTimestampReport implements TSOMessage {
+    /**
+     * Starting timestamp
+     */
+    public long largestDeletedTimestamp;
 
-   @Override
-      public String toString() {
-         return "Largest Deleted Timestamp Report: T_s:" + largestDeletedTimestamp;
-      }
+    public LargestDeletedTimestampReport() {
+    }
 
-   @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
-      
-      largestDeletedTimestamp = aInputStream.readLong();
-   }
+    public LargestDeletedTimestampReport(long largestDeletedTimestamp) {
+        this.largestDeletedTimestamp = largestDeletedTimestamp;
+    }
 
-   @Override
-  public void writeObject(DataOutputStream aOutputStream)
-      throws IOException {
-      aOutputStream.writeLong(largestDeletedTimestamp);
-   }
+    @Override
+    public String toString() {
+        return "Largest Deleted Timestamp Report: T_s:" + largestDeletedTimestamp;
+    }
 
-   @Override
-  public void writeObject(ChannelBuffer buffer)
-       {
-      buffer.writeLong(largestDeletedTimestamp);
-   }
+    @Override
+    public void readObject(ChannelBuffer aInputStream) {
+
+        largestDeletedTimestamp = aInputStream.readLong();
+    }
+
+    @Override
+    public void writeObject(DataOutputStream aOutputStream) throws IOException {
+        aOutputStream.writeLong(largestDeletedTimestamp);
+    }
+
+    @Override
+    public void writeObject(ChannelBuffer buffer) {
+        buffer.writeLong(largestDeletedTimestamp);
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + (int) (largestDeletedTimestamp ^ (largestDeletedTimestamp >>> 32));
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        LargestDeletedTimestampReport other = (LargestDeletedTimestampReport) obj;
+        if (largestDeletedTimestamp != other.largestDeletedTimestamp)
+            return false;
+        return true;
+    }
+
 }
-

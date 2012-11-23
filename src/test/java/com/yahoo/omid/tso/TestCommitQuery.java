@@ -28,7 +28,7 @@ import com.yahoo.omid.tso.messages.CommitQueryResponse;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
-import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.FullAbortRequest;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 
@@ -91,7 +91,7 @@ public class TestCommitQuery extends TSOTestBase {
       assertFalse(cqr3.committed);
       assertFalse(cqr3.retry);
 
-      clientHandler.sendMessage(new FullAbortReport(tr2.timestamp));
+      clientHandler.sendMessage(new FullAbortRequest(tr2.timestamp));
 
       //
       // Test Commit query of full aborted transaction

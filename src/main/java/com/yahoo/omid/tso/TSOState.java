@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.yahoo.omid.replication.SharedMessageBuffer;
 import com.yahoo.omid.tso.persistence.LoggerAsyncCallback.AddRecordCallback;
 import com.yahoo.omid.tso.persistence.LoggerException.Code;
 import com.yahoo.omid.tso.persistence.StateLogger;
@@ -105,12 +106,8 @@ public class TSOState {
     */
    public long largestDeletedTimestamp = 0;
    public long previousLargestDeletedTimestamp = 0;
-   public long latestCommitTimestamp = 0;
-   public long latestStartTimestamp = 0;
-   public long latestHalfAbortTimestamp = 0;
-   public long latestFullAbortTimestamp = 0;
    
-   public TSOSharedMessageBuffer sharedMessageBuffer = new TSOSharedMessageBuffer(this);
+   public SharedMessageBuffer sharedMessageBuffer = new SharedMessageBuffer();
 
    /**
     * The hash map to to keep track of recently committed rows

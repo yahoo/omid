@@ -60,19 +60,11 @@ public class CommitRequest implements TSOMessage {
       }
 
    
-   static private IndexOutOfBoundsException ex = new IndexOutOfBoundsException();
    @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
-//      int totalSize = aInputStream.readInt();
-//      if (totalSize < aInputStream.readableBytes()) {
-//       throw ex;   
-//      }
+   public void readObject(ChannelBuffer aInputStream) {
       long l = aInputStream.readLong();
       startTimestamp = l;
-      //LOG.error("tid: " + startTimestamp + " capacity: " + aInputStream.capacity());
       int size = aInputStream.readInt();
-      //      LOG.error("size: " + size);
       rows = new RowKey[size];
       for (int i = 0; i < size; i++) {
          rows[i] = RowKey.readObject(aInputStream);
@@ -86,13 +78,6 @@ public class CommitRequest implements TSOMessage {
    @Override
   public void writeObject(DataOutputStream aOutputStream)
       throws IOException {
-//       int size = 12;
-//       for (RowKey r: rows) {
-//           size += 2;
-//           size += r.getRow().length;
-//           size += r.getTable().length;
-//        }
-//       aOutputStream.writeInt(size);
       aOutputStream.writeLong(startTimestamp);
       aOutputStream.writeInt(rows.length);
       for (RowKey r: rows) {

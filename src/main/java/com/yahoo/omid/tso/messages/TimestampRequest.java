@@ -16,8 +16,8 @@
 
 package com.yahoo.omid.tso.messages;
 
-import java.io.*;
-import java.nio.ByteBuffer;
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 
@@ -25,23 +25,19 @@ import com.yahoo.omid.tso.TSOMessage;
 
 /**
  * The message object for sending a timestamp request to TSO
- * @author maysam
- *
+ * 
  */
 public class TimestampRequest implements TSOMessage {
 
-	@Override
-   public void writeObject(DataOutputStream aOutputStream) 
-      throws IOException {
+   @Override
+   public void writeObject(DataOutputStream aOutputStream) throws IOException {
    }
 
-	@Override
-	public void readObject(ChannelBuffer aInputStream) throws IOException {
-	}
+   @Override
+   public void readObject(ChannelBuffer aInputStream) {
+   }
 
-	   @Override
-	   public void writeObject(ChannelBuffer buffer)  {
-	   }
+   @Override
+   public void writeObject(ChannelBuffer buffer) {
+   }
 }
-
-

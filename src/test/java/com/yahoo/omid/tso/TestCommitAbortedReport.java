@@ -24,11 +24,12 @@ import org.junit.Test;
 
 import com.yahoo.omid.tso.RowKey;
 import com.yahoo.omid.tso.messages.AbortedTransactionReport;
+import com.yahoo.omid.tso.messages.CleanedTransactionReport;
 import com.yahoo.omid.tso.messages.CommitQueryRequest;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
-import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.FullAbortRequest;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
 
@@ -84,25 +85,25 @@ public class TestCommitAbortedReport extends TSOTestBase {
 
       secondClientHandler.receiveMessage(TimestampResponse.class);
       
-      secondClientHandler.sendMessage(new FullAbortReport(tr2.timestamp));
+      secondClientHandler.sendMessage(new FullAbortRequest(tr2.timestamp));
       
       // Let the TSO receive and process the FullAbortReport
       secondClientHandler.sendMessage(new CommitQueryRequest(0, 0));
       secondClientHandler.receiveMessage();
       
       //
-      // Full Aborted Transaction Report
+      // Cleaned Transaction Report
       //
       clientHandler.sendMessage(new TimestampRequest());
-      FullAbortReport far1 = clientHandler.receiveMessage(FullAbortReport.class);
-      assertEquals(tr2.timestamp, far1.startTimestamp);      
+      CleanedTransactionReport cltr1 = clientHandler.receiveMessage(CleanedTransactionReport.class);
+      assertEquals(tr2.timestamp, cltr1.startTimestamp);      
       
       //
-      // Full Aborted Transaction Report
+      // Cleaned Transaction Report
       //
       secondClientHandler.sendMessage(new TimestampRequest());
-      FullAbortReport far2 = secondClientHandler.receiveMessage(FullAbortReport.class);
-      assertEquals(tr2.timestamp, far2.startTimestamp);      
+      CleanedTransactionReport cltr2 = secondClientHandler.receiveMessage(CleanedTransactionReport.class);
+      assertEquals(tr2.timestamp, cltr2.startTimestamp);      
    }
    
 }

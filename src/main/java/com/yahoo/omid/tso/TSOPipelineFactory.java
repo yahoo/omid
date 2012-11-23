@@ -65,7 +65,7 @@ public class TSOPipelineFactory implements ChannelPipelineFactory {
 
    public ChannelPipeline getPipeline() throws Exception {
       ChannelPipeline pipeline = Channels.pipeline();
-      pipeline.addLast("decoder", new TSODecoder());
+      pipeline.addLast("decoder", new TSODecoder(null));
       pipeline.addLast("encoder", new TSOEncoder());
       synchronized (this) {
           if (x == null)

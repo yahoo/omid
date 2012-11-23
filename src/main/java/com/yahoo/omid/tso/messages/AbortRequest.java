@@ -26,7 +26,7 @@ public class AbortRequest implements TSOMessage {
    }
 
    @Override
-   public void readObject(ChannelBuffer aInputStream) throws IOException {
+   public void readObject(ChannelBuffer aInputStream) {
 
       startTimestamp = aInputStream.readLong();
    }

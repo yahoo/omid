@@ -48,17 +48,18 @@ public interface TSOMessage {
    final public byte CommitQueryRequest = (byte) 0xc5;
    final public byte CommitQueryResponse = (byte) 0xc6;
    final public byte AbortedTransactionReport = (byte) 0xc7;
-   final public byte LargestDeletedTimestampReport = (byte) 0xc8;
-   final public byte FullAbortReportByte = (byte) 0xc9;
-   final public byte AbortedTransactionReportByte = (byte) 0xca;
-   final public byte AbortRequest = (byte) 0xcb;
+   final public byte CleanedTransactionReport = (byte) 0xc8;
+   final public byte LargestDeletedTimestampReport = (byte) 0xc9;
+   final public byte CleanedTransactionReportByte = (byte) 0xca;
+   final public byte AbortedTransactionReportByte = (byte) 0xcb;
+   final public byte AbortRequest = (byte) 0xcc;
+   final public byte ZipperState = (byte) 0xcd;
 
    /*
     * Deserialize function
-    * I use ChannelBuffer instead of DataInputStream because the performance was better
+    * We use ChannelBuffer instead of DataInputStream because the performance is better
     */
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException;
+   public void readObject(ChannelBuffer aInputStream);
 
    /*
     * Serialize function

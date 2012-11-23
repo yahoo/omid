@@ -110,11 +110,10 @@ public class OmidTestBase {
       if (!LocalBookKeeper.waitForServerUp("localhost:2181", 10000)) {
          throw new Exception("Error starting zookeeper/bookkeeper");
       }
-      
-      Thread.sleep(5000);
+
+      Thread.sleep(1000);
       tsothread.start();
       waitForSocketListening("localhost", 1234);
-      Thread.sleep(5000);
 
       hbasecluster = new LocalHBaseCluster(conf, 1, 1);
 
@@ -137,18 +136,14 @@ public class OmidTestBase {
    @AfterClass public static void teardownOmid() throws Exception {
       if (hbasecluster != null) {
          hbasecluster.shutdown();
-         hbasecluster.join();
       }
-
       if (tsothread != null) {
          tsothread.interrupt();
-         tsothread.join();
       }
-
       if (bkthread != null) {
          bkthread.interrupt();
-         bkthread.join();
       }
+
       waitForSocketNotListening("localhost", 1234);
    }
 

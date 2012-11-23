@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hadoop.conf.Configuration;
 import org.jboss.netty.channel.Channel;
@@ -33,19 +31,20 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.ExceptionEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.yahoo.omid.client.SyncAbortCompleteCallback;
 import com.yahoo.omid.client.SyncCommitCallback;
 import com.yahoo.omid.client.SyncCommitQueryCallback;
 import com.yahoo.omid.client.SyncCreateCallback;
 import com.yahoo.omid.client.TSOClient;
+import com.yahoo.omid.replication.ZipperState;
 import com.yahoo.omid.tso.messages.AbortedTransactionReport;
 import com.yahoo.omid.tso.messages.CommitQueryRequest;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
-import com.yahoo.omid.tso.messages.CommittedTransactionReport;
-import com.yahoo.omid.tso.messages.FullAbortReport;
-import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
+import com.yahoo.omid.tso.messages.FullAbortRequest;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 
 /**
@@ -56,7 +55,7 @@ import com.yahoo.omid.tso.messages.TimestampRequest;
  */
 public class TestClientHandler extends TSOClient {
 
-   private static final Logger logger = Logger.getLogger(TestClientHandler.class.getName());
+   private static final Logger LOG = LoggerFactory.getLogger(TestClientHandler.class);
 
    /**
     * Return value for the caller
@@ -90,6 +89,7 @@ public class TestClientHandler extends TSOClient {
    }
 
    public void sendMessage(Object msg) throws IOException {
+      LOG.trace("Sending " + msg);
       if (msg instanceof CommitRequest) {
          CommitRequest cr = (CommitRequest) msg;
          commit(cr.startTimestamp, cr.rows, new SyncCommitCallback());
@@ -98,8 +98,8 @@ public class TestClientHandler extends TSOClient {
       } else if (msg instanceof CommitQueryRequest) {
          CommitQueryRequest cqr = (CommitQueryRequest) msg;
          isCommitted(cqr.startTimestamp, cqr.queryTimestamp, new SyncCommitQueryCallback());
-      } else if (msg instanceof FullAbortReport) {
-         FullAbortReport atr = (FullAbortReport) msg;
+      } else if (msg instanceof FullAbortRequest) {
+         FullAbortRequest atr = (FullAbortRequest) msg;
          completeAbort(atr.startTimestamp, new SyncAbortCompleteCallback());
       }
    }
@@ -128,7 +128,7 @@ public class TestClientHandler extends TSOClient {
             try {
                completeAbort(cr.startTimestamp, new SyncAbortCompleteCallback());
             } catch (IOException e) {
-               logger.log(Level.SEVERE, "Could not send Abort Complete mesagge.", e.getCause());
+               LOG.error("Could not send Abort Complete mesagge.", e.getCause());
             }
          }
       }
@@ -136,10 +136,11 @@ public class TestClientHandler extends TSOClient {
    }
 
    public void receiveBootstrap() {
-      receiveMessage(CommittedTransactionReport.class);
-      // Receive all AbortedTransactionReports + one FullAbortReport
-      while (receiveMessage() instanceof AbortedTransactionReport);
-      receiveMessage(LargestDeletedTimestampReport.class);
+      Object msg = null;
+      receiveMessage(ZipperState.class);
+      // Receive all AbortedTransactionReports
+      while ( (msg = receiveMessage()) instanceof AbortedTransactionReport);
+      messageQueue.add((TSOMessage) msg);
    }
 
    public Object receiveMessage() {
@@ -170,7 +171,7 @@ public class TestClientHandler extends TSOClient {
    @Override
    public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) {
       super.channelConnected(ctx, e);
-      logger.log(Level.INFO, "Start sending traffic");
+      LOG.info("Start sending traffic");
       synchronized (this) {
          this.channel = ctx.getChannel();
          notify();
@@ -188,9 +189,9 @@ public class TestClientHandler extends TSOClient {
    @Override
    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
       if (e.getCause() instanceof IOException) {
-         logger.log(Level.WARNING, "IOException from downstream.");
+         LOG.warn("IOException from downstream.", e.getCause());
       } else {
-         logger.log(Level.WARNING, "Unexpected exception from downstream.", e.getCause());
+         LOG.warn("Unexpected exception from downstream.", e.getCause());
       }
       // Offer default object
       answer.offer(false);

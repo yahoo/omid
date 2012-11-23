@@ -50,8 +50,7 @@ public class RowKey {
       return new String(tableId) + ":" + new String(rowId);
    }
 
-   public static RowKey readObject(ChannelBuffer aInputStream) 
-         throws IOException {
+   public static RowKey readObject(ChannelBuffer aInputStream) {
       int hash = aInputStream.readInt();
       short len = aInputStream.readByte();
 //      byte[] rowId = RowKeyBuffer.nextRowKey(len);

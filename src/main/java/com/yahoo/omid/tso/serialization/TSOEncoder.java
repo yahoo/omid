@@ -25,6 +25,7 @@ import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.handler.codec.oneone.OneToOneEncoder;
 
+import com.yahoo.omid.replication.ZipperState;
 import com.yahoo.omid.tso.BufferPool;
 import com.yahoo.omid.tso.TSOMessage;
 import com.yahoo.omid.tso.messages.AbortRequest;
@@ -34,7 +35,7 @@ import com.yahoo.omid.tso.messages.CommitQueryResponse;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.CommittedTransactionReport;
-import com.yahoo.omid.tso.messages.FullAbortReport;
+import com.yahoo.omid.tso.messages.FullAbortRequest;
 import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 import com.yahoo.omid.tso.messages.TimestampResponse;
@@ -59,7 +60,7 @@ public class TSOEncoder extends OneToOneEncoder{
          objWrapper.writeByte(TSOMessage.CommitResponse);
       } else if (msg instanceof AbortRequest) {
          objWrapper.writeByte(TSOMessage.AbortRequest);
-      } else if (msg instanceof FullAbortReport) {
+      } else if (msg instanceof FullAbortRequest) {
          objWrapper.writeByte(TSOMessage.FullAbortReport);
       } else if (msg instanceof CommitQueryRequest) {
          objWrapper.writeByte(TSOMessage.CommitQueryRequest);
@@ -71,6 +72,8 @@ public class TSOEncoder extends OneToOneEncoder{
          objWrapper.writeByte(TSOMessage.CommittedTransactionReport);
       } else if (msg instanceof LargestDeletedTimestampReport) {
          objWrapper.writeByte(TSOMessage.LargestDeletedTimestampReport);
+      } else if (msg instanceof ZipperState) {
+         objWrapper.writeByte(TSOMessage.ZipperState);
       } else throw new Exception("Wrong obj");
       ((TSOMessage)msg).writeObject(objWrapper);
       ChannelBuffer result = ChannelBuffers.wrappedBuffer(buffer.toByteArray());

@@ -59,17 +59,12 @@ public class TimestampResponse implements TSOMessage {
    }
 
    @Override
-   public void readObject(ChannelBuffer aInputStream) throws IOException {
-      long l = aInputStream.readLong();
-//      aInputStream.readBytes(1100);
-      timestamp = l;
-//      System.out.println("Received timestamp " + timestamp);
+   public void readObject(ChannelBuffer aInputStream){
+      timestamp = aInputStream.readLong();
    }
 
-//   static byte[] dummy = new byte [1100];
    @Override
    public void writeObject(DataOutputStream aOutputStream) throws IOException {
       aOutputStream.writeLong(timestamp);
-//      aOutputStream.write(dummy);
    }
 }

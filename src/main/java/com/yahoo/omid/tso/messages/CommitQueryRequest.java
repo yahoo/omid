@@ -27,24 +27,19 @@ import com.yahoo.omid.tso.TSOMessage;
 public class CommitQueryRequest implements TSOMessage {
    public long startTimestamp;
    public long queryTimestamp;
-//   public RowKey rowkey;
    
    public CommitQueryRequest() {
-//      rowkey = new RowKey();;
    }
 
    public CommitQueryRequest(long startTimestamp, long queryTimestamp) {
       this.startTimestamp = startTimestamp;
       this.queryTimestamp = queryTimestamp;
-//      this.rowkey = rowkey;
    }
 
    @Override
-   public void readObject(ChannelBuffer aInputStream)
-      throws IOException {
+   public void readObject(ChannelBuffer aInputStream) {
       startTimestamp = aInputStream.readLong();
       queryTimestamp = aInputStream.readLong();
-//      rowkey = RowKey.readObject(aInputStream);
    }
 
    @Override
@@ -52,7 +47,6 @@ public class CommitQueryRequest implements TSOMessage {
       throws IOException {
       aOutputStream.writeLong(startTimestamp);
       aOutputStream.writeLong(queryTimestamp);
-//      rowkey.writeObject(aOutputStream);
    }
 
    @Override
