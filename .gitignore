@@ -1,0 +1,20 @@
+.classpath
+.project
+.settings
+.metadata
+target/
+lib/
+# ### FIXME: Remove these lines when compilation artifacts are moved to target dir.
+src/main/native/libtso-commithashmap.jnilib
+src/main/mative/libtso-commithashmap.so
+src/main/native/nativelib.o
+src/main/native/com_yahoo_omid_tso_CommitHashMap.h
+# ### END FIXME
+*.log
+*.log.*
+*.orig
+*.iml
+*.ipr
+.idea/
+*.iws
+*~

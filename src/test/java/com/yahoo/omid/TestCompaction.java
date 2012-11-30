@@ -35,15 +35,14 @@ import org.junit.Test;
 import com.yahoo.omid.client.TransactionManager;
 import com.yahoo.omid.client.TransactionState;
 import com.yahoo.omid.client.TransactionalTable;
-import com.yahoo.omid.tso.TSOState;
 
 public class TestCompaction extends OmidTestBase {
    private static final Log LOG = LogFactory.getLog(TestCompaction.class);
 
    @Test public void testDeleteOld() throws Exception {
       try {
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable tt = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable tt = new TransactionalTable(hbaseConf, TEST_TABLE);
 
          TransactionState t1 = tm.beginTransaction();
          LOG.info("Transaction created " + t1);
@@ -74,7 +73,7 @@ public class TestCompaction extends OmidTestBase {
             tm.tryCommit(t2);
          }
          
-         HBaseAdmin admin = new HBaseAdmin(conf);
+         HBaseAdmin admin = new HBaseAdmin(hbaseConf);
          admin.flush(TEST_TABLE);
          
          for (int i = 0; i < 500; ++i) {
@@ -116,8 +115,8 @@ public class TestCompaction extends OmidTestBase {
 
    @Test public void testLimitEqualToColumns() throws Exception {
       try {
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable tt = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable tt = new TransactionalTable(hbaseConf, TEST_TABLE);
 
          TransactionState t1 = tm.beginTransaction();
 
@@ -156,7 +155,7 @@ public class TestCompaction extends OmidTestBase {
             tm.tryCommit(t2);
          }
 
-         HBaseAdmin admin = new HBaseAdmin(conf);
+         HBaseAdmin admin = new HBaseAdmin(hbaseConf);
          admin.flush(TEST_TABLE);
 
          TransactionState t3 = tm.beginTransaction();

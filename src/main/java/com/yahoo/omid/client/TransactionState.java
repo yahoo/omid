@@ -19,6 +19,11 @@ package com.yahoo.omid.client;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ *
+ * This class contains the required information to represent an Omid's transaction, including the set of rows modified.
+ * 
+ */
 public class TransactionState {
    private long startTimestamp;
    private long commitTimestamp;
@@ -26,36 +31,30 @@ public class TransactionState {
    
    public TSOClient tsoclient;
 
-   TransactionState() {
-      startTimestamp = 0;
-      commitTimestamp = 0;
-      this.rows = new HashSet<RowKeyFamily>();
-   }
-
    TransactionState(long startTimestamp, TSOClient client) {
-      this();
+	  this.rows = new HashSet<RowKeyFamily>();
       this.startTimestamp = startTimestamp;;
       this.commitTimestamp = 0;
       this.tsoclient = client;
    }
 
-   long getStartTimestamp() {
+   public long getStartTimestamp() {
       return startTimestamp;
    }
    
-   long getCommitTimestamp() {
+   public long getCommitTimestamp() {
       return commitTimestamp;
    }
 
-   void setCommitTimestamp(long commitTimestamp) {
+   public void setCommitTimestamp(long commitTimestamp) {
       this.commitTimestamp = commitTimestamp;
    }
 
-   RowKeyFamily[] getRows() {
+   public RowKeyFamily[] getRows() {
       return rows.toArray(new RowKeyFamily[0]);
    }
 
-   void addRow(RowKeyFamily row) {
+   public void addRow(RowKeyFamily row) {
       rows.add(row);
    }
 

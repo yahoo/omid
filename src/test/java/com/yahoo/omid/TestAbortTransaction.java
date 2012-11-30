@@ -20,8 +20,8 @@ public class TestAbortTransaction extends OmidTestBase {
 
    @Test public void runTestInterleaveScan() throws Exception {
       try {
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable tt = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable tt = new TransactionalTable(hbaseConf, TEST_TABLE);
          
          TransactionState t1 = tm.beginTransaction();
          LOG.info("Transaction created " + t1);

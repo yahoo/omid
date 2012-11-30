@@ -45,8 +45,8 @@ public class TestUpdateScan extends OmidTestBase {
 
    @Test public void testGet() throws Exception {
       try{
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
          TransactionState t=tm.beginTransaction();
          int[] lInts=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lInts.length;i++) {
@@ -107,8 +107,8 @@ public class TestUpdateScan extends OmidTestBase {
 
    @Test public void testScan() throws Exception {
       try{
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
          TransactionState t=tm.beginTransaction();
          int[] lInts=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lInts.length;i++) {
@@ -156,8 +156,8 @@ public class TestUpdateScan extends OmidTestBase {
 
    @Test public void testScanUncommitted() throws Exception {
       try{
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
          TransactionState t=tm.beginTransaction();
          int[] lIntsA=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lIntsA.length;i++) {

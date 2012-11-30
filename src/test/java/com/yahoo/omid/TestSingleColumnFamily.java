@@ -35,8 +35,8 @@ public class TestSingleColumnFamily extends OmidTestBase {
    private static final Log LOG = LogFactory.getLog(TestSingleColumnFamily.class);
 
    @Test public void testSingleColumnFamily() throws Exception {
-      TransactionManager tm = new TransactionManager(conf);
-      TransactionalTable table1 = new TransactionalTable(conf, TEST_TABLE);
+      TransactionManager tm = new TransactionManager(hbaseConf);
+      TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
       int num=10;
       TransactionState t=tm.beginTransaction();
       for(int j=0;j<num;j++) {

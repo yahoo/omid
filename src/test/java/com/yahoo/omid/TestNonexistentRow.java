@@ -35,8 +35,8 @@ public class TestNonexistentRow extends OmidTestBase {
 
    @Test public void testMultiPutSameRow() throws Exception {
       try{
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table1 = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
 
          int num=10;
          TransactionState t=tm.beginTransaction();

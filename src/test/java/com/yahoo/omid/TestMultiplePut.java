@@ -36,8 +36,8 @@ public class TestMultiplePut extends OmidTestBase {
          byte[] family = Bytes.toBytes(TEST_FAMILY);
          byte[] col1 = Bytes.toBytes("value1");
          byte[] col2 = Bytes.toBytes("value2");
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table1 = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
          TransactionState t=tm.beginTransaction();
          int val=1000;
          byte[]data=Bytes.toBytes(val);
@@ -65,8 +65,8 @@ public class TestMultiplePut extends OmidTestBase {
          byte[] family = Bytes.toBytes(TEST_FAMILY);
          byte[] col = Bytes.toBytes("value");
 
-         TransactionManager tm = new TransactionManager(conf);
-         TransactionalTable table1 = new TransactionalTable(conf, TEST_TABLE);
+         TransactionManager tm = new TransactionManager(hbaseConf);
+         TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
          TransactionState t=tm.beginTransaction();
          int num=50;
          for(int j=0;j<=num;j++) {

@@ -17,12 +17,18 @@
 #
 ########################################################################
 
-OSTYPE := $(shell uname -s)
-CC = g++
-LDSHARED = $(CC) -shared -fPIC
-TSO_COMMITHASHMAP_SO = libtso-commithashmap.so
+OSTYPE=$(shell uname -s)
+
+SOURCESDIR=.
+OBJECTSDIR=../../../target/main/native
+LIBDIR=../../../lib
+
+CC=g++
+
+# This sets the name of the generated lib depending on the OS
+TSOCOMMITHASHMAP=libtso-commithashmap.so
 ifeq ($(OSTYPE),Darwin)
-TSO_COMMITHASHMAP_SO = libtso-commithashmap.jnilib
+TSOCOMMITHASHMAP=libtso-commithashmap.jnilib
 endif
 
 INCLUDES=
@@ -31,25 +37,27 @@ INCLUDES=-I/System/Library/Frameworks/JavaVM.framework/Headers
 else
 INCLUDES=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 endif
+# The following includes the target dir where maven antrun places the .h file
+INCLUDES+=-I$(OBJECTSDIR)
 
-LDFLAGS=-lstdc++
+CFLAGS=-fPIC -O3 $(INCLUDES) -c
+LDFLAGS=-fPIC -lstdc++ -shared
 ifneq ($(OSTYPE),Darwin)
-LDFLAGS += -Wl,-soname=$(TSO_COMMITHASHMAP_SO)
+LDFLAGS+=-Wl,-soname=$(TSOCOMMITHASHMAP)
 endif
 
+SOURCES=$(shell find '$(SOURCESDIR)' -type f -name '*.cc')
+OBJECTS=$(SOURCES:$(SOURCESDIR)/%.cc=$(OBJECTSDIR)/%.o)
+LIB=$(LIBDIR)/$(TSOCOMMITHASHMAP)
 
-all: com_yahoo_omid_tso_CommitHashMap.h $(TSO_COMMITHASHMAP_SO)
+all: $(LIB)
 
-nativelib.o: nativelib.cc
-	$(CC) -fPIC -O3 $(INCLUDES) -c -o nativelib.o nativelib.cc 
-
-$(TSO_COMMITHASHMAP_SO): nativelib.o $(DEP_LIBS)
-	$(LDSHARED) -o $@ $(LDFLAGS) nativelib.o $(LIBS)
-
-com_yahoo_omid_tso_CommitHashMap.h: nativelib.cc
-	javah -classpath ../../../target/classes -jni com.yahoo.omid.tso.CommitHashMap
-
+$(LIB): $(OBJECTS)
+	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+    
+$(OBJECTS): $(SOURCES)
+	mkdir -p $(OBJECTSDIR)
+	$(CC) $(CFLAGS) $< -o $@
+	
 clean: 
-	rm -f nativelib.o $(TSO_COMMITHASHMAP_SO)
-
-
+	rm -f $(LIB)
