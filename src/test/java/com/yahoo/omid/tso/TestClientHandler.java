@@ -45,6 +45,7 @@ import com.yahoo.omid.tso.messages.CommitQueryRequest;
 import com.yahoo.omid.tso.messages.CommitRequest;
 import com.yahoo.omid.tso.messages.CommitResponse;
 import com.yahoo.omid.tso.messages.FullAbortRequest;
+import com.yahoo.omid.tso.messages.LargestDeletedTimestampReport;
 import com.yahoo.omid.tso.messages.TimestampRequest;
 
 /**
@@ -156,7 +157,10 @@ public class TestClientHandler extends TSOClient {
    @SuppressWarnings("unchecked")
    public <T extends TSOMessage> T receiveMessage(Class<T> type) {
       try {
-         TSOMessage msg = messageQueue.poll(5000, TimeUnit.SECONDS);
+         TSOMessage msg;
+         do {
+             msg = messageQueue.poll(5000, TimeUnit.SECONDS);
+         } while (msg instanceof LargestDeletedTimestampReport);
          assertNotNull("Reception of message timed out", msg);
          assertThat(msg, is(type));
          return (T) msg;

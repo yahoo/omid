@@ -27,18 +27,18 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 
-import com.yahoo.omid.client.TransactionManager;
-import com.yahoo.omid.client.TransactionState;
-import com.yahoo.omid.client.TransactionalTable;
+import com.yahoo.omid.transaction.TransactionManager;
+import com.yahoo.omid.transaction.Transaction;
+import com.yahoo.omid.transaction.TTable;
 
 public class TestSingleColumnFamily extends OmidTestBase {
    private static final Log LOG = LogFactory.getLog(TestSingleColumnFamily.class);
 
    @Test public void testSingleColumnFamily() throws Exception {
       TransactionManager tm = new TransactionManager(hbaseConf);
-      TransactionalTable table1 = new TransactionalTable(hbaseConf, TEST_TABLE);
+      TTable table1 = new TTable(hbaseConf, TEST_TABLE);
       int num=10;
-      TransactionState t=tm.beginTransaction();
+      Transaction t=tm.begin();
       for(int j=0;j<num;j++) {
          byte[]data=Bytes.toBytes(j);
          Put put=new Put(data);
@@ -62,8 +62,8 @@ public class TestSingleColumnFamily extends OmidTestBase {
                  + num + " but I see " + count
                  , num == count);
 
-      tm.tryCommit(t);
-      t=tm.beginTransaction();
+      tm.commit(t);
+      t=tm.begin();
 
       for(int j=0;j<num/2;j++) {
          byte[]data=Bytes.toBytes(j);
@@ -72,8 +72,8 @@ public class TestSingleColumnFamily extends OmidTestBase {
          put.add(Bytes.toBytes(TEST_FAMILY), Bytes.toBytes("value2"), ndata);
          table1.put(t,put);
       }
-      tm.tryCommit(t);
-      t=tm.beginTransaction();
+      tm.commit(t);
+      t=tm.begin();
       s=new Scan();
       res=table1.getScanner(t,s);
       count = 0;
@@ -100,7 +100,7 @@ public class TestSingleColumnFamily extends OmidTestBase {
                  + modified + ", " + notmodified + ")"
                  , modified == notmodified && notmodified == (num/2));
       
-      tm.tryCommit(t);
+      tm.commit(t);
       LOG.info("End commiting");
       table1.close();
    }

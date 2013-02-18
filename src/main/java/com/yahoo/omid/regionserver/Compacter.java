@@ -1,4 +1,4 @@
-package com.yahoo.omid.client.regionserver;
+package com.yahoo.omid.regionserver;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -151,7 +151,19 @@ public class Compacter extends BaseRegionObserver {
       public void close() throws IOException {
          internalScanner.close();
       }
-      
+
+      @Override
+      public boolean next(List<KeyValue> results, String metric)
+            throws IOException {
+         return next(results);
+      }
+
+      @Override
+      public boolean next(List<KeyValue> result, int limit, String metric)
+            throws IOException {
+         return next(result, limit);
+      }
+
    }
    
    private class Handler extends SimpleChannelUpstreamHandler {

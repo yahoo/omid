@@ -1,7 +1,7 @@
 Omid
 =====
 
-The Omid project provides transactional support for key-value stores using Snapshot Isolation. Omid stands for Optimistically transactional Management in Datastores. At this stage of the project, HBase is the only supported data-store.
+The Omid project provides transactional support for key-value stores using Snapshot Isolation. Omid stands for Optimistically transactional Management in Datasources. At this stage of the project, HBase is the only supported data-store.
 
 If you have any question, please take a look to the [Wiki](https://github.com/yahoo/omid/wiki) or contact us at omid-project@googlegroups.com or read [the online archives](https://groups.google.com/forum/?fromgroups=#!forum/omid-project)
 
@@ -22,7 +22,7 @@ The core architecture of the software is described in more detail in the [Techni
 Compilation
 -----------
 
-Omid uses Maven as its build system. We are using a temporary repository for Zookeeper and Bookkeeper packages to ease the installation procedure.
+Omid uses Maven for its build system. We are using a temporary repository for Zookeeper and Bookkeeper packages to ease the installation procedure.
 
 To compile Omid:
 
@@ -48,7 +48,7 @@ Hence, the order of starting should be:
 3. TSO
 4. Hbase
 
-### Zookeeper & Bookkeeper
+### Zookeeper & Bookkeepergit
 Omid doesn't use anything special in Zookeeper or Bookkeeper, so you can use any install for these. However, if you are running this anywhere but localhost, you need to update the setting for HBase and TSO. See the HBase docs for changing the Zookeeper quorum. For TSO, you need to modify bin/omid.sh.
 
 For simplicity we've included a utility script which starts Zookeeper and Bookkeeper. Run:

@@ -14,8 +14,8 @@
  * limitations under the License. See accompanying LICENSE file.
  */
 
-package com.yahoo.omid.client;
+package com.yahoo.omid.transaction;
 
-public class CommitUnsuccessfulException extends Exception {
+public class RollbackException extends Exception {
 	private static final long serialVersionUID = -9163407697376986830L;
 }

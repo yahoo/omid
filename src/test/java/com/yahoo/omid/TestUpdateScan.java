@@ -35,9 +35,9 @@ import org.apache.hadoop.hbase.filter.WhileMatchFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.Test;
 
-import com.yahoo.omid.client.TransactionManager;
-import com.yahoo.omid.client.TransactionState;
-import com.yahoo.omid.client.TransactionalTable;
+import com.yahoo.omid.transaction.TransactionManager;
+import com.yahoo.omid.transaction.Transaction;
+import com.yahoo.omid.transaction.TTable;
 
 public class TestUpdateScan extends OmidTestBase {
    private static final Log LOG = LogFactory.getLog(TestUpdateScan.class);
@@ -46,8 +46,8 @@ public class TestUpdateScan extends OmidTestBase {
    @Test public void testGet() throws Exception {
       try{
          TransactionManager tm = new TransactionManager(hbaseConf);
-         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
-         TransactionState t=tm.beginTransaction();
+         TTable table = new TTable(hbaseConf, TEST_TABLE);
+         Transaction t=tm.begin();
          int[] lInts=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lInts.length;i++) {
             byte[]data=Bytes.toBytes(lInts[i]);
@@ -71,7 +71,7 @@ public class TestUpdateScan extends OmidTestBase {
          } else {
             fail("Bad result");
          }
-         tm.tryCommit(t);
+         tm.commit(t);
 
          Scan s=new Scan(startKey);
          CompareFilter.CompareOp op=CompareFilter.CompareOp.LESS_OR_EQUAL;
@@ -86,7 +86,7 @@ public class TestUpdateScan extends OmidTestBase {
          } else {
             s.setFilter(new WhileMatchFilter(toFilter));
          }
-         t=tm.beginTransaction();
+         t=tm.begin();
          ResultScanner res=table.getScanner(t,s);
          Result rr;
          int count = 0;
@@ -98,7 +98,7 @@ public class TestUpdateScan extends OmidTestBase {
          }
          assertEquals("Count is wrong", 1, count);
          LOG.info("Rows found " + count);
-         tm.tryCommit(t);
+         tm.commit(t);
          table.close();
       } catch (Exception e) {
          LOG.error("Exception in test", e);
@@ -108,8 +108,8 @@ public class TestUpdateScan extends OmidTestBase {
    @Test public void testScan() throws Exception {
       try{
          TransactionManager tm = new TransactionManager(hbaseConf);
-         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
-         TransactionState t=tm.beginTransaction();
+         TTable table = new TTable(hbaseConf, TEST_TABLE);
+         Transaction t=tm.begin();
          int[] lInts=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lInts.length;i++) {
             byte[]data=Bytes.toBytes(lInts[i]);
@@ -132,9 +132,9 @@ public class TestUpdateScan extends OmidTestBase {
                     count == lInts.length);
          LOG.info("Rows found " + count);
 
-         tm.tryCommit(t);
+         tm.commit(t);
 
-         t=tm.beginTransaction();
+         t=tm.begin();
          res=table.getScanner(t,s);
          count = 0;
          while ((rr=res.next())!=null) {
@@ -146,7 +146,7 @@ public class TestUpdateScan extends OmidTestBase {
          assertTrue("Count should be " + lInts.length + " but is " + count, 
                     count == lInts.length);
          LOG.info("Rows found " + count);
-         tm.tryCommit(t);
+         tm.commit(t);
          table.close();
       } catch (Exception e) {
          LOG.error("Exception in test", e);
@@ -157,8 +157,8 @@ public class TestUpdateScan extends OmidTestBase {
    @Test public void testScanUncommitted() throws Exception {
       try{
          TransactionManager tm = new TransactionManager(hbaseConf);
-         TransactionalTable table = new TransactionalTable(hbaseConf, TEST_TABLE);
-         TransactionState t=tm.beginTransaction();
+         TTable table = new TTable(hbaseConf, TEST_TABLE);
+         Transaction t=tm.begin();
          int[] lIntsA=new int[]{100,243,2342,22,1,5,43,56};
          for (int i=0;i<lIntsA.length;i++) {
             byte[]data=Bytes.toBytes(lIntsA[i]);
@@ -166,9 +166,9 @@ public class TestUpdateScan extends OmidTestBase {
             put.add(Bytes.toBytes(TEST_FAMILY), Bytes.toBytes(TEST_COL), data);
             table.put(t,put);
          }
-         tm.tryCommit(t);
+         tm.commit(t);
    
-         TransactionState tu=tm.beginTransaction();
+         Transaction tu=tm.begin();
          int[] lIntsB=new int[]{105,24,4342,32,7,3,30,40};
          for (int i=0;i<lIntsB.length;i++) {
             byte[]data=Bytes.toBytes(lIntsB[i]);
@@ -177,7 +177,7 @@ public class TestUpdateScan extends OmidTestBase {
             table.put(tu,put);
          }
    
-         t=tm.beginTransaction();
+         t=tm.begin();
          int[] lIntsC=new int[]{109,224,242,2,16,59,23,26};
          for (int i=0;i<lIntsC.length;i++) {
             byte[]data=Bytes.toBytes(lIntsC[i]);
@@ -185,9 +185,9 @@ public class TestUpdateScan extends OmidTestBase {
             put.add(Bytes.toBytes(TEST_FAMILY), Bytes.toBytes(TEST_COL), data);
             table.put(t,put);
          }
-         tm.tryCommit(t);
+         tm.commit(t);
          
-         t=tm.beginTransaction();
+         t=tm.begin();
          Scan s=new Scan();
          ResultScanner res=table.getScanner(t,s);
          Result rr;
@@ -202,7 +202,7 @@ public class TestUpdateScan extends OmidTestBase {
          assertTrue("Count should be " + (lIntsA.length*lIntsC.length) + " but is " + count, 
                     count == lIntsA.length + lIntsC.length);
          LOG.info("Rows found " + count);
-         tm.tryCommit(t);
+         tm.commit(t);
          table.close();
       } catch (Exception e) {
          LOG.error("Exception in test", e);

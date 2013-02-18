@@ -66,62 +66,7 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>1.7</version>
-                <executions>
-                    <execution>
-                        <!-- Build native code after .java compilation -->
-                        <id>build-native</id>
-                        <phase>process-classes</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target name="jni"
-                                description="Generate headers and compile the native code">
-                                <echo>Generating JNI headers</echo>
-                                <exec executable="javah">
-                                    <arg value="-d" />
-                                    <arg
-                                        value="${project.basedir}/target/main/native" />
-                                    <arg value="-classpath" />
-                                    <arg
-                                        value="${project.build.outputDirectory}" />
-                                    <arg value="-jni" />
-                                    <arg
-                                        value="com.yahoo.omid.tso.CommitHashMap" />
-                                </exec>
-                                <exec
-                                    dir="${project.basedir}/src/main/native"
-                                    executable="make" failonerror="true">
-                                    <arg value="all" />
-                                </exec>
-                            </target>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <!-- Make clean in the Maven clean phase -->
-                        <id>clean-lib</id>
-                        <phase>clean</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target name="clean-lib" description="Delete native lib">
-                                <echo>Deleting native lib</echo>
-                                <exec
-                                    dir="${project.basedir}/src/main/native"
-                                    executable="make">
-                                    <arg value="clean" />
-                                </exec>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
-
         <pluginManagement>
             <plugins>
                 <!--This plugin's configuration is used to store Eclipse 
@@ -133,23 +78,6 @@
                     <configuration>
                         <lifecycleMappingMetadata>
                             <pluginExecutions>
-                                <pluginExecution>
-                                    <pluginExecutionFilter>
-                                        <groupId>
-                                            org.apache.maven.plugins
-                                        </groupId>
-                                        <artifactId>
-                                            maven-antrun-plugin
-                                        </artifactId>
-                                        <versionRange>[1.3,)</versionRange>
-                                        <goals>
-                                            <goal>run</goal>
-                                        </goals>
-                                    </pluginExecutionFilter>
-                                    <action>
-                                        <ignore></ignore>
-                                    </action>
-                                </pluginExecution>
                                 <pluginExecution>
                                     <pluginExecutionFilter>
                                         <groupId>
@@ -198,9 +126,7 @@
         <dependency>
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase</artifactId>
-            <version>0.92.0</version>
-            <type>jar</type>
-            <scope>compile</scope>
+            <version>0.94.3</version>
         </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
