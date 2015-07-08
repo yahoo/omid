@@ -29,6 +29,7 @@ import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.omid.committable.CommitTable;
 import org.apache.omid.committable.CommitTable.Client;
+import org.apache.omid.hbase.coprocessor.metrics.CompactorCoprocessorMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.DataProvider;
@@ -60,6 +61,7 @@ public class TestCompactorScanner {
             throws Exception {
 
         // Create required mocks
+        CompactorCoprocessorMetrics metrics = mock(CompactorCoprocessorMetrics.class);
         @SuppressWarnings("unchecked")
         ObserverContext<RegionCoprocessorEnvironment> ctx = mock(ObserverContext.class);
         InternalScanner internalScanner = mock(InternalScanner.class);
@@ -80,11 +82,12 @@ public class TestCompactorScanner {
 
         LOG.info("Testing when retain is {}", retainOption);
         try (CompactorScanner scanner = spy(new CompactorScanner(ctx,
-                internalScanner,
-                ctClient,
-                queue,
-                false,
-                retainOption))) {
+                                                                 internalScanner,
+                                                                 ctClient,
+                                                                 queue,
+                                                                 false,
+                                                                 retainOption,
+                                                                 metrics))) {
 
             // Different cell types to test
             KeyValue regularKV = new KeyValue(Bytes.toBytes("test-row"), TEST_TS, Type.Put);
