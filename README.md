@@ -15,6 +15,8 @@ There are currently two implementations of the commit table, a HBase implementat
 
 Quickstart
 ----------
+
+[![Join the chat at https://gitter.im/yahoo/omid](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/yahoo/omid?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 Clone the repository and build the TSO package:
 
       $ git clone git@github.com:yahoo/omid.git
