@@ -453,6 +453,38 @@ public class TTable implements Closeable {
         }
     }
 
+    class ResultIterator implements Iterator<Result> {
+        TransactionalClientScanner scanner;
+        Result currentResult;
+        ResultIterator(TransactionalClientScanner scanner) {
+            try {
+                this.scanner = scanner;
+                currentResult = scanner.next();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        @Override
+        public boolean hasNext() {
+            return currentResult!=null && !currentResult.isEmpty();
+        }
+        @Override
+        public Result next() {
+            try {
+                Result result = currentResult;
+                currentResult = scanner.next();
+                return result;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public void remove() {
+            throw new RuntimeException("Not implemented");
+        }
+    }
+
     protected class TransactionalClientScanner implements ResultScanner {
         private HBaseTransaction state;
         private ResultScanner innerScanner;
@@ -506,7 +538,7 @@ public class TTable implements Closeable {
 
         @Override
         public Iterator<Result> iterator() {
-            return innerScanner.iterator();
+            return new ResultIterator(this);
         }
     }
 
