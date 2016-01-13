@@ -3,11 +3,13 @@ package com.yahoo.omid.transaction;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.yahoo.omid.HBaseShims;
 import com.yahoo.omid.TestUtils;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
 import com.yahoo.omid.tsoclient.TSOClient;
+
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -31,6 +34,7 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.RetriesExhaustedWithDetailsException;
+import org.apache.hadoop.hbase.client.Row;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.coprocessor.AggregationClient;
 import org.apache.hadoop.hbase.client.coprocessor.LongColumnInterpreter;
@@ -43,6 +47,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
 import static com.yahoo.omid.committable.hbase.HBaseCommitTable.COMMIT_TABLE_DEFAULT_NAME;
 import static com.yahoo.omid.committable.hbase.HBaseCommitTable.COMMIT_TABLE_FAMILY;
 import static com.yahoo.omid.committable.hbase.HBaseCommitTable.LOW_WATERMARK_FAMILY;
@@ -53,8 +58,10 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+
 import org.mockito.stubbing.Answer;
 import org.mockito.invocation.InvocationOnMock;
+
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertTrue;
@@ -528,10 +535,8 @@ public class TestCompaction {
     // directly after the flush, which we want to avoid.
     private void manualFlush() throws Throwable {
         LOG.info("Manually flushing all regions");
-        for (HRegion r : hbaseTestUtil.getHBaseCluster().getRegionServer(0)
-                 .getOnlineRegions(TableName.valueOf(TEST_TABLE))) {
-            r.flushcache();
-        }
+        HBaseShims.flushAllOnlineRegions(hbaseTestUtil.getHBaseCluster().getRegionServer(0),
+                TableName.valueOf(TEST_TABLE));
     }
 
     @Test
@@ -691,7 +696,7 @@ public class TestCompaction {
                         throws Throwable {
                         if (flushFailing.get()) {
                             throw new RetriesExhaustedWithDetailsException(new ArrayList<Throwable>(),
-                                    new ArrayList<Put>(), new ArrayList<String>());
+                                    new ArrayList<Row>(), new ArrayList<String>());
                         } else {
                             invocation.callRealMethod();
                         }

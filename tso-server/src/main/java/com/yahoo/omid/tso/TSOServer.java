@@ -244,6 +244,7 @@ public class TSOServer extends AbstractIdleService {
         if (factory != null) {
             factory.releaseExternalResources();
         }
+        zkClient.close();
         LOG.info("********** TSO Server stopped successfully **********");
     }
 

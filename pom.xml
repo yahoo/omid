@@ -27,7 +27,8 @@
     <java.version>1.7</java.version>
 
     <!-- 3rd-Party Library Versioning -->
-    <hbase.version>0.98.10.1-hadoop1</hbase.version>
+    <hbase0.version>0.98.10.1-hadoop1</hbase0.version>
+    <hbase1.version>1.1.1</hbase1.version>
     <guava.version>11.0.2</guava.version>
     <guice.version>3.0</guice.version>
     <testng.version>6.8.8</testng.version>
@@ -53,6 +54,7 @@
   </properties>
 
   <modules>
+    <module>hbase-shims</module>
     <module>common</module>
     <module>hbase-client</module>
     <module>transaction-client</module>
@@ -72,6 +74,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>2.9</version>
         <configuration>
+          <forkCount>1</forkCount>
           <forkMode>pertest</forkMode>
           <!-- Jacoco prepare-agent requires ${argLine} inside <argLine> .
           See http://eclemma.org/jacoco/trunk/doc/prepare-agent-mojo.html -->
@@ -88,7 +91,6 @@
           <source>${java.version}</source>
           <target>${java.version}</target>
           <compilerArguments>
-            <Werror />
             <Xlint:deprecation />
             <Xlint:unchecked />
             <Xlint:-options />
@@ -251,6 +253,52 @@
       </build>
     </profile>
 
+    <profile>
+      <id>hbase-0</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <hbase.version>${hbase0.version}</hbase.version>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>hbase-1</id>
+      <properties>
+        <hbase.version>${hbase1.version}</hbase.version>
+      </properties>
+    </profile>
+
   </profiles>
 
+  <dependencyManagement>
+    <dependencies>
+
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-common</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-client</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-testing-util</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.hbase</groupId>
+        <artifactId>hbase-server</artifactId>
+        <version>${hbase.version}</version>
+      </dependency>
+
+    </dependencies>
+  </dependencyManagement>
 </project>
