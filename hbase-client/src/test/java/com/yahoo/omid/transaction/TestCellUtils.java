@@ -1,5 +1,7 @@
 package com.yahoo.omid.transaction;
 
+import com.yahoo.omid.HBaseShims;
+
 import static com.yahoo.omid.transaction.HBaseTransactionManager.SHADOW_CELL_SUFFIX;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
@@ -122,7 +124,7 @@ public class TestCellUtils {
                 cell1.getValueArray(), cell1.getValueOffset(), cell1.getValueLength()));
 
         // Modify dup shadow cell to have a greater MVCC and check that is replaced
-        ((KeyValue) dupCell1WithAnotherValue).setMvccVersion(1);
+        HBaseShims.setKeyValueSequenceId((KeyValue) dupCell1WithAnotherValue, 1);
         cellsToShadowCells = CellUtils.mapCellsToShadowCells(badListWithDups);
         assertEquals("There should be only 1 key-value maps", 1, cellsToShadowCells.size());
         assertTrue(cellsToShadowCells.containsKey(dupCell1WithAnotherValue));

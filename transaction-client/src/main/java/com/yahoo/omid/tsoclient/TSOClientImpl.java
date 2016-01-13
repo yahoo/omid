@@ -122,11 +122,8 @@ class TSOClientImpl extends TSOClient implements NodeCacheListener {
         } catch (ZKException e) {
             LOG.warn("A problem connecting to TSO was found ({}). Trying to connect directly with host:port",
                     e.getMessage());
-            String host = conf.getString(TSO_HOST_CONFKEY);
+            String host = conf.getString(TSO_HOST_CONFKEY, "localhost");
             int port = conf.getInt(TSO_PORT_CONFKEY, DEFAULT_TSO_PORT);
-            if (host == null) {
-                throw new IllegalArgumentException("tso.host missing from configuration");
-            }
             setTSOAddress(host, port);
         }
 
@@ -167,7 +164,7 @@ class TSOClientImpl extends TSOClient implements NodeCacheListener {
             zkClient = provideZookeeperClient(zkCluster);
             LOG.info("\t* Connecting to ZK cluster {}", zkClient.getState());
             zkClient.start();
-            if (!zkClient.blockUntilConnected(3, TimeUnit.SECONDS)) {
+            if (!zkClient.blockUntilConnected(10, TimeUnit.SECONDS)) {
                 throw new ZKException("Cannot connect to ZK Cluster " + zkCluster + " after 3 seconds");
             }
             LOG.info("\t* Connection to ZK cluster {}", zkClient.getState());
