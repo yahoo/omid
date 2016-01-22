@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParametersDelegate;
+import com.yahoo.omid.HBaseShims;
 import com.yahoo.omid.committable.hbase.HBaseCommitTable.KeyGenerator;
 
 public class CreateTable {
@@ -64,11 +65,11 @@ public class CreateTable {
             HTableDescriptor desc = new HTableDescriptor(TableName.valueOf(tableName));
             HColumnDescriptor datafam = new HColumnDescriptor(HBaseCommitTable.COMMIT_TABLE_FAMILY);
             datafam.setMaxVersions(1);
-            desc.addFamily(datafam);
+            HBaseShims.addFamilyToHTableDescriptor(desc, datafam);
             HColumnDescriptor lowWatermarkFam = new HColumnDescriptor(
                     HBaseCommitTable.LOW_WATERMARK_FAMILY);
             lowWatermarkFam.setMaxVersions(1);
-            desc.addFamily(lowWatermarkFam);
+            HBaseShims.addFamilyToHTableDescriptor(desc, lowWatermarkFam);
             if (numSplits > 1) {
                 RegionSplitter.SplitAlgorithm algo = RegionSplitter.newSplitAlgoInstance(hbaseConf,
                         RegionSplitter.UniformSplit.class.getName());

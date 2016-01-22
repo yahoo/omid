@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParametersDelegate;
+import com.yahoo.omid.HBaseShims;
 import com.yahoo.omid.committable.hbase.HBaseLogin;
 
 public class CreateTable {
@@ -62,7 +63,7 @@ public class CreateTable {
             HTableDescriptor desc = new HTableDescriptor(TableName.valueOf(tableName));
             HColumnDescriptor datafam = new HColumnDescriptor(HBaseTimestampStorage.TSO_FAMILY);
             datafam.setMaxVersions(3);
-            desc.addFamily(datafam);
+            HBaseShims.addFamilyToHTableDescriptor(desc, datafam);
             admin.createTable(desc);
         }
 

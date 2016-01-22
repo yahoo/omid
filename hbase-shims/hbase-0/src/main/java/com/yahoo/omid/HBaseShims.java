@@ -2,6 +2,8 @@ package com.yahoo.omid;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.regionserver.HRegion;
@@ -24,5 +26,10 @@ public class HBaseShims {
         for (HRegion r : regionServer.getOnlineRegions(tableName)) {
             r.flushcache();
         }
+    }
+
+    static public void addFamilyToHTableDescriptor(HTableDescriptor desc,
+        HColumnDescriptor column) {
+      desc.addFamily(column);
     }
 }

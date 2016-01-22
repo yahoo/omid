@@ -253,4 +253,32 @@
 
   </dependencies>
 
+  <profiles>
+
+    <profile>
+      <id>hbase-0</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <dependencies>
+        <dependency>
+        <groupId>com.yahoo.omid</groupId>
+          <artifactId>hbase0-shims</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+
+    <profile>
+      <id>hbase-1</id>
+      <dependencies>
+        <dependency>
+        <groupId>com.yahoo.omid</groupId>
+          <artifactId>hbase1-shims</artifactId>
+          <version>${project.version}</version>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+
 </project>

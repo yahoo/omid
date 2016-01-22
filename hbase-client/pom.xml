@@ -41,6 +41,9 @@
             <includes>
               <include>com.yahoo.omid:*</include>
             </includes>
+            <excludes>
+              <exclude>com.yahoo.omid:*shims*</exclude>
+            </excludes>
           </artifactSet>
           <!-- put your configurations here -->
         </configuration>
