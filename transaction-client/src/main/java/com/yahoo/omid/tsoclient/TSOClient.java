@@ -15,13 +15,13 @@
  */
 package com.yahoo.omid.tsoclient;
 
-import java.io.IOException;
-import java.util.Set;
-
+import com.yahoo.omid.metrics.MetricsRegistry;
+import com.yahoo.omid.metrics.NullMetricsProvider;
 import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.commons.configuration.Configuration;
 
-import com.codahale.metrics.MetricRegistry;
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * Describes the abstract methods to communicate to the TSO server
@@ -174,14 +174,14 @@ public abstract class TSOClient {
     public static class Builder {
 
         private Configuration conf = new BaseConfiguration();
-        private MetricRegistry metrics = new MetricRegistry();
+        private MetricsRegistry metrics = new NullMetricsProvider();
 
         public Builder withConfiguration(Configuration conf) {
             this.conf = conf;
             return this;
         }
 
-        public Builder withMetrics(MetricRegistry metrics) {
+        public Builder withMetrics(MetricsRegistry metrics) {
             this.metrics = metrics;
             return this;
         }

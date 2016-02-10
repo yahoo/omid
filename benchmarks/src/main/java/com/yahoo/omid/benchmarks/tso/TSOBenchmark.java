@@ -15,21 +15,6 @@
  */
 package com.yahoo.omid.benchmarks.tso;
 
-import static com.yahoo.omid.metrics.CodahaleMetricsProvider.CODAHALE_METRICS_CONFIG_PATTERN;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-
-import com.yahoo.omid.committable.hbase.CommitTableConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
@@ -39,10 +24,23 @@ import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.yahoo.omid.benchmarks.utils.GeneratorUtils;
 import com.yahoo.omid.benchmarks.utils.GeneratorUtils.RowDistribution;
-import com.yahoo.omid.tools.hbase.HBaseLogin;
-import com.yahoo.omid.metrics.CodahaleMetricsConfig;
-import com.yahoo.omid.metrics.CodahaleMetricsConfig.Reporter;
+import com.yahoo.omid.committable.hbase.CommitTableConstants;
 import com.yahoo.omid.metrics.CodahaleMetricsProvider;
+import com.yahoo.omid.tools.hbase.HBaseLogin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+
+import static com.yahoo.omid.metrics.CodahaleMetricsProvider.CODAHALE_METRICS_CONFIG_PATTERN;
 
 /**
  * Benchmark using directly TSOClient
@@ -65,39 +63,8 @@ public class TSOBenchmark implements Closeable {
 
         this.expConfig = expConfig;
 
-        // Metrics initialization
-        CodahaleMetricsConfig codahaleConfig = new CodahaleMetricsConfig();
-        codahaleConfig.setPrefix("tso_bench");
-        codahaleConfig.setOutputFreq(expConfig.metricsConfig.timeValue);
-        codahaleConfig.setOutputFreqTimeUnit(expConfig.metricsConfig.timeUnit);
-
-        String metricsReporter = expConfig.metricsConfig.reporter.toUpperCase();
-        switch (metricsReporter) {
-        case "CSV":
-            codahaleConfig.addReporter(Reporter.CSV);
-            codahaleConfig.setCSVDir(expConfig.metricsConfig.reporterConfig);
-            break;
-        case "SLF4J":
-            codahaleConfig.addReporter(Reporter.SLF4J);
-            codahaleConfig.setSlf4jLogger(expConfig.metricsConfig.reporterConfig);
-            break;
-        case "GRAPHITE":
-            codahaleConfig.addReporter(Reporter.GRAPHITE);
-            codahaleConfig.setGraphiteHostConfig(expConfig.metricsConfig.reporterConfig);
-            break;
-        case "CONSOLE":
-            codahaleConfig.addReporter(Reporter.CONSOLE);
-            break;
-        default:
-            LOG.warn("Problem parsing metrics reporter {}.\n"
-                   + "Valid options are [ CSV | SLF4J | CONSOLE | GRAPHITE ]\n"
-                   + "Using console as default.",
-                   metricsReporter);
-            codahaleConfig.addReporter(Reporter.CONSOLE);
-            break;
-        }
-        this.metrics = new CodahaleMetricsProvider(codahaleConfig);
-        this.metrics.startMetrics();
+        this.metrics = CodahaleMetricsProvider.createCodahaleMetricsProvider(
+                Arrays.asList(expConfig.metricsConfig.toString().split("\\s*,\\s*")));
 
         // Executor for TxRunners (Clients triggering transactions)
         this.txRunnerExec = Executors.newScheduledThreadPool(expConfig.nbClients,
@@ -277,6 +244,11 @@ public class TSOBenchmark implements Closeable {
             this.reporterConfig = reporterConfig;
             this.timeValue = timeValue;
             this.timeUnit = timeUnit;
+        }
+
+        @Override
+        public String toString() {
+            return reporter + ":" + reporterConfig + ":" + timeValue + ":" + timeUnit;
         }
 
     }

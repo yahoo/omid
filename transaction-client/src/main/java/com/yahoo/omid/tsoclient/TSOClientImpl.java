@@ -15,11 +15,11 @@
  */
 package com.yahoo.omid.tsoclient;
 
-import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Charsets;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.proto.TSOProto;
 import com.yahoo.omid.zk.ZKUtils.ZKException;
 import com.yahoo.statemachine.StateMachine.DeferrableEvent;
@@ -27,7 +27,6 @@ import com.yahoo.statemachine.StateMachine.Event;
 import com.yahoo.statemachine.StateMachine.Fsm;
 import com.yahoo.statemachine.StateMachine.FsmImpl;
 import com.yahoo.statemachine.StateMachine.State;
-
 import org.apache.commons.configuration.Configuration;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
@@ -92,9 +91,9 @@ class TSOClientImpl extends TSOClient implements NodeCacheListener {
     private final int retryDelayMs; // ignored for now
     private final int tsoReconnectionDelaySecs;
     private InetSocketAddress tsoAddr;
-    private final MetricRegistry metrics;
+    private final MetricsRegistry metrics;
 
-    TSOClientImpl(Configuration conf, MetricRegistry metrics) {
+    TSOClientImpl(Configuration conf, MetricsRegistry metrics) {
 
         this.metrics = metrics;
 
