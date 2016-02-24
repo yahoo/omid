@@ -19,6 +19,7 @@ import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_MAX_BATCH_SIZE
 import static com.yahoo.omid.tso.PersistenceProcessorImpl.TSO_MAX_BATCH_SIZE_KEY;
 import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_BATCH_PERSIST_TIMEOUT_MS;
 import static com.yahoo.omid.tso.PersistenceProcessorImpl.TSO_BATCH_PERSIST_TIMEOUT_MS_KEY;
+import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_PERSIST_HANDLER_NUM;
 
 import static com.yahoo.omid.tso.RequestProcessorImpl.DEFAULT_MAX_ITEMS;
 import static com.yahoo.omid.tso.RequestProcessorImpl.TSO_MAX_ITEMS_KEY;
@@ -34,7 +35,7 @@ public class TSOServerConfig {
     private int maxBatchSize = DEFAULT_MAX_BATCH_SIZE;
     private int batchPersistTimeoutMS = DEFAULT_BATCH_PERSIST_TIMEOUT_MS;
     private int maxItems = DEFAULT_MAX_ITEMS;
-
+    private int persistHandlerNum = DEFAULT_PERSIST_HANDLER_NUM;
 
     public int getMaxBatchSize() {
         return maxBatchSize;
@@ -57,6 +58,10 @@ public class TSOServerConfig {
 
     public int getMaxItems() {
         return maxItems;
+    }
+
+    public int getPersistHandlerNum() {
+        return persistHandlerNum;
     }
 
     @Inject(optional=true)

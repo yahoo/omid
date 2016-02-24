@@ -22,6 +22,7 @@ import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
 import com.yahoo.omid.committable.InMemoryCommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
+import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
 
 public class TestRetryProcessor {
 
@@ -32,7 +33,6 @@ public class TestRetryProcessor {
     private static long NON_EXISTING_ST_TX = 1000;
     private static long ST_TX_1 = 0;
     private static long CT_TX_1 = 1;
-    private static long ST_TX_2 = 2;
 
     @Mock
     private Channel channel;
@@ -49,11 +49,12 @@ public class TestRetryProcessor {
         // Init components
         commitTable = new InMemoryCommitTable();
         metrics = new NullMetricsProvider();
-
     }
 
     @Test(timeOut = 10_000)
     public void testBasicFunctionality() throws Exception {
+
+        commitTable.getWriter().get().addCommittedTransaction(ST_TX_1, CT_TX_1);
 
         // The element to test
         RetryProcessor retryProc = new RetryProcessorImpl(metrics, commitTable, replyProc, panicker);
@@ -61,18 +62,17 @@ public class TestRetryProcessor {
         // Test we'll reply with an abort for a retry request when the start timestamp IS NOT in the commit table
         retryProc.disambiguateRetryRequestHeuristically(NON_EXISTING_ST_TX, channel, new MonitoringContext(metrics));
         ArgumentCaptor<Long> firstTScapture = ArgumentCaptor.forClass(Long.class);
-        verify(replyProc, timeout(100).times(1)).abortResponse(firstTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
 
+        verify(replyProc, timeout(100).times(1)).addAbort(any(Batch.class), firstTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
         long startTS = firstTScapture.getValue();
         assertEquals("Captured timestamp should be the same as NON_EXISTING_ST_TX", NON_EXISTING_ST_TX, startTS);
 
         // Test we'll reply with a commit for a retry request when the start timestamp IS in the commit table
-        commitTable.getWriter().get().addCommittedTransaction(ST_TX_1, CT_TX_1); // Add a tx to commit table
-
         retryProc.disambiguateRetryRequestHeuristically(ST_TX_1, channel, new MonitoringContext(metrics));
         ArgumentCaptor<Long> secondTScapture = ArgumentCaptor.forClass(Long.class);
+
         verify(replyProc, timeout(100).times(1))
-                        .commitResponse(eq(false), firstTScapture.capture(), secondTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
+                        .addCommit(any(Batch.class), firstTScapture.capture(), secondTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
 
         startTS = firstTScapture.getValue();
         long commitTS = secondTScapture.getValue();
@@ -99,8 +99,7 @@ public class TestRetryProcessor {
         // transaction id IS in the commit table BUT invalidated
         retryProc.disambiguateRetryRequestHeuristically(ST_TX_1, channel,new MonitoringContext(metrics));
         ArgumentCaptor<Long> startTScapture = ArgumentCaptor.forClass(Long.class);
-        verify(replyProc, timeout(100).times(1)).abortResponse(startTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
-
+        verify(replyProc, timeout(100).times(1)).addAbort(any(Batch.class), startTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
         long startTS = startTScapture.getValue();
         Assert.assertEquals(startTS, ST_TX_1, "Captured timestamp should be the same as NON_EXISTING_ST_TX");
 

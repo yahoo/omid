@@ -105,6 +105,9 @@ public class TestPanicker {
                                                                  panicker,
                                                                  new TSOServerConfig());
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
@@ -144,6 +147,9 @@ public class TestPanicker {
                                                                  panicker,
                                                                  new TSOServerConfig());
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 }

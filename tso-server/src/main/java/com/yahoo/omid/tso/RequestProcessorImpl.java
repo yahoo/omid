@@ -17,11 +17,12 @@ package com.yahoo.omid.tso;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BatchEventProcessor;
-import com.lmax.disruptor.BusySpinWaitStrategy;
 import com.lmax.disruptor.EventFactory;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.SequenceBarrier;
+import com.lmax.disruptor.TimeoutBlockingWaitStrategy;
+import com.lmax.disruptor.TimeoutHandler;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.tso.TSOStateManager.TSOState;
 
@@ -34,13 +35,12 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
 public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestEvent>,
-                                             RequestProcessor
-
-{
+                                             RequestProcessor, TimeoutHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RequestProcessorImpl.class);
 
@@ -65,12 +65,17 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
 
         this.persistProc = persistProc;
         this.timestampOracle = timestampOracle;
-
+        this.lowWatermark = timestampOracle.getLast();
+        persistProc.persistLowWatermark(lowWatermark, new MonitoringContext(metrics));
+        persistProc.persistFlush(true);
         this.hashmap = new CommitHashMap(config.getMaxItems());
+
+        final TimeoutBlockingWaitStrategy timeoutStrategy
+        = new TimeoutBlockingWaitStrategy(config.getBatchPersistTimeoutMS(), TimeUnit.MILLISECONDS);
 
         // Set up the disruptor thread
         requestRing = RingBuffer.<RequestEvent>createMultiProducer(RequestEvent.EVENT_FACTORY, 1 << 12,
-                                                                   new BusySpinWaitStrategy());
+                                                                   timeoutStrategy);
         SequenceBarrier requestSequenceBarrier = requestRing.newBarrier();
         BatchEventProcessor<RequestEvent> requestProcessor =
             new BatchEventProcessor<RequestEvent>(requestRing,
@@ -93,15 +98,16 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
     public void update(TSOState state) throws IOException {
         LOG.info("Reseting RequestProcessor...");
         this.lowWatermark = state.getLowWatermark();
-        persistProc.persistLowWatermark(lowWatermark);
+        persistProc.persistLowWatermark(lowWatermark, new MonitoringContext(metrics));
         this.epoch = state.getEpoch();
         hashmap.reset();
+        persistProc.reset();
         LOG.info("RequestProcessor initialized with LWM {} and Epoch {}", lowWatermark, epoch);
     }
 
     @Override
     public void onEvent(RequestEvent event, long sequence, boolean endOfBatch) throws Exception {
-        String name = null;
+      String name = null;
         try {
             if (event.getType() == RequestEvent.Type.TIMESTAMP) {
                 name = "timestampReqProcessor";
@@ -118,6 +124,14 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
             }
         }
 
+        if (endOfBatch) {
+            persistProc.persistFlush(false);
+        }
+    }
+
+    @Override
+    public void onTimeout(long sequence) throws Exception {
+        persistProc.persistFlush(false);
     }
 
     @Override
@@ -190,7 +204,7 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
 
                     lowWatermark = newLowWatermark;
                     LOG.trace("Setting new low Watermark to {}", newLowWatermark);
-                    persistProc.persistLowWatermark(newLowWatermark);
+                    persistProc.persistLowWatermark(newLowWatermark, event.getMonCtx());
                 }
                 persistProc.persistCommit(startTimestamp, commitTimestamp, c, event.getMonCtx());
             } catch (IOException e) {
@@ -301,7 +315,7 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
         }
 
         public final static EventFactory<RequestEvent> EVENT_FACTORY
-            = new EventFactory<RequestEvent>() {
+        = new EventFactory<RequestEvent>() {
             @Override
             public RequestEvent newInstance() {
                 return new RequestEvent();

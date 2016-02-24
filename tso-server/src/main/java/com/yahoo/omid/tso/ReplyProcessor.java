@@ -17,6 +17,8 @@ package com.yahoo.omid.tso;
 
 import org.jboss.netty.channel.Channel;
 
+import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+
 interface ReplyProcessor
 {
     /**
@@ -24,6 +26,10 @@ interface ReplyProcessor
      * commit. If the heuristic decision flat is enabled, the client
      * will need to do additional actions for learning the final outcome.
      *
+     * @param batch
+     *            the batch of operations
+     * @param batchID
+     *            the id of the batch, used to enforce order between replies
      * @param makeHeuristicDecision
      *            informs about whether heuristic actions are needed or not
      * @param startTimestamp
@@ -33,8 +39,10 @@ interface ReplyProcessor
      * @param channel
      *            the communication channed with the client
      */
-    void commitResponse(boolean makeHeuristicDecision, long startTimestamp, long commitTimestamp, Channel channel, MonitoringContext monCtx);
-    void abortResponse(long startTimestamp, Channel c, MonitoringContext monCtx);
-    void timestampResponse(long startTimestamp, Channel c, MonitoringContext monCtx);
+
+    void batchResponse(Batch batch, long batchID, boolean makeHeuristicDecision);
+    void addAbort(Batch batch, long startTimestamp, Channel c, MonitoringContext context);
+    void addCommit(Batch batch, long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context);
+    void reset();
 }
 
