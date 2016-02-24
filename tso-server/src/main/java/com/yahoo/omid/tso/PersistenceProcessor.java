@@ -24,5 +24,7 @@ interface PersistenceProcessor {
 
     void persistTimestamp(long startTimestamp, Channel c, MonitoringContext monCtx);
 
-    void persistLowWatermark(long lowWatermark);
+    void persistLowWatermark(long lowWatermark, MonitoringContext monCtx);
+    void persistFlush(boolean forTesting);
+    void reset();
 }
