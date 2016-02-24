@@ -40,6 +40,7 @@ import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_BATCH_PERSIST_
 import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_PERSIST_HANDLER_NUM;
 import static com.yahoo.omid.tso.PersistenceProcessorImpl.DEFAULT_MAX_BATCH_SIZE;
 import static com.yahoo.omid.tso.RequestProcessorImpl.DEFAULT_MAX_ITEMS;
+import static com.yahoo.omid.tso.PersistenceProcessorImpl.NUM_BUFFERS_PER_HANDLER;
 
 /**
  * Holds the configuration parameters of a TSO server instance.
@@ -149,7 +150,10 @@ public class TSOServerCommandLineConfig extends JCommander implements IVariableA
 
     @Parameter(names = "-persistHandlerNum", description = "Number of handlers that writes to the commit table")
     private int persistHandlerNum = DEFAULT_PERSIST_HANDLER_NUM;
-    
+
+    @Parameter(names = "-numBuffersPerHandler", description = "The number of buffers allocated for each persist processor handler.")
+    private int numBuffersPerHandler = NUM_BUFFERS_PER_HANDLER;
+
     // TODO This is probably going to be temporary. So, we should remove it later if not required. Otherwise
     // we should make it private and provide accessors as is done with the other parameters
     @Parameter(names = "-publishHostAndPortInZK", description = "Publishes the host:port of this TSO server in ZK")
@@ -237,6 +241,10 @@ public class TSOServerCommandLineConfig extends JCommander implements IVariableA
 
     public int getPersistHandlerNum() {
         return persistHandlerNum;
+    }
+
+    public int getNumBuffersPerHandler() {
+        return numBuffersPerHandler;
     }
 
     public HBaseLogin.Config getLoginFlags() {

@@ -57,7 +57,7 @@ class PersistenceProcessorImpl
     static final int DEFAULT_BATCH_PERSIST_TIMEOUT_MS = 100;
     static final String TSO_BATCH_PERSIST_TIMEOUT_MS_KEY = "tso.batch-persist-timeout-ms";
     static final String TSO_PERSIST_HANDLER_NUM = "tso.persist.handler";
-    static final int NUM_BUFFERS_PER_HANDLER = 25;
+    static final int NUM_BUFFERS_PER_HANDLER = 10;
 
     final ReplyProcessor reply;
     final RetryProcessor retryProc;
@@ -230,7 +230,6 @@ class PersistenceProcessorImpl
             public PersistBatchEvent newInstance() {
                 return new PersistBatchEvent();
             }
-
         };
     }
 
@@ -425,7 +424,7 @@ class PersistenceProcessorImpl
 
             public BatchPool(TSOServerCommandLineConfig config, Batch batchForTesting) {
                 emptyBatch = 0;
-                poolSize = config.getPersistHandlerNum() * NUM_BUFFERS_PER_HANDLER;
+                poolSize = config.getPersistHandlerNum() * config.getNumBuffersPerHandler();
 
                 if (batchForTesting != null) {
                     this.batchForTesting = batchForTesting;
