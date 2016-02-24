@@ -87,7 +87,6 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
     private void handleReplyBatchEvent(ReplyBatchEvent event) {
         String name = null;
-
         Batch batch = event.getBatch();
         for (int i=0; i < batch.getNumEvents(); ++i) {
             PersistenceProcessorImpl.PersistEvent localEvent = batch.events[i];
@@ -209,7 +208,6 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
         timestampMeter.mark();
     }
-
 
     public final static class ReplyBatchEvent {
         Batch batch;

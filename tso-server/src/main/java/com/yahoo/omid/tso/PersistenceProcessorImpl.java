@@ -230,7 +230,6 @@ class PersistenceProcessorImpl
             public PersistBatchEvent newInstance() {
                 return new PersistBatchEvent();
             }
-
         };
     }
 
