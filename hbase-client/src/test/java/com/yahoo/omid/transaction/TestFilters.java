@@ -1,8 +1,6 @@
 package com.yahoo.omid.transaction;
 
-
 import com.yahoo.omid.committable.CommitTable;
-import com.yahoo.omid.tsoclient.TSOClient;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -50,14 +48,15 @@ public class TestFilters extends OmidTestBase {
     private void testGet(ITestContext context, Filter f) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getClientConfiguration(context))
+        HBaseOmidClientConfiguration omidConf = HBaseOmidClientConfiguration.builder()
+                .connectionString("localhost:1234")
                 .build();
 
         TTable table = new TTable(hbaseConf, TEST_TABLE);
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(client).build());
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .build());
 
         writeRows(table, tm);
 
@@ -93,13 +92,15 @@ public class TestFilters extends OmidTestBase {
 
     private void testScan(ITestContext context, Filter f) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getClientConfiguration(context))
+
+        HBaseOmidClientConfiguration omidConf = HBaseOmidClientConfiguration.builder()
+                .connectionString("localhost:1234")
                 .build();
         TTable table = new TTable(hbaseConf, TEST_TABLE);
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(client).build());
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .build());
 
         writeRows(table, tm);
 

@@ -3,8 +3,6 @@ package com.yahoo.omid.transaction;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
 import com.yahoo.omid.committable.CommitTable;
-import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.KeyValue;
@@ -96,10 +94,14 @@ public class TestShadowCells extends OmidTestBase {
         // Test that we can make a valid read after adding a shadow cell without hitting the commit table
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getTSOClientDefaultConfiguration()).build();
-        TransactionManager tm2 = HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf).withTSOClient(client)
-                .withCommitTableClient(commitTableClient).build();
+        HBaseOmidClientConfiguration omidClientConf =
+                HBaseOmidClientConfiguration.builder()
+                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
+                        .build();
+        TransactionManager tm2 = HBaseTransactionManager.builder(omidClientConf)
+                                                        .hbaseConf(hbaseConf)
+                                                        .commitTableClient(commitTableClient)
+                                                        .build();
 
         Transaction t2 = tm2.begin();
         Get get = new Get(row);
@@ -114,11 +116,14 @@ public class TestShadowCells extends OmidTestBase {
     public void testCrashingAfterCommitDoesNotWriteShadowCells(ITestContext context) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getTSOClientDefaultConfiguration()).build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(client).build());
+        HBaseOmidClientConfiguration omidClientConf =
+                HBaseOmidClientConfiguration.builder()
+                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
+                        .build();
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .build());
         // The following line emulates a crash after commit that is observed in (*) below
         doThrow(new RuntimeException()).when(tm).updateShadowCells(any(HBaseTransaction.class));
 
@@ -155,11 +160,14 @@ public class TestShadowCells extends OmidTestBase {
     public void testShadowCellIsHealedAfterCommitCrash(ITestContext context) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getTSOClientDefaultConfiguration()).build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(client).build());
+        HBaseOmidClientConfiguration omidClientConf =
+                HBaseOmidClientConfiguration.builder()
+                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
+                        .build();
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .build());
         // The following line emulates a crash after commit that is observed in (*) below
         doThrow(new RuntimeException()).when(tm).updateShadowCells(any(HBaseTransaction.class));
 
@@ -210,11 +218,14 @@ public class TestShadowCells extends OmidTestBase {
             throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        TSOClient client = TSOClient.newBuilder().withConfiguration(getTSOClientDefaultConfiguration()).build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(client).build());
+        HBaseOmidClientConfiguration omidClientConf =
+                HBaseOmidClientConfiguration.builder()
+                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
+                        .build();
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .build());
 
         final TTable table = new TTable(hbaseConf, TEST_TABLE);
 
@@ -463,17 +474,6 @@ public class TestShadowCells extends OmidTestBase {
     // ----------------------------------------------------------------------------------------------------------------
     // Helper methods
     // ----------------------------------------------------------------------------------------------------------------
-
-    private org.apache.commons.configuration.Configuration getTSOClientDefaultConfiguration() {
-
-        org.apache.commons.configuration.Configuration tsoClientConf = new BaseConfiguration();
-        tsoClientConf.setProperty(TSOClient.TSO_HOST_CONFKEY, TSO_SERVER_HOST);
-        tsoClientConf.setProperty(TSOClient.TSO_PORT_CONFKEY, TSO_SERVER_PORT);
-        tsoClientConf.setProperty(TSOClient.ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY, 0);
-
-        return tsoClientConf;
-
-    }
 
     private static final byte[] LEGACY_SHADOW_CELL_SUFFIX = ":OMID_CTS".getBytes(Charsets.UTF_8);
 

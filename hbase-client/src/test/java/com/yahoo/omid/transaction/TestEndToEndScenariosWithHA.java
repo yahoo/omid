@@ -8,8 +8,6 @@ import com.yahoo.omid.tso.LeaseManagement;
 import com.yahoo.omid.tso.PausableLeaseManager;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
-import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -37,7 +35,7 @@ import static com.yahoo.omid.ZKConstants.OMID_NAMESPACE;
 import static com.yahoo.omid.ZKConstants.TSO_LEASE_PATH;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TIMESTAMP_TABLE_DEFAULT_NAME;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TSO_FAMILY;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_ZK_CLUSTER_CONFKEY;
+import static com.yahoo.omid.tsoclient.TSOClientConfiguration.ConnType.ZK;
 import static org.apache.hadoop.hbase.HConstants.HBASE_CLIENT_RETRIES_NUMBER;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -133,15 +131,12 @@ public class TestEndToEndScenariosWithHA extends OmidTestBase {
 
         // Configure HBase TM
         LOG.info("===================== Starting TM =====================");
-        BaseConfiguration clientConf = new BaseConfiguration();
-        clientConf.setProperty(TSO_ZK_CLUSTER_CONFKEY, zkConnection);
-        TSOClient tsoClientForTM = TSOClient.newBuilder().withConfiguration(clientConf).build();
-        LOG.info("TSOClient instance in test {}", tsoClientForTM);
-        hbaseConf.setInt(HBASE_CLIENT_RETRIES_NUMBER, 3);
-        tm = HBaseTransactionManager.newBuilder()
-                .withTSOClient(tsoClientForTM)
-                .withConfiguration(hbaseConf)
+        HBaseOmidClientConfiguration omidClientConf = HBaseOmidClientConfiguration.builder()
+                .connectionType(ZK)
+                .connectionString(zkConnection)
                 .build();
+        hbaseConf.setInt(HBASE_CLIENT_RETRIES_NUMBER, 3);
+        tm = HBaseTransactionManager.builder(omidClientConf).hbaseConf(hbaseConf).build();
         LOG.info("===================== TM Started =========================");
     }
 
@@ -333,7 +328,7 @@ public class TestEndToEndScenariosWithHA extends OmidTestBase {
 
             LOG.info("Sleep some time till the client is informed about"
                     + "the new TSO connection parameters and how can connect");
-            TimeUnit.SECONDS.sleep(TSOClient.DEFAULT_TSO_RECONNECTION_DELAY_SECS + 2);
+            TimeUnit.SECONDS.sleep(10 + 2);
 
             HBaseTransaction tx2 = (HBaseTransaction) tm.begin();
             LOG.info("Starting Tx {} writing values for cells ({}, {}) ", tx2, Bytes.toString(data1_q1),
@@ -384,8 +379,9 @@ public class TestEndToEndScenariosWithHA extends OmidTestBase {
         tm.commit(readTx);
     }
 
-    // **************************** Helpers ***********************************
-
+    // ----------------------------------------------------------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------------------------------------------------------
 
     private static CuratorFramework provideInitializedZookeeperClient(String zkConnection) throws Exception {
 

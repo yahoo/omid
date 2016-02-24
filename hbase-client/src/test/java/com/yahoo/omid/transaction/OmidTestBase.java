@@ -10,8 +10,8 @@ import com.yahoo.omid.tools.hbase.OmidTableManager;
 import com.yahoo.omid.tso.TSOMockModule;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
+import com.yahoo.omid.tsoclient.TSOClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -41,7 +41,6 @@ import java.lang.reflect.Method;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TIMESTAMP_TABLE_DEFAULT_NAME;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TSO_FAMILY;
 import static com.yahoo.omid.tools.hbase.OmidTableManager.COMMIT_TABLE_COMMAND_NAME;
-import static com.yahoo.omid.tsoclient.TSOClient.ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY;
 import static org.apache.hadoop.hbase.HConstants.HBASE_CLIENT_RETRIES_NUMBER;
 
 public abstract class OmidTestBase {
@@ -75,17 +74,16 @@ public abstract class OmidTestBase {
         LOG.info("Finished loading TSO");
         context.setAttribute("tso", tso);
 
-        org.apache.commons.configuration.Configuration clientConf = new BaseConfiguration();
-        clientConf.setProperty("tso.host", "localhost");
-        clientConf.setProperty("tso.port", 1234);
-        clientConf.setProperty(ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY, 0);
+        TSOClientConfiguration clientConf = TSOClientConfiguration.builder()
+                .connectionString("localhost:1234")
+                .build();
         context.setAttribute("clientConf", clientConf);
 
         InMemoryCommitTable commitTable = (InMemoryCommitTable) injector.getInstance(CommitTable.class);
         context.setAttribute("commitTable", commitTable);
 
         // Create the associated Handler
-        TSOClient client = TSOClient.newBuilder().withConfiguration(clientConf).build();
+        TSOClient client = TSOClient.builder(clientConf).build();
         context.setAttribute("client", client);
 
         // ------------------------------------------------------------------------------------------------------------
@@ -140,10 +138,6 @@ public abstract class OmidTestBase {
         return (TSOClient) context.getAttribute("client");
     }
 
-    org.apache.commons.configuration.Configuration getClientConfiguration(ITestContext context) {
-        return (org.apache.commons.configuration.Configuration) context.getAttribute("clientConf");
-    }
-
     InMemoryCommitTable getCommitTable(ITestContext context) {
         return (InMemoryCommitTable) context.getAttribute("commitTable");
     }
@@ -153,18 +147,24 @@ public abstract class OmidTestBase {
     }
 
     protected TransactionManager newTransactionManager(ITestContext context, TSOClient tsoClient) throws Exception {
-        return HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(getCommitTable(context).getClient().get())
-                .withTSOClient(tsoClient).build();
+        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.builder()
+                .connectionString("localhost:1234")
+                .build();
+        return HBaseTransactionManager.builder(clientConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(getCommitTable(context).getClient().get())
+                .tsoClient(tsoClient).build();
     }
 
     protected TransactionManager newTransactionManager(ITestContext context, CommitTable.Client commitTableClient)
             throws Exception {
-        return HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTableClient)
-                .withTSOClient(getClient(context)).build();
+        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.builder()
+                .connectionString("localhost:1234")
+                .build();
+        return HBaseTransactionManager.builder(clientConf)
+                .hbaseConf(hbaseConf)
+                .commitTableClient(commitTableClient)
+                .tsoClient(getClient(context)).build();
     }
 
     @AfterGroups(groups = "sharedHBase")

@@ -20,7 +20,6 @@ import com.google.common.base.Optional;
 import com.google.common.collect.Maps;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
-import com.yahoo.omid.committable.hbase.CommitTableConstants;
 import com.yahoo.omid.committable.hbase.HBaseCommitTable;
 import com.yahoo.omid.committable.hbase.HBaseCommitTableConfig;
 import com.yahoo.omid.metrics.MetricsRegistry;
@@ -55,51 +54,55 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
     }
 
     public static class Builder {
-        Configuration conf = new Configuration();
-        MetricsRegistry metricsRegistry = new NullMetricsProvider();
-        TSOClient tsoClient;
-        CommitTable.Client commitTableClient;
+        // Required parameters
+        private HBaseOmidClientConfiguration omidConf;
 
-        private Builder() {
+        // Optional parameters - initialized to default values
+        private Configuration hbaseConf = new Configuration();
+        private MetricsRegistry metricsRegistry = new NullMetricsProvider();
+        private TSOClient tsoClient;
+        private CommitTable.Client commitTableClient;
+
+        private Builder(HBaseOmidClientConfiguration omidConf) {
+            this.omidConf = omidConf;
         }
 
-        public Builder withConfiguration(Configuration conf) {
-            this.conf = conf;
+        public Builder hbaseConf(Configuration hbaseConf) {
+            this.hbaseConf = hbaseConf;
             return this;
         }
 
-        public Builder withMetrics(MetricsRegistry metricsRegistry) {
+        public Builder metrics(MetricsRegistry metricsRegistry) {
             this.metricsRegistry = metricsRegistry;
             return this;
         }
 
-        public Builder withTSOClient(TSOClient tsoClient) {
+        public Builder tsoClient(TSOClient tsoClient) {
             this.tsoClient = tsoClient;
             return this;
         }
 
-        public Builder withCommitTableClient(CommitTable.Client client) {
+        public Builder commitTableClient(CommitTable.Client client) {
             this.commitTableClient = client;
             return this;
         }
 
         public HBaseTransactionManager build() throws OmidInstantiationException {
 
+            // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
+            // to configure specific components
             boolean ownsTsoClient = false;
             if (tsoClient == null) {
-                tsoClient = TSOClient.newBuilder()
-                        .withConfiguration(convertToCommonsConf(conf))
-                        .build();
+                tsoClient = TSOClient.builder(omidConf.getTSOClientConfiguration()).build();
                 ownsTsoClient = true;
             }
-
+            // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
+            // to configure specific components
             boolean ownsCommitTableClient = false;
             if (commitTableClient == null) {
                 try {
-                    String commitTableName = conf.get(CommitTableConstants.COMMIT_TABLE_NAME_KEY, CommitTableConstants.COMMIT_TABLE_DEFAULT_NAME);
-                    HBaseCommitTableConfig config = new HBaseCommitTableConfig(commitTableName);
-                    CommitTable commitTable =
-                            new HBaseCommitTable(conf, config);
+                    HBaseCommitTableConfig config = new HBaseCommitTableConfig(omidConf.getCommitTableName());
+                    CommitTable commitTable = new HBaseCommitTable(hbaseConf, config);
                     commitTableClient = commitTable.getClient().get();
                     ownsCommitTableClient = true;
                 } catch (InterruptedException e) {
@@ -114,19 +117,15 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                                                new HBaseTransactionFactory());
         }
 
-        private org.apache.commons.configuration.Configuration convertToCommonsConf(Configuration hconf) {
-            org.apache.commons.configuration.Configuration conf =
-                    new org.apache.commons.configuration.BaseConfiguration();
-            for (Map.Entry<String, String> e : hconf) {
-                conf.addProperty(e.getKey(), e.getValue());
-            }
-            return conf;
-        }
-
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
+    public static Builder builder() {
+        HBaseOmidClientConfiguration defaultOmidClientConf = HBaseOmidClientConfiguration.builder().build();
+        return builder(defaultOmidClientConf);
+    }
+
+    public static Builder builder(HBaseOmidClientConfiguration omidConf) {
+        return new Builder(omidConf);
     }
 
     private HBaseTransactionManager(MetricsRegistry metrics,
@@ -160,8 +159,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                         "Failed inserting shadow cell " + cell + " for Tx " + transaction, e);
             }
         }
-        // Flush affected tables before returning to avoid loss of shadow cells updates
-        // when autoflush is disabled
+        // Flush affected tables before returning to avoid loss of shadow cells updates when autoflush is disabled
         try {
             transaction.flushTables();
         } catch (IOException e) {
@@ -211,7 +209,6 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                     return false;
                 case CACHE: // cache was empty
                 default:
-                    assert (false);
                     return false;
             }
         } catch (IOException e) {
@@ -231,9 +228,9 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
         }
     }
 
-    // ****************************************************************************************************************
+    // ----------------------------------------------------------------------------------------------------------------
     // Helper methods
-    // ****************************************************************************************************************
+    // ----------------------------------------------------------------------------------------------------------------
 
     private HBaseTransaction
     enforceHBaseTransactionAsParam(AbstractTransaction<? extends CellId> tx) {
@@ -265,8 +262,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
         }
 
         @Override
-        public Optional<Long> readCommitTimestampFromShadowCell(long startTimestamp)
-                throws IOException {
+        public Optional<Long> readCommitTimestampFromShadowCell(long startTimestamp) throws IOException {
 
             Get get = new Get(hBaseCellId.getRow());
             byte[] family = hBaseCellId.getFamily();
