@@ -5,7 +5,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.PersistenceProcessorImpl.Batch;
+import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -91,23 +91,24 @@ public class TestPersistenceProcessor {
                 mock(TSOStateManager.class)));
         // Component under test
         PersistenceProcessor proc = new PersistenceProcessorImpl(metrics,
-                "localhost:1234",
-                batch,
-                leaseManager,
-                commitTable,
-                replyProcessor,
-                retryProcessor,
-                panicker,
-                TSOServerCommandLineConfig.defaultConfig());
+                                                                 batch,
+                                                                 "localhost:1234",
+                                                                 leaseManager,
+                                                                 commitTable,
+                                                                 replyProcessor,
+                                                                 retryProcessor,
+                                                                 panicker,
+                                                                 TSOServerCommandLineConfig.defaultConfig());
 
         // The non-ha lease manager always return true for
         // stillInLeasePeriod(), so verify the batch sends replies as master
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch, timeout(1000).times(2)).sendRepliesAndReset(any(ReplyProcessor.class),
-                any(RetryProcessor.class),
-                eq(true));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
+                                                        any(RetryProcessor.class),
+                                                        any(Long.class), eq(true));
     }
 
     @Test
@@ -116,42 +117,47 @@ public class TestPersistenceProcessor {
         // Init a HA lease manager
         LeaseManager leaseManager = mock(LeaseManager.class);
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(metrics,
-                "localhost:1234",
-                batch,
-                leaseManager,
-                commitTable,
-                replyProcessor,
-                retryProcessor,
-                panicker,
-                TSOServerCommandLineConfig.defaultConfig());
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(metrics,
+                                                                 batch,
+                                                                 "localhost:1234",
+                                                                 leaseManager,
+                                                                 commitTable,
+                                                                 replyProcessor,
+                                                                 retryProcessor,
+                                                                 panicker,
+                                                                 TSOServerCommandLineConfig.defaultConfig());
 
         // Configure the lease manager to always return true for
         // stillInLeasePeriod, so verify the batch sends replies as master
         doReturn(true).when(leaseManager).stillInLeasePeriod();
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(true));
+        verify(batch).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(true));
 
         // Configure the lease manager to always return true first and false
         // later for stillInLeasePeriod, so verify the batch sends replies as
         // non-master
         reset(leaseManager);
         reset(batch);
+        proc.setBatch(batch);
         doReturn(true).doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(false));
+        verify(batch).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
 
         // Configure the lease manager to always return false for
         // stillInLeasePeriod, so verify the batch sends replies as non-master
         reset(leaseManager);
         reset(batch);
+        proc.setBatch(batch);
         doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(1)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(false));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
     }
 
     @Test
@@ -178,6 +184,7 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
@@ -199,6 +206,7 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
