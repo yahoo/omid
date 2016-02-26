@@ -19,8 +19,6 @@ import com.google.common.base.Charsets;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.yahoo.omid.metrics.MetricsRegistry;
-import com.yahoo.omid.metrics.NullMetricsProvider;
 import com.yahoo.omid.proto.TSOProto;
 import com.yahoo.statemachine.StateMachine;
 import org.apache.curator.framework.CuratorFramework;
@@ -100,36 +98,16 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     // Construction
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static class Builder {
-        // Required parameters
-        private final TSOClientConfiguration omidConf;
-
-        // Optional parameters - initialized to default values
-        private MetricsRegistry metrics = new NullMetricsProvider();
-
-        public Builder(TSOClientConfiguration omidConf) {
-            this.omidConf = omidConf;
-        }
-
-        public Builder metrics(MetricsRegistry metrics) {
-            this.metrics = metrics;
-            return this;
-        }
-
-        public TSOClient build() {
-
-            return new TSOClient(omidConf, metrics);
-
-        }
-
+    public static TSOClient newInstance() {
+        return newInstance(TSOClientConfiguration.create());
     }
 
-    public static Builder builder(TSOClientConfiguration omidConf) {
-        return new Builder(omidConf);
+    public static TSOClient newInstance(TSOClientConfiguration tsoClientConf) {
+        return new TSOClient(tsoClientConf);
     }
 
     // Avoid instantiation
-    private TSOClient(TSOClientConfiguration omidConf, MetricsRegistry metrics) {
+    private TSOClient(TSOClientConfiguration omidConf) {
 
         // Start client with Nb of active threads = 3 as maximum.
         int tsoExecutorThreads = omidConf.getExecutorThreads();

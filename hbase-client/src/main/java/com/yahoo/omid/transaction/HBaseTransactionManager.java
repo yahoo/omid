@@ -53,6 +53,10 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
 
     }
 
+    // ----------------------------------------------------------------------------------------------------------------
+    // Construction
+    // ----------------------------------------------------------------------------------------------------------------
+
     public static class Builder {
         // Required parameters
         private HBaseOmidClientConfiguration omidConf;
@@ -93,7 +97,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
             // to configure specific components
             boolean ownsTsoClient = false;
             if (tsoClient == null) {
-                tsoClient = TSOClient.builder(omidConf.getTSOClientConfiguration()).build();
+                tsoClient = TSOClient.newInstance(omidConf.getTSOClientConfiguration());
                 ownsTsoClient = true;
             }
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test

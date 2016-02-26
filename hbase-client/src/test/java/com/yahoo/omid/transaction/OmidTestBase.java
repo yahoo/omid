@@ -82,7 +82,7 @@ public abstract class OmidTestBase {
         context.setAttribute("commitTable", commitTable);
 
         // Create the associated Handler
-        TSOClient client = TSOClient.builder(clientConf).build();
+        TSOClient client = TSOClient.newInstance(clientConf);
         context.setAttribute("client", client);
 
         // ------------------------------------------------------------------------------------------------------------

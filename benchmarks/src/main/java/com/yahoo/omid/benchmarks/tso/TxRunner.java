@@ -133,9 +133,9 @@ public class TxRunner implements Runnable {
 
         // TSO Client initialization
         LOG.info("TxRunner-{} [ Connected to TSO in {} ]", txRunnerId, expConfig.tsoHostPort);
-        TSOClientConfiguration omidConf = TSOClientConfiguration.create();
-        omidConf.setConnectionString(expConfig.tsoHostPort.toString());
-        this.tsoClient = TSOClient.builder(omidConf).build();
+        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        tsoClientConf.setConnectionString(expConfig.tsoHostPort.toString());
+        this.tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // Stat initialization
         String hostName = InetAddress.getLocalHost().getHostName();

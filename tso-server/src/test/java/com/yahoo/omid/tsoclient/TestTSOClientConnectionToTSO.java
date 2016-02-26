@@ -83,13 +83,10 @@ public class TestTSOClientConnectionToTSO {
     @Test(timeOut = 30_000)
     public void testUnsuccessfulConnectionToTSO() throws Exception {
 
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
-        tsoClientConf.setConnectionString("localhost:54758");
-
         // When no ZK node for TSOServer is found & no host:port config exists
         // we should get an exception when getting the client
         try {
-            TSOClient.builder(tsoClientConf).build();
+            TSOClient.newInstance();
         } catch (IllegalArgumentException e) {
             // Expected
         }
@@ -113,7 +110,7 @@ public class TestTSOClientConnectionToTSO {
         // to the TSO through the host:port configured...
         TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
         tsoClientConf.setConnectionString("localhost:" + tsoPortForTest);
-        TSOClient tsoClient = TSOClient.builder(tsoClientConf).build();
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... so we should get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();
@@ -151,7 +148,7 @@ public class TestTSOClientConnectionToTSO {
         TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
         tsoClientConf.setConnectionType(ZK);
         tsoClientConf.setConnectionString(zkClusterForTest);
-        TSOClient tsoClient = TSOClient.builder(tsoClientConf).build();
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... so we should get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();
@@ -189,7 +186,7 @@ public class TestTSOClientConnectionToTSO {
         TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
         tsoClientConf.setConnectionType(ZK);
         tsoClientConf.setConnectionString(zkClusterForTest);
-        TSOClient tsoClient = TSOClient.builder(tsoClientConf).build();
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... and check that initially we get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();

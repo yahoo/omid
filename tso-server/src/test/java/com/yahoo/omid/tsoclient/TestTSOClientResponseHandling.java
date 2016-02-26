@@ -28,7 +28,7 @@ public class TestTSOClientResponseHandling {
 
         TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
         tsoClientConf.setConnectionString("localhost:" + TSO_PORT);
-        tsoClient = TSOClient.builder(tsoClientConf).build();
+        tsoClient = TSOClient.newInstance(tsoClientConf);
     }
 
     @BeforeMethod

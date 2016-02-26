@@ -76,8 +76,8 @@ public class TestIntegrationOfTSOClientServerBasicFunctionality {
         TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
         tsoClientConf.setConnectionString(TSO_SERVER_HOST + ":" + tsoServerPortForTest);
 
-        tsoClient = TSOClient.builder(tsoClientConf).build();
-        justAnotherTSOClient = TSOClient.builder(tsoClientConf).build();
+        tsoClient = TSOClient.newInstance(tsoClientConf);
+        justAnotherTSOClient = TSOClient.newInstance(tsoClientConf);
 
         LOG.info("==================================================================================================");
         LOG.info("===================================== TSO Clients Initialized ====================================");

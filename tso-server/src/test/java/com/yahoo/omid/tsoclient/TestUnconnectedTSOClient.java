@@ -31,7 +31,7 @@ public class TestUnconnectedTSOClient {
         tsoClientConf.setReconnectionDelaySecs(TSO_RECONNECTION_DELAY_IN_SECS_FOR_TEST);
 
         // Component under test
-        TSOClient tsoClient = TSOClient.builder(tsoClientConf).build();
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // Internal accessor to fsm
         FsmImpl fsm = (FsmImpl) tsoClient.fsm;

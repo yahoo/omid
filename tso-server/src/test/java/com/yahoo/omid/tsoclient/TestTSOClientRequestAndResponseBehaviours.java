@@ -117,7 +117,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testTimeoutsAreCancelled() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         int requestTimeoutMs = 500;
         int requestMaxRetries = 5;
         LOG.info("Request timeout {} ms; Max retries {}", requestTimeoutMs, requestMaxRetries);
@@ -148,7 +148,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
         TSOClientConfiguration testTSOClientConf = TSOClientConfiguration.create();
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestMaxRetries(0);
-        TSOClient client = TSOClient.builder(testTSOClientConf).build();
+        TSOClient client = TSOClient.newInstance(testTSOClientConf);
 
         List<Long> startTimestamps = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
@@ -213,7 +213,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testOutOfOrderMessages() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long ts1 = client.getNewStartTimestamp().get();
@@ -227,7 +227,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testDuplicateCommitAborting() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long ts1 = client.getNewStartTimestamp().get();
@@ -243,7 +243,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testDuplicateCommit() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long ts1 = client.getNewStartTimestamp().get();
@@ -262,7 +262,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testCommitCanSucceedWhenChannelDisconnected() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
 
         long ts1 = client.getNewStartTimestamp().get();
         pausableTSOracle.pause();
@@ -280,7 +280,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10000);
-        TSOClient client = TSOClient.builder(testTSOClientConf).build();
+        TSOClient client = TSOClient.newInstance(testTSOClientConf);
 
         long ts1 = client.getNewStartTimestamp().get();
         pausableTSOracle.pause();
@@ -297,7 +297,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10);
-        TSOClient client = TSOClient.builder(testTSOClientConf).build();
+        TSOClient client = TSOClient.newInstance(testTSOClientConf);
 
         long ts1 = client.getNewStartTimestamp().get();
         pausableTSOracle.pause();
@@ -318,7 +318,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10000);
-        TSOClient client = TSOClient.builder(testTSOClientConf).build();
+        TSOClient client = TSOClient.newInstance(testTSOClientConf);
 
         pausableTSOracle.pause();
         Future<Long> future = client.getNewStartTimestamp();
@@ -335,7 +335,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test
     public void testCommitTimestampPresentInCommitTableReturnsCommit() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long tx1ST = client.getNewStartTimestamp().get();
@@ -350,7 +350,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test
     public void testInvalidCommitTimestampPresentInCommitTableReturnsAbort() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long tx1ST = client.getNewStartTimestamp().get();
@@ -367,7 +367,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test
     public void testCommitTimestampNotPresentInCommitTableReturnsAnAbort() throws Exception {
 
-        TSOClient client = TSOClient.builder(tsoClientConf).build();
+        TSOClient client = TSOClient.newInstance(tsoClientConf);
         TSOClientOneShot clientOneShot = new TSOClientOneShot(TSO_SERVER_HOST, TSO_SERVER_PORT);
 
         long tx1ST = client.getNewStartTimestamp().get();
