@@ -73,11 +73,11 @@ public class TestIntegrationOfTSOClientServerBasicFunctionality {
         LOG.info("==================================================================================================");
 
         // Configure direct connection to the server
-        TSOClientConfiguration omidConf = TSOClientConfiguration.builder()
-                .connectionString(TSO_SERVER_HOST + ":" + tsoServerPortForTest)
-                .build();
-        tsoClient = TSOClient.builder(omidConf).build();
-        justAnotherTSOClient = TSOClient.builder(omidConf).build();
+        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        tsoClientConf.setConnectionString(TSO_SERVER_HOST + ":" + tsoServerPortForTest);
+
+        tsoClient = TSOClient.builder(tsoClientConf).build();
+        justAnotherTSOClient = TSOClient.builder(tsoClientConf).build();
 
         LOG.info("==================================================================================================");
         LOG.info("===================================== TSO Clients Initialized ====================================");

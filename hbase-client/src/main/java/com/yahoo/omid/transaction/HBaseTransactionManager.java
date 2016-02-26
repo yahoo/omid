@@ -120,8 +120,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
     }
 
     public static Builder builder() {
-        HBaseOmidClientConfiguration defaultOmidClientConf = HBaseOmidClientConfiguration.builder().build();
-        return builder(defaultOmidClientConf);
+        return builder(HBaseOmidClientConfiguration.create());
     }
 
     public static Builder builder(HBaseOmidClientConfiguration omidConf) {

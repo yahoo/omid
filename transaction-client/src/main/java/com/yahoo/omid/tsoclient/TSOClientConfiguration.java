@@ -15,6 +15,9 @@
  */
 package com.yahoo.omid.tsoclient;
 
+import com.yahoo.omid.metrics.MetricsRegistry;
+import com.yahoo.omid.metrics.NullMetricsProvider;
+
 /**
  * Configuration for Omid client side
  */
@@ -35,130 +38,105 @@ public class TSOClientConfiguration {
         DIRECT, ZK
     }
 
-    private final ConnType connType;
-    private final String connString;
-    private final int requestMaxRetries;
-    private final int zkConnectionTimeoutSecs;
-    private final int requestTimeoutMs;
-    private final int reconnectionDelaySecs;
-    private final int retryDelayMs;
-    private final int executorThreads;
+    private ConnType connectionType = ConnType.DIRECT;
+    private String connectionString = DEFAULT_TSO_HOST_PORT_CONNECTION_STRING;
+    private int zkConnectionTimeoutSecs = DEFAULT_ZK_CONNECTION_TIMEOUT_IN_SECS;
+    private int requestMaxRetries = DEFAULT_TSO_MAX_REQUEST_RETRIES;
+    private int requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
+    private int reconnectionDelaySecs = DEFAULT_TSO_RECONNECTION_DELAY_SECS;
+    private int retryDelayMs = DEFAULT_TSO_RETRY_DELAY_MS;
+    private int executorThreads =  DEFAULT_TSO_EXECUTOR_THREAD_NUM;
+    private MetricsRegistry metrics = new NullMetricsProvider();
+
 
     // ----------------------------------------------------------------------------------------------------------------
-    // Builder definition and creation
+    // Instantiation
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static class Builder {
-        // Required parameters
-
-        // Optional parameters - initialized to default values
-        private ConnType connType = ConnType.DIRECT;
-        private String connString = DEFAULT_TSO_HOST_PORT_CONNECTION_STRING;
-        private int zkConnectionTimeoutSecs = DEFAULT_ZK_CONNECTION_TIMEOUT_IN_SECS;
-        private int requestMaxRetries = DEFAULT_TSO_MAX_REQUEST_RETRIES;
-        private int requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
-        private int reconnectionDelaySecs = DEFAULT_TSO_RECONNECTION_DELAY_SECS;
-        private int retryDelayMs = DEFAULT_TSO_RETRY_DELAY_MS;
-        private int executorThreads =  DEFAULT_TSO_EXECUTOR_THREAD_NUM;
-
-        public Builder connectionType(ConnType val) {
-            this.connType = val;
-            return this;
-        }
-
-        public Builder connectionString(String val) {
-            this.connString = val;
-            return this;
-        }
-
-        public Builder zkConnectionTimeoutSecs(int val) {
-            zkConnectionTimeoutSecs = val;
-            return this;
-        }
-
-        public Builder requestMaxRetries(int val) {
-            requestMaxRetries = val;
-            return this;
-        }
-
-        public Builder requestTimeoutMs(int val) {
-            requestTimeoutMs = val;
-            return this;
-        }
-
-        public Builder reconnectionDelaySecs(int val) {
-            reconnectionDelaySecs = val;
-            return this;
-        }
-
-        public Builder retryDelayMs(int val) {
-            retryDelayMs = val;
-            return this;
-        }
-
-        public Builder executorThreads(int val) {
-            executorThreads = val;
-            return this;
-        }
-
-        public TSOClientConfiguration build() {
-            return new TSOClientConfiguration(this);
-        }
-
+    public static TSOClientConfiguration create() {
+        // Do additional stuff if required
+        return new TSOClientConfiguration();
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
     // Private constructor to avoid instantiation
-    // ----------------------------------------------------------------------------------------------------------------
-
-    private TSOClientConfiguration(Builder builder) {
-        connType = builder.connType;
-        connString = builder.connString;
-        requestMaxRetries = builder.requestMaxRetries;
-        zkConnectionTimeoutSecs = builder.zkConnectionTimeoutSecs;
-        requestTimeoutMs = builder.requestTimeoutMs;
-        reconnectionDelaySecs = builder.reconnectionDelaySecs;
-        retryDelayMs = builder.retryDelayMs;
-        executorThreads = builder.executorThreads;
+    private TSOClientConfiguration() {
     }
 
     // ----------------------------------------------------------------------------------------------------------------
-    // Getters for config params
+    // Getters and setters for config params
     // ----------------------------------------------------------------------------------------------------------------
 
-    public ConnType getConnType() {
-        return connType;
+
+    public ConnType getConnectionType() {
+        return connectionType;
     }
 
-    public String getConnString() {
-        return connString;
+    public void setConnectionType(ConnType connectionType) {
+        this.connectionType = connectionType;
     }
 
-    public int getRequestMaxRetries() {
-        return requestMaxRetries;
+    public String getConnectionString() {
+        return connectionString;
+    }
+
+    public void setConnectionString(String connectionString) {
+        this.connectionString = connectionString;
     }
 
     public int getZkConnectionTimeoutSecs() {
         return zkConnectionTimeoutSecs;
     }
 
+    public void setZkConnectionTimeoutSecs(int zkConnectionTimeoutSecs) {
+        this.zkConnectionTimeoutSecs = zkConnectionTimeoutSecs;
+    }
+
+    public int getRequestMaxRetries() {
+        return requestMaxRetries;
+    }
+
+    public void setRequestMaxRetries(int requestMaxRetries) {
+        this.requestMaxRetries = requestMaxRetries;
+    }
+
     public int getRequestTimeoutMs() {
         return requestTimeoutMs;
+    }
+
+    public void setRequestTimeoutMs(int requestTimeoutMs) {
+        this.requestTimeoutMs = requestTimeoutMs;
     }
 
     public int getReconnectionDelaySecs() {
         return reconnectionDelaySecs;
     }
 
+    public void setReconnectionDelaySecs(int reconnectionDelaySecs) {
+        this.reconnectionDelaySecs = reconnectionDelaySecs;
+    }
+
     public int getRetryDelayMs() {
         return retryDelayMs;
+    }
+
+    public void setRetryDelayMs(int retryDelayMs) {
+        this.retryDelayMs = retryDelayMs;
     }
 
     public int getExecutorThreads() {
         return executorThreads;
     }
+
+    public void setExecutorThreads(int executorThreads) {
+        this.executorThreads = executorThreads;
+    }
+
+    public MetricsRegistry getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(MetricsRegistry metrics) {
+        this.metrics = metrics;
+    }
+
 }

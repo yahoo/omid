@@ -16,107 +16,137 @@
 package com.yahoo.omid.transaction;
 
 import com.yahoo.omid.committable.hbase.CommitTableConstants;
+import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.tsoclient.TSOClientConfiguration;
-import com.yahoo.omid.tsoclient.TSOClientConfiguration.ConnType;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 
 /**
  * Configuration for HBase's Omid client side
  */
 public class HBaseOmidClientConfiguration {
 
-    private final String commitTableName;
-    private final TSOClientConfiguration TSOClientConfiguration;
+    private Configuration hbaseConfiguration = HBaseConfiguration.create();
+    private String commitTableName = CommitTableConstants.COMMIT_TABLE_DEFAULT_NAME;
+
+    // Delegated class
+    private TSOClientConfiguration tsoClientConfiguration = TSOClientConfiguration.create();
 
     // ----------------------------------------------------------------------------------------------------------------
-    // Builder definition and creation
+    // Instantiation
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static class Builder {
-
-        // Optional parameters for HBase - initialized to default values
-        public String commitTableName = CommitTableConstants.COMMIT_TABLE_DEFAULT_NAME;
-        public TSOClientConfiguration TSOClientConfiguration;
-
-        // Delegate for TSOClientConfiguration
-        private TSOClientConfiguration.Builder omidClientConfigBuilder = TSOClientConfiguration.builder();
-
-        public Builder commitTableName(String val) {
-            commitTableName = val;
-            return this;
-        }
-
-        public Builder connectionType(ConnType val) {
-            omidClientConfigBuilder.connectionType(val);
-            return this;
-        }
-
-        public Builder connectionString(String val) {
-            omidClientConfigBuilder.connectionString(val);
-            return this;
-        }
-
-        public Builder zkConnectionTimeoutSecs(int val) {
-            omidClientConfigBuilder.zkConnectionTimeoutSecs(val);
-            return this;
-        }
-
-        public Builder requestMaxRetries(int val) {
-            omidClientConfigBuilder.requestMaxRetries(val);
-            return this;
-        }
-
-        public Builder requestTimeoutMs(int val) {
-            omidClientConfigBuilder.requestTimeoutMs(val);
-            return this;
-        }
-
-        public Builder reconnectionDelaySecs(int val) {
-            omidClientConfigBuilder.reconnectionDelaySecs(val);
-            return this;
-        }
-
-        public Builder retryDelayMs(int val) {
-            omidClientConfigBuilder.retryDelayMs(val);
-            return this;
-        }
-
-        public Builder executorThreads(int val) {
-            omidClientConfigBuilder.executorThreads(val);
-            return this;
-        }
-
-        public HBaseOmidClientConfiguration build() {
-            // Build the delegate configuration...
-            TSOClientConfiguration = omidClientConfigBuilder.build();
-            // ... and finally the HBase config object
-            return new HBaseOmidClientConfiguration(this);
-        }
+    public static HBaseOmidClientConfiguration create() {
+        // TODO Add additional stuff if required (e.g. read from config file)
+        return new HBaseOmidClientConfiguration();
     }
 
-    public static Builder builder() {
-        // TODO: load config from file
-        return new Builder();
-    }
-
-    // ----------------------------------------------------------------------------------------------------------------
     // Private constructor to avoid instantiation
-    // ----------------------------------------------------------------------------------------------------------------
-
-    private HBaseOmidClientConfiguration(Builder builder) {
-        commitTableName = builder.commitTableName;
-        TSOClientConfiguration = builder.TSOClientConfiguration;
+    private HBaseOmidClientConfiguration() {
     }
 
     // ----------------------------------------------------------------------------------------------------------------
-    // Getters for config params
+    // Getters and setters for config params
     // ----------------------------------------------------------------------------------------------------------------
+
+    public Configuration getHBaseConfiguration() {
+        return hbaseConfiguration;
+    }
+
+    public void setHBaseConfiguration(Configuration hbaseConfiguration) {
+        this.hbaseConfiguration = hbaseConfiguration;
+    }
 
     public String getCommitTableName() {
         return commitTableName;
     }
 
+    public void setCommitTableName(String commitTableName) {
+        this.commitTableName = commitTableName;
+    }
+
     public TSOClientConfiguration getTSOClientConfiguration() {
-        return TSOClientConfiguration;
+        return tsoClientConfiguration;
+    }
+
+    public void setTSOClientConfiguration(TSOClientConfiguration tsoClientConfiguration) {
+        this.tsoClientConfiguration = tsoClientConfiguration;
+    }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // Getters and setters of the delegated class
+    // ----------------------------------------------------------------------------------------------------------------
+
+    public void setMetrics(MetricsRegistry metrics) {
+        tsoClientConfiguration.setMetrics(metrics);
+    }
+
+    public TSOClientConfiguration.ConnType getConnectionType() {
+        return tsoClientConfiguration.getConnectionType();
+    }
+
+    public void setConnectionString(String connectionString) {
+        tsoClientConfiguration.setConnectionString(connectionString);
+    }
+
+    public void setExecutorThreads(int executorThreads) {
+        tsoClientConfiguration.setExecutorThreads(executorThreads);
+    }
+
+    public int getReconnectionDelaySecs() {
+        return tsoClientConfiguration.getReconnectionDelaySecs();
+    }
+
+    public int getRequestTimeoutMs() {
+        return tsoClientConfiguration.getRequestTimeoutMs();
+    }
+
+    public void setReconnectionDelaySecs(int reconnectionDelaySecs) {
+        tsoClientConfiguration.setReconnectionDelaySecs(reconnectionDelaySecs);
+    }
+
+    public void setConnectionType(TSOClientConfiguration.ConnType connectionType) {
+        tsoClientConfiguration.setConnectionType(connectionType);
+    }
+
+    public MetricsRegistry getMetrics() {
+        return tsoClientConfiguration.getMetrics();
+    }
+
+    public void setRequestTimeoutMs(int requestTimeoutMs) {
+        tsoClientConfiguration.setRequestTimeoutMs(requestTimeoutMs);
+    }
+
+    public String getConnectionString() {
+        return tsoClientConfiguration.getConnectionString();
+    }
+
+    public void setZkConnectionTimeoutSecs(int zkConnectionTimeoutSecs) {
+        tsoClientConfiguration.setZkConnectionTimeoutSecs(zkConnectionTimeoutSecs);
+    }
+
+    public int getRetryDelayMs() {
+        return tsoClientConfiguration.getRetryDelayMs();
+    }
+
+    public int getExecutorThreads() {
+        return tsoClientConfiguration.getExecutorThreads();
+    }
+
+    public void setRequestMaxRetries(int requestMaxRetries) {
+        tsoClientConfiguration.setRequestMaxRetries(requestMaxRetries);
+    }
+
+    public void setRetryDelayMs(int retryDelayMs) {
+        tsoClientConfiguration.setRetryDelayMs(retryDelayMs);
+    }
+
+    public int getZkConnectionTimeoutSecs() {
+        return tsoClientConfiguration.getZkConnectionTimeoutSecs();
+    }
+
+    public int getRequestMaxRetries() {
+        return tsoClientConfiguration.getRequestMaxRetries();
     }
 
 }

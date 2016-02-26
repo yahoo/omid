@@ -149,9 +149,9 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
 
         LOG.info("Connecting to TSO...");
         HostAndPort hp;
-        switch(omidConf.getConnType()) {
+        switch(omidConf.getConnectionType()) {
             case ZK:
-                connectToZK(omidConf.getConnString(), omidConf.getZkConnectionTimeoutSecs());
+                connectToZK(omidConf.getConnectionString(), omidConf.getZkConnectionTimeoutSecs());
                 configureCurrentTSOServerZNodeCache();
 
                 String tsoInfo = getCurrentTSOInfoFoundInZK();
@@ -164,7 +164,7 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
                 break;
             case DIRECT:
             default:
-                hp = HostAndPort.fromString(omidConf.getConnString());
+                hp = HostAndPort.fromString(omidConf.getConnectionString());
                 setTSOAddress(hp.getHostText(), hp.getPort());
                 LOG.info("\t* TSO host:port {} will be connected directly", hp);
                 break;

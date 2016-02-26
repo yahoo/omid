@@ -94,11 +94,9 @@ public class TestShadowCells extends OmidTestBase {
         // Test that we can make a valid read after adding a shadow cell without hitting the commit table
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidClientConf =
-                HBaseOmidClientConfiguration.builder()
-                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
-                        .build();
-        TransactionManager tm2 = HBaseTransactionManager.builder(omidClientConf)
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        TransactionManager tm2 = HBaseTransactionManager.builder(hbaseOmidClientConf)
                                                         .hbaseConf(hbaseConf)
                                                         .commitTableClient(commitTableClient)
                                                         .build();
@@ -116,11 +114,9 @@ public class TestShadowCells extends OmidTestBase {
     public void testCrashingAfterCommitDoesNotWriteShadowCells(ITestContext context) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidClientConf =
-                HBaseOmidClientConfiguration.builder()
-                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
-                        .build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
@@ -160,11 +156,9 @@ public class TestShadowCells extends OmidTestBase {
     public void testShadowCellIsHealedAfterCommitCrash(ITestContext context) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidClientConf =
-                HBaseOmidClientConfiguration.builder()
-                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
-                        .build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
@@ -218,11 +212,9 @@ public class TestShadowCells extends OmidTestBase {
             throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidClientConf =
-                HBaseOmidClientConfiguration.builder()
-                        .connectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT)
-                        .build();
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidClientConf)
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());

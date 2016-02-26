@@ -74,9 +74,8 @@ public abstract class OmidTestBase {
         LOG.info("Finished loading TSO");
         context.setAttribute("tso", tso);
 
-        TSOClientConfiguration clientConf = TSOClientConfiguration.builder()
-                .connectionString("localhost:1234")
-                .build();
+        TSOClientConfiguration clientConf = TSOClientConfiguration.create();
+        clientConf.setConnectionString("localhost:1234");
         context.setAttribute("clientConf", clientConf);
 
         InMemoryCommitTable commitTable = (InMemoryCommitTable) injector.getInstance(CommitTable.class);
@@ -147,9 +146,8 @@ public abstract class OmidTestBase {
     }
 
     protected TransactionManager newTransactionManager(ITestContext context, TSOClient tsoClient) throws Exception {
-        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.builder()
-                .connectionString("localhost:1234")
-                .build();
+        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.create();
+        clientConf.setConnectionString("localhost:1234");
         return HBaseTransactionManager.builder(clientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(getCommitTable(context).getClient().get())
@@ -158,9 +156,8 @@ public abstract class OmidTestBase {
 
     protected TransactionManager newTransactionManager(ITestContext context, CommitTable.Client commitTableClient)
             throws Exception {
-        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.builder()
-                .connectionString("localhost:1234")
-                .build();
+        HBaseOmidClientConfiguration clientConf = HBaseOmidClientConfiguration.create();
+        clientConf.setConnectionString("localhost:1234");
         return HBaseTransactionManager.builder(clientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)

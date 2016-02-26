@@ -80,7 +80,7 @@ public class BasicExample {
         HBaseLogin.loginIfNeeded(exampleConfig);
 
         LOG.info("Creating HBase Transaction Manager");
-        TransactionManager tm = HBaseTransactionManager.builder(exampleConfig.getOmidClientConfig()).build();
+        TransactionManager tm = HBaseTransactionManager.builder(exampleConfig.createOmidClientConfig()).build();
 
         LOG.info("Creating access to Transactional Table '{}'", userTableName);
         try (TTable tt = new TTable(HBaseConfiguration.create(), userTableName)) {

@@ -85,8 +85,10 @@ class Configuration extends HBaseLogin.Config {
         return Class.forName(rawFQN.substring(0, rawFQN.lastIndexOf('.')));
     }
 
-    HBaseOmidClientConfiguration getOmidClientConfig() {
-        return HBaseOmidClientConfiguration.builder().connectionString(tsoHostPort).build();
+    HBaseOmidClientConfiguration createOmidClientConfig() {
+        HBaseOmidClientConfiguration hbaseOmidClientConfig = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConfig.setConnectionString(tsoHostPort);
+        return hbaseOmidClientConfig;
     }
 
     private boolean hasHelpFlag() {

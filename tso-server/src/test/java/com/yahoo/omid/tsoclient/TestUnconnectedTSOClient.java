@@ -26,13 +26,12 @@ public class TestUnconnectedTSOClient {
     @Test(timeOut = 30_000) // 30 secs
     public void testRequestsDoneOnAnUnconnectedTSOClientAlwaysReturn() throws Exception {
 
-        TSOClientConfiguration omidConf = TSOClientConfiguration.builder()
-                .connectionString("localhost:12345")
-                .reconnectionDelaySecs(TSO_RECONNECTION_DELAY_IN_SECS_FOR_TEST)
-                .build();
+        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        tsoClientConf.setConnectionString("localhost:12345");
+        tsoClientConf.setReconnectionDelaySecs(TSO_RECONNECTION_DELAY_IN_SECS_FOR_TEST);
 
         // Component under test
-        TSOClient tsoClient = TSOClient.builder(omidConf).build();
+        TSOClient tsoClient = TSOClient.builder(tsoClientConf).build();
 
         // Internal accessor to fsm
         FsmImpl fsm = (FsmImpl) tsoClient.fsm;

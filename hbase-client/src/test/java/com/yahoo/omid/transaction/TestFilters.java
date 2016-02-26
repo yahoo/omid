@@ -48,12 +48,11 @@ public class TestFilters extends OmidTestBase {
     private void testGet(ITestContext context, Filter f) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidConf = HBaseOmidClientConfiguration.builder()
-                .connectionString("localhost:1234")
-                .build();
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString("localhost:1234");
 
         TTable table = new TTable(hbaseConf, TEST_TABLE);
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidConf)
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
@@ -93,11 +92,10 @@ public class TestFilters extends OmidTestBase {
     private void testScan(ITestContext context, Filter f) throws Exception {
         CommitTable.Client commitTableClient = spy(getCommitTable(context).getClient().get());
 
-        HBaseOmidClientConfiguration omidConf = HBaseOmidClientConfiguration.builder()
-                .connectionString("localhost:1234")
-                .build();
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString("localhost:1234");
         TTable table = new TTable(hbaseConf, TEST_TABLE);
-        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(omidConf)
+        AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
