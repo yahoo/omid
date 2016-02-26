@@ -73,7 +73,7 @@ public class TestTxMgrFailover extends OmidTestBase {
     }
 
     @BeforeMethod(alwaysRun = true, timeOut = 30_000)
-    public void beforeMethod() throws ExecutionException, InterruptedException, OmidInstantiationException {
+    public void beforeMethod() throws ExecutionException, InterruptedException {
 
         commitTable = new InMemoryCommitTable(); // Use an in-memory commit table to speed up tests
         commitTableClient = spy(commitTable.getClient().get());

@@ -18,6 +18,7 @@ package com.yahoo.omid.transaction;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
+import com.google.common.base.Supplier;
 import com.google.common.collect.Maps;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
@@ -55,81 +56,72 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
     // Construction
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static TransactionManager newInstance() throws OmidInstantiationException {
+    public static TransactionManager newInstance() {
         return newInstance(HBaseOmidClientConfiguration.create());
     }
 
-    public static TransactionManager newInstance(HBaseOmidClientConfiguration hBaseOmidClientConfiguration)
-            throws OmidInstantiationException
-    {
+    public static TransactionManager newInstance(HBaseOmidClientConfiguration hBaseOmidClientConfiguration) {
 
-        try {
-            TSOClient tsoClient = TSOClient.newInstance(hBaseOmidClientConfiguration.getOmidClientConfiguration());
-            HBaseCommitTableConfig commitTableConf =
-                    new HBaseCommitTableConfig(hBaseOmidClientConfiguration.getCommitTableName());
-            CommitTable commitTable =
-                    new HBaseCommitTable(hBaseOmidClientConfiguration.getHBaseConfiguration(), commitTableConf);
-            CommitTable.Client commitTableClient = commitTable.getClient().get();
-            return new HBaseTransactionManager(hBaseOmidClientConfiguration,
-                                               tsoClient,
-                                               commitTableClient,
-                                               new HBaseTransactionFactory());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new OmidInstantiationException("Interrupted whilst creating the HBase transaction manager", e);
-        } catch (ExecutionException e) {
-            throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
-        }
+        return builder(hBaseOmidClientConfiguration).build();
 
     }
 
     @VisibleForTesting
     static class Builder {
+
         // Required parameters
-        private HBaseOmidClientConfiguration hbaseOmidClientConf;
+        private final HBaseOmidClientConfiguration hbaseOmidClientConf;
 
         // Optional parameters - initialized to default values
-        private TSOClient tsoClient;
-        private CommitTable.Client commitTableClient;
+        private Optional<TSOClient> tsoClient = Optional.absent();
+        private Optional<CommitTable.Client> commitTableClient = Optional.absent();
 
         private Builder(HBaseOmidClientConfiguration hbaseOmidClientConf) {
             this.hbaseOmidClientConf = hbaseOmidClientConf;
         }
 
         Builder tsoClient(TSOClient tsoClient) {
-            this.tsoClient = tsoClient;
+            this.tsoClient = Optional.of(tsoClient);
             return this;
         }
 
         Builder commitTableClient(CommitTable.Client client) {
-            this.commitTableClient = client;
+            this.commitTableClient = Optional.of(client);
             return this;
         }
 
-        HBaseTransactionManager build() throws OmidInstantiationException {
+        HBaseTransactionManager build() {
+            return new HBaseTransactionManager(hbaseOmidClientConf,
+                                               tsoClient.or(new TSOClientSupplier()),
+                                               commitTableClient.or(new CommitTableClientSupplier()),
+                                               new HBaseTransactionFactory());
+        }
 
-            // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
-            // to configure specific components
-            if (tsoClient == null) {
-                tsoClient = TSOClient.newInstance(hbaseOmidClientConf.getOmidClientConfiguration());
+        class TSOClientSupplier implements Supplier<TSOClient> {
+
+            @Override
+            public TSOClient get() {
+                return TSOClient.newInstance(hbaseOmidClientConf.getOmidClientConfiguration());
             }
-            // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
-            // to configure specific components
-            if (commitTableClient == null) {
+
+        }
+
+        class CommitTableClientSupplier implements Supplier<CommitTable.Client> {
+
+            @Override
+            public CommitTable.Client get() {
+                HBaseCommitTableConfig commitTableConf = new HBaseCommitTableConfig(hbaseOmidClientConf.getCommitTableName());
+                CommitTable commitTable = new HBaseCommitTable(hbaseOmidClientConf.getHBaseConfiguration(), commitTableConf);
                 try {
-                    HBaseCommitTableConfig commitTableConf =
-                            new HBaseCommitTableConfig(hbaseOmidClientConf.getCommitTableName());
-                    CommitTable commitTable =
-                            new HBaseCommitTable(hbaseOmidClientConf.getHBaseConfiguration(), commitTableConf);
-                    commitTableClient = commitTable.getClient().get();
+                    return commitTable.getClient().get();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new OmidInstantiationException("Interrupted whilst creating the HBase transaction manager", e);
+                    throw new IllegalStateException("Interrupted getting HBase CommitTable client", e);
                 } catch (ExecutionException e) {
-                    throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
+                    throw new IllegalStateException("Error getting HBase CommitTable client", e);
                 }
             }
-            return new HBaseTransactionManager(hbaseOmidClientConf, tsoClient, commitTableClient, new HBaseTransactionFactory());
+
         }
 
     }
