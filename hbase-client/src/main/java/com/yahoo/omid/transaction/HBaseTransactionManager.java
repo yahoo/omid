@@ -15,6 +15,7 @@
  */
 package com.yahoo.omid.transaction;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
 import com.google.common.collect.Maps;
@@ -23,10 +24,8 @@ import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
 import com.yahoo.omid.committable.hbase.HBaseCommitTable;
 import com.yahoo.omid.committable.hbase.HBaseCommitTableConfig;
 import com.yahoo.omid.metrics.MetricsRegistry;
-import com.yahoo.omid.metrics.NullMetricsProvider;
 import com.yahoo.omid.tsoclient.CellId;
 import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -57,53 +56,72 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
     // Construction
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static class Builder {
+    public static TransactionManager newInstance() throws OmidInstantiationException {
+        return newInstance(HBaseOmidClientConfiguration.create());
+    }
+
+    public static TransactionManager newInstance(HBaseOmidClientConfiguration hBaseOmidClientConfiguration)
+            throws OmidInstantiationException
+    {
+
+        try {
+            TSOClient tsoClient = TSOClient.newInstance(hBaseOmidClientConfiguration.getTSOClientConfiguration());
+            HBaseCommitTableConfig commitTableConf =
+                    new HBaseCommitTableConfig(hBaseOmidClientConfiguration.getCommitTableName());
+            CommitTable commitTable =
+                    new HBaseCommitTable(hBaseOmidClientConfiguration.getHBaseConfiguration(), commitTableConf);
+            CommitTable.Client commitTableClient = commitTable.getClient().get();
+            return new HBaseTransactionManager(hBaseOmidClientConfiguration.getMetrics(),
+                                               tsoClient,
+                                               commitTableClient,
+                                               new HBaseTransactionFactory());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new OmidInstantiationException("Interrupted whilst creating the HBase transaction manager", e);
+        } catch (ExecutionException e) {
+            throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
+        }
+
+    }
+
+    @VisibleForTesting
+    static class Builder {
         // Required parameters
-        private HBaseOmidClientConfiguration omidConf;
+        private HBaseOmidClientConfiguration hbaseOmidClientConf;
 
         // Optional parameters - initialized to default values
-        private Configuration hbaseConf = new Configuration();
-        private MetricsRegistry metricsRegistry = new NullMetricsProvider();
         private TSOClient tsoClient;
         private CommitTable.Client commitTableClient;
 
-        private Builder(HBaseOmidClientConfiguration omidConf) {
-            this.omidConf = omidConf;
+        private Builder(HBaseOmidClientConfiguration hbaseOmidClientConf) {
+            this.hbaseOmidClientConf = hbaseOmidClientConf;
         }
 
-        public Builder hbaseConf(Configuration hbaseConf) {
-            this.hbaseConf = hbaseConf;
-            return this;
-        }
-
-        public Builder metrics(MetricsRegistry metricsRegistry) {
-            this.metricsRegistry = metricsRegistry;
-            return this;
-        }
-
-        public Builder tsoClient(TSOClient tsoClient) {
+        Builder tsoClient(TSOClient tsoClient) {
             this.tsoClient = tsoClient;
             return this;
         }
 
-        public Builder commitTableClient(CommitTable.Client client) {
+        Builder commitTableClient(CommitTable.Client client) {
             this.commitTableClient = client;
             return this;
         }
 
-        public HBaseTransactionManager build() throws OmidInstantiationException {
+        HBaseTransactionManager build() throws OmidInstantiationException {
 
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
             if (tsoClient == null) {
-                tsoClient = TSOClient.newInstance(omidConf.getTSOClientConfiguration());
+                tsoClient = TSOClient.newInstance(hbaseOmidClientConf.getTSOClientConfiguration());
             }
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
             if (commitTableClient == null) {
                 try {
-                    HBaseCommitTableConfig config = new HBaseCommitTableConfig(omidConf.getCommitTableName());
-                    CommitTable commitTable = new HBaseCommitTable(hbaseConf, config);
+                    HBaseCommitTableConfig commitTableConf =
+                            new HBaseCommitTableConfig(hbaseOmidClientConf.getCommitTableName());
+                    CommitTable commitTable =
+                            new HBaseCommitTable(hbaseOmidClientConf.getHBaseConfiguration(), commitTableConf);
                     commitTableClient = commitTable.getClient().get();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -112,17 +130,19 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                     throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
                 }
             }
-            return new HBaseTransactionManager(metricsRegistry, tsoClient, commitTableClient, new HBaseTransactionFactory());
+            return new HBaseTransactionManager(hbaseOmidClientConf.getMetrics(), tsoClient, commitTableClient, new HBaseTransactionFactory());
         }
 
     }
 
-    public static Builder builder() {
+    @VisibleForTesting
+    static Builder builder() {
         return builder(HBaseOmidClientConfiguration.create());
     }
 
-    public static Builder builder(HBaseOmidClientConfiguration omidConf) {
-        return new Builder(omidConf);
+    @VisibleForTesting
+    static Builder builder(HBaseOmidClientConfiguration hbaseOmidClientConf) {
+        return new Builder(hbaseOmidClientConf);
     }
 
     private HBaseTransactionManager(MetricsRegistry metrics,
@@ -131,6 +151,10 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                                     HBaseTransactionFactory hBaseTransactionFactory) {
         super(metrics, tsoClient, commitTableClient, hBaseTransactionFactory);
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // AbstractTransactionManager overwritten methods
+    // ----------------------------------------------------------------------------------------------------------------
 
     @Override
     public void updateShadowCells(AbstractTransaction<? extends CellId> tx)
@@ -183,6 +207,10 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
             throw new TransactionManagerException("Exception while flushing writes", e);
         }
     }
+
+    // ----------------------------------------------------------------------------------------------------------------
+    // HBaseTransactionClient method implementations
+    // ----------------------------------------------------------------------------------------------------------------
 
     @Override
     public boolean isCommitted(HBaseCellId hBaseCellId) throws TransactionException {

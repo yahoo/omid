@@ -81,12 +81,12 @@ public class TestTxMgrFailover extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         TSOClient tsoClientForTM = spy(TSOClient.newInstance(hbaseOmidClientConf.getTSOClientConfiguration()));
 
         tm = spy(HBaseTransactionManager.builder(hbaseOmidClientConf)
                 .tsoClient(tsoClientForTM)
                 .commitTableClient(commitTableClient)
-                .hbaseConf(hbaseConf)
                 .build());
     }
 

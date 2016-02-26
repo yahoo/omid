@@ -50,10 +50,10 @@ public class TestFilters extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString("localhost:1234");
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
 
         TTable table = new TTable(hbaseConf, TEST_TABLE);
         AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
-                .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
 
@@ -94,9 +94,9 @@ public class TestFilters extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString("localhost:1234");
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         TTable table = new TTable(hbaseConf, TEST_TABLE);
         AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
-                .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
 

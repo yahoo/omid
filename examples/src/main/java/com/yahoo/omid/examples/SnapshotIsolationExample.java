@@ -83,7 +83,7 @@ public class SnapshotIsolationExample {
         HBaseLogin.loginIfNeeded(exampleConfiguration);
 
         LOG.info("Creating HBase transaction manager...");
-        TransactionManager tm = HBaseTransactionManager.builder(exampleConfiguration.createOmidClientConfig()).build();
+        TransactionManager tm = HBaseTransactionManager.newInstance(exampleConfiguration.createOmidClientConfig());
 
         String userTableName = exampleConfiguration.userTableName;
         byte[] family = Bytes.toBytes(exampleConfiguration.cfName);

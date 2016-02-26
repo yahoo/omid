@@ -96,8 +96,8 @@ public class TestShadowCells extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         TransactionManager tm2 = HBaseTransactionManager.builder(hbaseOmidClientConf)
-                                                        .hbaseConf(hbaseConf)
                                                         .commitTableClient(commitTableClient)
                                                         .build();
 
@@ -116,8 +116,8 @@ public class TestShadowCells extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
-                .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
         // The following line emulates a crash after commit that is observed in (*) below
@@ -158,8 +158,8 @@ public class TestShadowCells extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
-                .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
         // The following line emulates a crash after commit that is observed in (*) below
@@ -214,8 +214,8 @@ public class TestShadowCells extends OmidTestBase {
 
         HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
         hbaseOmidClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
         AbstractTransactionManager tm = spy((AbstractTransactionManager) HBaseTransactionManager.builder(hbaseOmidClientConf)
-                .hbaseConf(hbaseConf)
                 .commitTableClient(commitTableClient)
                 .build());
 
