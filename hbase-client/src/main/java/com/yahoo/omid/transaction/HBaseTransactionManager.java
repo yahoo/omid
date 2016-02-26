@@ -23,7 +23,6 @@ import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
 import com.yahoo.omid.committable.hbase.HBaseCommitTable;
 import com.yahoo.omid.committable.hbase.HBaseCommitTableConfig;
-import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.tsoclient.CellId;
 import com.yahoo.omid.tsoclient.TSOClient;
 import org.apache.hadoop.hbase.client.Get;
@@ -65,13 +64,13 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
     {
 
         try {
-            TSOClient tsoClient = TSOClient.newInstance(hBaseOmidClientConfiguration.getTSOClientConfiguration());
+            TSOClient tsoClient = TSOClient.newInstance(hBaseOmidClientConfiguration.getOmidClientConfiguration());
             HBaseCommitTableConfig commitTableConf =
                     new HBaseCommitTableConfig(hBaseOmidClientConfiguration.getCommitTableName());
             CommitTable commitTable =
                     new HBaseCommitTable(hBaseOmidClientConfiguration.getHBaseConfiguration(), commitTableConf);
             CommitTable.Client commitTableClient = commitTable.getClient().get();
-            return new HBaseTransactionManager(hBaseOmidClientConfiguration.getMetrics(),
+            return new HBaseTransactionManager(hBaseOmidClientConfiguration,
                                                tsoClient,
                                                commitTableClient,
                                                new HBaseTransactionFactory());
@@ -112,7 +111,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
             if (tsoClient == null) {
-                tsoClient = TSOClient.newInstance(hbaseOmidClientConf.getTSOClientConfiguration());
+                tsoClient = TSOClient.newInstance(hbaseOmidClientConf.getOmidClientConfiguration());
             }
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
@@ -130,7 +129,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                     throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
                 }
             }
-            return new HBaseTransactionManager(hbaseOmidClientConf.getMetrics(), tsoClient, commitTableClient, new HBaseTransactionFactory());
+            return new HBaseTransactionManager(hbaseOmidClientConf, tsoClient, commitTableClient, new HBaseTransactionFactory());
         }
 
     }
@@ -145,11 +144,16 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
         return new Builder(hbaseOmidClientConf);
     }
 
-    private HBaseTransactionManager(MetricsRegistry metrics,
+    private HBaseTransactionManager(HBaseOmidClientConfiguration hBaseOmidClientConfiguration,
                                     TSOClient tsoClient,
                                     CommitTable.Client commitTableClient,
                                     HBaseTransactionFactory hBaseTransactionFactory) {
-        super(metrics, tsoClient, commitTableClient, hBaseTransactionFactory);
+
+        super(hBaseOmidClientConfiguration.getOmidClientConfiguration(),
+              tsoClient,
+              commitTableClient,
+              hBaseTransactionFactory);
+
     }
 
     // ----------------------------------------------------------------------------------------------------------------

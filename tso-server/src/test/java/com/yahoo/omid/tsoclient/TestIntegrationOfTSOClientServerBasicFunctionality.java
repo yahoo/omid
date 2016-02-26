@@ -73,7 +73,7 @@ public class TestIntegrationOfTSOClientServerBasicFunctionality {
         LOG.info("==================================================================================================");
 
         // Configure direct connection to the server
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionString(TSO_SERVER_HOST + ":" + tsoServerPortForTest);
 
         tsoClient = TSOClient.newInstance(tsoClientConf);

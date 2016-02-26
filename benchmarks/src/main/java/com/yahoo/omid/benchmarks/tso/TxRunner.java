@@ -29,7 +29,7 @@ import com.yahoo.omid.metrics.Timer;
 import com.yahoo.omid.tools.hbase.HBaseLogin;
 import com.yahoo.omid.tso.util.DummyCellIdImpl;
 import com.yahoo.omid.tsoclient.CellId;
-import com.yahoo.omid.tsoclient.TSOClientConfiguration;
+import com.yahoo.omid.tsoclient.OmidClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
 import com.yahoo.omid.tsoclient.TSOFuture;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -133,7 +133,7 @@ public class TxRunner implements Runnable {
 
         // TSO Client initialization
         LOG.info("TxRunner-{} [ Connected to TSO in {} ]", txRunnerId, expConfig.tsoHostPort);
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionString(expConfig.tsoHostPort.toString());
         this.tsoClient = TSOClient.newInstance(tsoClientConf);
 

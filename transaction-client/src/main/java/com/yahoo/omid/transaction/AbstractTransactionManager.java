@@ -23,6 +23,7 @@ import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.Timer;
 import com.yahoo.omid.transaction.Transaction.Status;
 import com.yahoo.omid.tsoclient.CellId;
+import com.yahoo.omid.tsoclient.OmidClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
 import com.yahoo.omid.tsoclient.AbortException;
 import com.yahoo.omid.tsoclient.ConnectionException;
@@ -76,8 +77,8 @@ public abstract class AbstractTransactionManager implements TransactionManager {
     /**
      * Base constructor
      *
-     * @param metrics
-     *            allows to add metrics to this component
+     * @param omidClientConf
+     *            allows to configure this component with the required params
      * @param tsoClient
      *            a client for accessing functionality of the status oracle
      * @param commitTableClient
@@ -86,7 +87,7 @@ public abstract class AbstractTransactionManager implements TransactionManager {
      *            a transaction factory to create the specific transaction
      *            objects required by the transaction manager being implemented.
      */
-    public AbstractTransactionManager(MetricsRegistry metrics,
+    public AbstractTransactionManager(OmidClientConfiguration omidClientConf,
                                       TSOClient tsoClient,
                                       CommitTable.Client commitTableClient,
                                       TransactionFactory<? extends CellId> transactionFactory) {
@@ -95,14 +96,15 @@ public abstract class AbstractTransactionManager implements TransactionManager {
         this.transactionFactory = transactionFactory;
 
         // Metrics configuration
-        this.startTimestampTimer = metrics.timer(name("omid", "tm", "hbase", "startTimestamp", "latency"));
-        this.commitTimer = metrics.timer(name("omid", "tm", "hbase", "commit", "latency"));
-        this.commitTableUpdateTimer = metrics.timer(name("omid", "tm", "hbase", "commitTableUpdate", "latency"));
-        this.shadowCellsUpdateTimer = metrics.timer(name("omid", "tm", "hbase", "shadowCellsUpdate", "latency"));
-        this.committedTxsCounter = metrics.counter(name("omid", "tm", "hbase", "committedTxs"));
-        this.rolledbackTxsCounter = metrics.counter(name("omid", "tm", "hbase", "rolledbackTxs"));
-        this.errorTxsCounter = metrics.counter(name("omid", "tm", "hbase", "erroredTxs"));
-        this.invalidatedTxsCounter = metrics.counter(name("omid", "tm", "hbase", "invalidatedTxs"));
+        MetricsRegistry metrics = omidClientConf.getMetrics();
+        this.startTimestampTimer = metrics.timer(name("omid", "tm", "startTimestamp", "latency"));
+        this.commitTimer = metrics.timer(name("omid", "tm", "commit", "latency"));
+        this.commitTableUpdateTimer = metrics.timer(name("omid", "tm", "commitTableUpdate", "latency"));
+        this.shadowCellsUpdateTimer = metrics.timer(name("omid", "tm", "shadowCellsUpdate", "latency"));
+        this.committedTxsCounter = metrics.counter(name("omid", "tm", "committedTxs"));
+        this.rolledbackTxsCounter = metrics.counter(name("omid", "tm", "rolledbackTxs"));
+        this.errorTxsCounter = metrics.counter(name("omid", "tm", "erroredTxs"));
+        this.invalidatedTxsCounter = metrics.counter(name("omid", "tm", "invalidatedTxs"));
     }
 
     /**

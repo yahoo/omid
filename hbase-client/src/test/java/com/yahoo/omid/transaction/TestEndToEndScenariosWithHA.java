@@ -35,7 +35,7 @@ import static com.yahoo.omid.ZKConstants.OMID_NAMESPACE;
 import static com.yahoo.omid.ZKConstants.TSO_LEASE_PATH;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TIMESTAMP_TABLE_DEFAULT_NAME;
 import static com.yahoo.omid.timestamp.storage.HBaseTimestampStorage.TSO_FAMILY;
-import static com.yahoo.omid.tsoclient.TSOClientConfiguration.ConnType.ZK;
+import static com.yahoo.omid.tsoclient.OmidClientConfiguration.ConnType.ZK;
 import static org.apache.hadoop.hbase.HConstants.HBASE_CLIENT_RETRIES_NUMBER;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;

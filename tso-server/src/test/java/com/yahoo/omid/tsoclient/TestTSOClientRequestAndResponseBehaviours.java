@@ -46,7 +46,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
 
     private final static Set<CellId> testWriteSet = Sets.newHashSet(c1, c2);
 
-    protected TSOClientConfiguration tsoClientConf;
+    protected OmidClientConfiguration tsoClientConf;
 
     // The ZK server instance is only needed to avoid waiting for timeout connections from the tsoClient
     private static TestingServer zkServer;
@@ -92,7 +92,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
 
     @BeforeMethod
     public void beforeMethod() {
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
 
         this.tsoClientConf = tsoClientConf;
@@ -145,7 +145,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testCommitGetsServiceUnavailableExceptionWhenCommunicationFails() throws Exception {
 
-        TSOClientConfiguration testTSOClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration testTSOClientConf = OmidClientConfiguration.create();
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestMaxRetries(0);
         TSOClient client = TSOClient.newInstance(testTSOClientConf);
@@ -276,7 +276,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testCommitCanSucceedWithMultipleTimeouts() throws Exception {
 
-        TSOClientConfiguration testTSOClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration testTSOClientConf = OmidClientConfiguration.create();
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10000);
@@ -293,7 +293,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testCommitFailWhenTSOIsDown() throws Exception {
 
-        TSOClientConfiguration testTSOClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration testTSOClientConf = OmidClientConfiguration.create();
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10);
@@ -314,7 +314,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
     @Test(timeOut = 30_000)
     public void testTimestampRequestSucceedWithMultipleTimeouts() throws Exception {
 
-        TSOClientConfiguration testTSOClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration testTSOClientConf = OmidClientConfiguration.create();
         testTSOClientConf.setConnectionString(TSO_SERVER_HOST + ":" + TSO_SERVER_PORT);
         testTSOClientConf.setRequestTimeoutMs(100);
         testTSOClientConf.setRequestMaxRetries(10000);

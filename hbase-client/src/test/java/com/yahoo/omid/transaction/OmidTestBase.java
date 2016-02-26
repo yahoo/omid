@@ -10,7 +10,7 @@ import com.yahoo.omid.tools.hbase.OmidTableManager;
 import com.yahoo.omid.tso.TSOMockModule;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
-import com.yahoo.omid.tsoclient.TSOClientConfiguration;
+import com.yahoo.omid.tsoclient.OmidClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -74,7 +74,7 @@ public abstract class OmidTestBase {
         LOG.info("Finished loading TSO");
         context.setAttribute("tso", tso);
 
-        TSOClientConfiguration clientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration clientConf = OmidClientConfiguration.create();
         clientConf.setConnectionString("localhost:1234");
         context.setAttribute("clientConf", clientConf);
 

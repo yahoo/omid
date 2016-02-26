@@ -17,7 +17,7 @@ package com.yahoo.omid.transaction;
 
 import com.yahoo.omid.committable.hbase.CommitTableConstants;
 import com.yahoo.omid.metrics.MetricsRegistry;
-import com.yahoo.omid.tsoclient.TSOClientConfiguration;
+import com.yahoo.omid.tsoclient.OmidClientConfiguration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 
@@ -30,7 +30,7 @@ public class HBaseOmidClientConfiguration {
     private String commitTableName = CommitTableConstants.COMMIT_TABLE_DEFAULT_NAME;
 
     // Delegated class
-    private TSOClientConfiguration tsoClientConfiguration = TSOClientConfiguration.create();
+    private OmidClientConfiguration omidClientConfiguration = OmidClientConfiguration.create();
 
     // ----------------------------------------------------------------------------------------------------------------
     // Instantiation
@@ -65,12 +65,12 @@ public class HBaseOmidClientConfiguration {
         this.commitTableName = commitTableName;
     }
 
-    public TSOClientConfiguration getTSOClientConfiguration() {
-        return tsoClientConfiguration;
+    public OmidClientConfiguration getOmidClientConfiguration() {
+        return omidClientConfiguration;
     }
 
-    public void setTSOClientConfiguration(TSOClientConfiguration tsoClientConfiguration) {
-        this.tsoClientConfiguration = tsoClientConfiguration;
+    public void setOmidClientConfiguration(OmidClientConfiguration omidClientConfiguration) {
+        this.omidClientConfiguration = omidClientConfiguration;
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -78,75 +78,75 @@ public class HBaseOmidClientConfiguration {
     // ----------------------------------------------------------------------------------------------------------------
 
     public void setMetrics(MetricsRegistry metrics) {
-        tsoClientConfiguration.setMetrics(metrics);
+        omidClientConfiguration.setMetrics(metrics);
     }
 
-    public TSOClientConfiguration.ConnType getConnectionType() {
-        return tsoClientConfiguration.getConnectionType();
+    public OmidClientConfiguration.ConnType getConnectionType() {
+        return omidClientConfiguration.getConnectionType();
     }
 
     public void setConnectionString(String connectionString) {
-        tsoClientConfiguration.setConnectionString(connectionString);
+        omidClientConfiguration.setConnectionString(connectionString);
     }
 
     public void setExecutorThreads(int executorThreads) {
-        tsoClientConfiguration.setExecutorThreads(executorThreads);
+        omidClientConfiguration.setExecutorThreads(executorThreads);
     }
 
     public int getReconnectionDelaySecs() {
-        return tsoClientConfiguration.getReconnectionDelaySecs();
+        return omidClientConfiguration.getReconnectionDelaySecs();
     }
 
     public int getRequestTimeoutMs() {
-        return tsoClientConfiguration.getRequestTimeoutMs();
+        return omidClientConfiguration.getRequestTimeoutMs();
     }
 
     public void setReconnectionDelaySecs(int reconnectionDelaySecs) {
-        tsoClientConfiguration.setReconnectionDelaySecs(reconnectionDelaySecs);
+        omidClientConfiguration.setReconnectionDelaySecs(reconnectionDelaySecs);
     }
 
-    public void setConnectionType(TSOClientConfiguration.ConnType connectionType) {
-        tsoClientConfiguration.setConnectionType(connectionType);
+    public void setConnectionType(OmidClientConfiguration.ConnType connectionType) {
+        omidClientConfiguration.setConnectionType(connectionType);
     }
 
     public MetricsRegistry getMetrics() {
-        return tsoClientConfiguration.getMetrics();
+        return omidClientConfiguration.getMetrics();
     }
 
     public void setRequestTimeoutMs(int requestTimeoutMs) {
-        tsoClientConfiguration.setRequestTimeoutMs(requestTimeoutMs);
+        omidClientConfiguration.setRequestTimeoutMs(requestTimeoutMs);
     }
 
     public String getConnectionString() {
-        return tsoClientConfiguration.getConnectionString();
+        return omidClientConfiguration.getConnectionString();
     }
 
     public void setZkConnectionTimeoutSecs(int zkConnectionTimeoutSecs) {
-        tsoClientConfiguration.setZkConnectionTimeoutSecs(zkConnectionTimeoutSecs);
+        omidClientConfiguration.setZkConnectionTimeoutSecs(zkConnectionTimeoutSecs);
     }
 
     public int getRetryDelayMs() {
-        return tsoClientConfiguration.getRetryDelayMs();
+        return omidClientConfiguration.getRetryDelayMs();
     }
 
     public int getExecutorThreads() {
-        return tsoClientConfiguration.getExecutorThreads();
+        return omidClientConfiguration.getExecutorThreads();
     }
 
     public void setRequestMaxRetries(int requestMaxRetries) {
-        tsoClientConfiguration.setRequestMaxRetries(requestMaxRetries);
+        omidClientConfiguration.setRequestMaxRetries(requestMaxRetries);
     }
 
     public void setRetryDelayMs(int retryDelayMs) {
-        tsoClientConfiguration.setRetryDelayMs(retryDelayMs);
+        omidClientConfiguration.setRetryDelayMs(retryDelayMs);
     }
 
     public int getZkConnectionTimeoutSecs() {
-        return tsoClientConfiguration.getZkConnectionTimeoutSecs();
+        return omidClientConfiguration.getZkConnectionTimeoutSecs();
     }
 
     public int getRequestMaxRetries() {
-        return tsoClientConfiguration.getRequestMaxRetries();
+        return omidClientConfiguration.getRequestMaxRetries();
     }
 
 }

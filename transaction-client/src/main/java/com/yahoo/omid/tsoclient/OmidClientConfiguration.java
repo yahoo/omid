@@ -21,7 +21,7 @@ import com.yahoo.omid.metrics.NullMetricsProvider;
 /**
  * Configuration for Omid client side
  */
-public class TSOClientConfiguration {
+public class OmidClientConfiguration {
 
     public static final String DEFAULT_TSO_HOST = "localhost";
     public static final int DEFAULT_TSO_PORT = 54758;
@@ -53,13 +53,13 @@ public class TSOClientConfiguration {
     // Instantiation
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static TSOClientConfiguration create() {
+    public static OmidClientConfiguration create() {
         // Do additional stuff if required
-        return new TSOClientConfiguration();
+        return new OmidClientConfiguration();
     }
 
     // Private constructor to avoid instantiation
-    private TSOClientConfiguration() {
+    private OmidClientConfiguration() {
     }
 
     // ----------------------------------------------------------------------------------------------------------------

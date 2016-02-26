@@ -99,15 +99,15 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     // ----------------------------------------------------------------------------------------------------------------
 
     public static TSOClient newInstance() {
-        return newInstance(TSOClientConfiguration.create());
+        return newInstance(OmidClientConfiguration.create());
     }
 
-    public static TSOClient newInstance(TSOClientConfiguration tsoClientConf) {
+    public static TSOClient newInstance(OmidClientConfiguration tsoClientConf) {
         return new TSOClient(tsoClientConf);
     }
 
     // Avoid instantiation
-    private TSOClient(TSOClientConfiguration omidConf) {
+    private TSOClient(OmidClientConfiguration omidConf) {
 
         // Start client with Nb of active threads = 3 as maximum.
         int tsoExecutorThreads = omidConf.getExecutorThreads();

@@ -21,7 +21,7 @@ import org.testng.annotations.Test;
 import java.util.concurrent.ExecutionException;
 
 import static com.yahoo.omid.ZKConstants.CURRENT_TSO_PATH;
-import static com.yahoo.omid.tsoclient.TSOClientConfiguration.ConnType.ZK;
+import static com.yahoo.omid.tsoclient.OmidClientConfiguration.ConnType.ZK;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
@@ -108,7 +108,7 @@ public class TestTSOClientConnectionToTSO {
 
         // When no ZK node for TSOServer is found we should get a connection
         // to the TSO through the host:port configured...
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionString("localhost:" + tsoPortForTest);
         TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
@@ -145,7 +145,7 @@ public class TestTSOClientConnectionToTSO {
         waitTillTsoRegisters(injector.getInstance(CuratorFramework.class));
 
         // When a ZK node for TSOServer is found we should get a connection
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionType(ZK);
         tsoClientConf.setConnectionString(zkClusterForTest);
         TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
@@ -183,7 +183,7 @@ public class TestTSOClientConnectionToTSO {
         waitTillTsoRegisters(injector.getInstance(CuratorFramework.class));
 
         // Then create the TSO Client under test...
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionType(ZK);
         tsoClientConf.setConnectionString(zkClusterForTest);
         TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);

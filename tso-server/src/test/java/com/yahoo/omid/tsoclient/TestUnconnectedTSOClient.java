@@ -26,7 +26,7 @@ public class TestUnconnectedTSOClient {
     @Test(timeOut = 30_000) // 30 secs
     public void testRequestsDoneOnAnUnconnectedTSOClientAlwaysReturn() throws Exception {
 
-        TSOClientConfiguration tsoClientConf = TSOClientConfiguration.create();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
         tsoClientConf.setConnectionString("localhost:12345");
         tsoClientConf.setReconnectionDelaySecs(TSO_RECONNECTION_DELAY_IN_SECS_FOR_TEST);
 
