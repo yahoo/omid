@@ -95,20 +95,16 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
 
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
-            boolean ownsTsoClient = false;
             if (tsoClient == null) {
                 tsoClient = TSOClient.newInstance(omidConf.getTSOClientConfiguration());
-                ownsTsoClient = true;
             }
             // TODO: Should improve this as it's very ugly. It's here from the very beginning and allows test
             // to configure specific components
-            boolean ownsCommitTableClient = false;
             if (commitTableClient == null) {
                 try {
                     HBaseCommitTableConfig config = new HBaseCommitTableConfig(omidConf.getCommitTableName());
                     CommitTable commitTable = new HBaseCommitTable(hbaseConf, config);
                     commitTableClient = commitTable.getClient().get();
-                    ownsCommitTableClient = true;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new OmidInstantiationException("Interrupted whilst creating the HBase transaction manager", e);
@@ -116,9 +112,7 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
                     throw new OmidInstantiationException("Exception whilst getting the CommitTable client", e);
                 }
             }
-            return new HBaseTransactionManager(metricsRegistry, tsoClient, ownsTsoClient,
-                                               commitTableClient, ownsCommitTableClient,
-                                               new HBaseTransactionFactory());
+            return new HBaseTransactionManager(metricsRegistry, tsoClient, commitTableClient, new HBaseTransactionFactory());
         }
 
     }
@@ -133,11 +127,9 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
 
     private HBaseTransactionManager(MetricsRegistry metrics,
                                     TSOClient tsoClient,
-                                    boolean ownsTSOClient,
                                     CommitTable.Client commitTableClient,
-                                    boolean ownsCommitTableClient,
                                     HBaseTransactionFactory hBaseTransactionFactory) {
-        super(metrics, tsoClient, ownsTSOClient, commitTableClient, ownsCommitTableClient, hBaseTransactionFactory);
+        super(metrics, tsoClient, commitTableClient, hBaseTransactionFactory);
     }
 
     @Override

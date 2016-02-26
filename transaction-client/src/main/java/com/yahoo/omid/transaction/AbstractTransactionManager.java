@@ -60,9 +60,7 @@ public abstract class AbstractTransactionManager implements TransactionManager {
     }
 
     protected final TSOClient tsoClient;
-    private final boolean ownsTSOClient;
     protected final CommitTable.Client commitTableClient;
-    private final boolean ownsCommitTableClient;
     private final TransactionFactory<? extends CellId> transactionFactory;
 
     // Metrics
@@ -82,29 +80,18 @@ public abstract class AbstractTransactionManager implements TransactionManager {
      *            allows to add metrics to this component
      * @param tsoClient
      *            a client for accessing functionality of the status oracle
-     * @param ownsTSOClient
-     *            whether this transaction manager owns or not the TSO client
-     *            instance passed. This is used to close the resources properly.
      * @param commitTableClient
      *            a client for accessing functionality of the commit table
-     * @param ownsCommitTableClient
-     *            whether this transaction manager owns or not the commit table
-     *            client instance passed. This is used to close the resources
-     *            properly.
      * @param transactionFactory
      *            a transaction factory to create the specific transaction
      *            objects required by the transaction manager being implemented.
      */
     public AbstractTransactionManager(MetricsRegistry metrics,
                                       TSOClient tsoClient,
-                                      boolean ownsTSOClient,
                                       CommitTable.Client commitTableClient,
-                                      boolean ownsCommitTableClient,
                                       TransactionFactory<? extends CellId> transactionFactory) {
         this.tsoClient = tsoClient;
-        this.ownsTSOClient = ownsTSOClient;
         this.commitTableClient = commitTableClient;
-        this.ownsCommitTableClient = ownsCommitTableClient;
         this.transactionFactory = transactionFactory;
 
         // Metrics configuration
@@ -374,12 +361,8 @@ public abstract class AbstractTransactionManager implements TransactionManager {
     @Override
     public final void close() throws IOException {
 
-        if (ownsTSOClient) {
-            tsoClient.close();
-        }
-        if (ownsCommitTableClient) {
-            commitTableClient.close();
-        }
+        tsoClient.close();
+        commitTableClient.close();
 
     }
 
