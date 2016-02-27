@@ -21,6 +21,7 @@ import com.yahoo.omid.transaction.RollbackException;
 import com.yahoo.omid.transaction.TTable;
 import com.yahoo.omid.transaction.Transaction;
 import com.yahoo.omid.transaction.TransactionManager;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -33,7 +34,7 @@ import java.util.Arrays;
 /**
  * ****************************************************************************************************************
  *
- *  Example code demonstrates preservation of Snapshot Isolation guarantees when writing shared data concurrently
+ *  Example code which demonstrates the preservation of Snapshot Isolation when writing shared data concurrently
  *
  * ****************************************************************************************************************
  *
@@ -80,10 +81,9 @@ public class SnapshotIsolationExample {
 
         //Logging in to Secure HBase if required"
         HBaseLogin.loginIfNeeded(exampleConfiguration);
-        org.apache.hadoop.conf.Configuration hbaseConfig = exampleConfiguration.toOmidConfig();
 
         LOG.info("Creating HBase transaction manager...");
-        TransactionManager tm = HBaseTransactionManager.newBuilder().withConfiguration(hbaseConfig).build();
+        TransactionManager tm = HBaseTransactionManager.newInstance(exampleConfiguration.createOmidClientConfig());
 
         String userTableName = exampleConfiguration.userTableName;
         byte[] family = Bytes.toBytes(exampleConfiguration.cfName);
@@ -99,7 +99,7 @@ public class SnapshotIsolationExample {
         LOG.info("--------------------------------------------------------------------------------------------------");
 
         LOG.info("Creating access to Transactional Table '{}'", userTableName);
-        try (TTable txTable = new TTable(hbaseConfig, userTableName)) {
+        try (TTable txTable = new TTable(HBaseConfiguration.create(), userTableName)) {
 
             // A transaction Tx0 sets an initial value to a particular column in an specific row
             Transaction tx0 = tm.begin();

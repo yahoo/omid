@@ -19,13 +19,8 @@ import com.google.common.base.Charsets;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.yahoo.omid.metrics.MetricsRegistry;
-import com.yahoo.omid.metrics.NullMetricsProvider;
 import com.yahoo.omid.proto.TSOProto;
-import com.yahoo.omid.zk.ZKUtils;
 import com.yahoo.statemachine.StateMachine;
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.NodeCache;
@@ -75,27 +70,10 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(TSOClient.class);
 
-    // ZK-related constants
-    public static final String TSO_ZK_CLUSTER_CONFKEY = "tso.zkcluster";
-    public static final String DEFAULT_ZK_CLUSTER = "localhost:2181";
-
     // Basic configuration constants & defaults
-    public static final String ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY = "tso.zk.connection.timeout-secs";
-    public static final int DEFAULT_ZK_CONNECTION_TIMEOUT_IN_SECS = 10;
-    public static final String TSO_HOST_CONFKEY = "tso.host";
     public static final String DEFAULT_TSO_HOST = "localhost";
-    public static final String TSO_PORT_CONFKEY = "tso.port";
+    public static final String DEFAULT_ZK_CLUSTER = "localhost:2181";
     public static final int DEFAULT_TSO_PORT = 54758;
-    public static final String REQUEST_MAX_RETRIES_CONFKEY = "tso.request.max-retries";
-    public static final int DEFAULT_TSO_MAX_REQUEST_RETRIES = 5;
-    public static final String REQUEST_TIMEOUT_IN_MS_CONFKEY = "tso.request.timeout-ms";
-    public static final int DEFAULT_REQUEST_TIMEOUT_MS = 5000; // 5 secs
-    public static final String TSO_RECONNECTION_DELAY_SECS = "tso.reconnection_delay_secs";
-    public static final int DEFAULT_TSO_RECONNECTION_DELAY_SECS = 10;
-    public static final String TSO_RETRY_DELAY_MS_CONFKEY = "tso.retry_delay_ms";
-    public static final int DEFAULT_TSO_RETRY_DELAY_MS = 1000;
-    public static final String TSO_EXECUTOR_THREAD_NUM_CONFKEY = "tso.executor.threads";
-    public static final int DEFAULT_TSO_EXECUTOR_THREAD_NUM = 3;
 
     private static final long DEFAULT_EPOCH = -1L;
     private volatile long epoch = DEFAULT_EPOCH;
@@ -120,37 +98,19 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     // Construction
     // ----------------------------------------------------------------------------------------------------------------
 
-    public static class Builder {
-
-        private Configuration conf = new BaseConfiguration();
-        private MetricsRegistry metrics = new NullMetricsProvider();
-
-        public Builder withConfiguration(Configuration conf) {
-            this.conf = conf;
-            return this;
-        }
-
-        public Builder withMetrics(MetricsRegistry metrics) {
-            this.metrics = metrics;
-            return this;
-        }
-
-        public TSOClient build() {
-
-            return new TSOClient(conf, metrics);
-
-        }
+    public static TSOClient newInstance() {
+        return newInstance(OmidClientConfiguration.create());
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
+    public static TSOClient newInstance(OmidClientConfiguration tsoClientConf) {
+        return new TSOClient(tsoClientConf);
     }
 
     // Avoid instantiation
-    private TSOClient(Configuration conf, MetricsRegistry metrics) {
+    private TSOClient(OmidClientConfiguration omidConf) {
 
         // Start client with Nb of active threads = 3 as maximum.
-        int tsoExecutorThreads = conf.getInt(TSO_EXECUTOR_THREAD_NUM_CONFKEY, DEFAULT_TSO_EXECUTOR_THREAD_NUM);
+        int tsoExecutorThreads = omidConf.getExecutorThreads();
 
         factory = new NioClientSocketChannelFactory(
                 Executors.newCachedThreadPool(
@@ -160,31 +120,32 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         // Create the bootstrap
         bootstrap = new ClientBootstrap(factory);
 
-        requestTimeoutMs = conf.getInt(REQUEST_TIMEOUT_IN_MS_CONFKEY, DEFAULT_REQUEST_TIMEOUT_MS);
-        requestMaxRetries = conf.getInt(REQUEST_MAX_RETRIES_CONFKEY, DEFAULT_TSO_MAX_REQUEST_RETRIES);
-        retryDelayMs = conf.getInt(TSO_RETRY_DELAY_MS_CONFKEY, DEFAULT_TSO_RETRY_DELAY_MS);
-        tsoReconnectionDelaySecs = conf.getInt(TSO_RECONNECTION_DELAY_SECS, DEFAULT_TSO_RECONNECTION_DELAY_SECS);
+        requestTimeoutMs = omidConf.getRequestTimeoutMs();
+        requestMaxRetries = omidConf.getRequestMaxRetries();
+        retryDelayMs = omidConf.getRetryDelayMs();
+        tsoReconnectionDelaySecs = omidConf.getReconnectionDelaySecs();
 
         LOG.info("Connecting to TSO...");
-        // Try to connect to TSO from ZK. If fails, go through host:port config
-        try {
-            connectToZK(conf);
-            configureCurrentTSOServerZNodeCache();
+        HostAndPort hp;
+        switch(omidConf.getConnectionType()) {
+            case ZK:
+                connectToZK(omidConf.getConnectionString(), omidConf.getZkConnectionTimeoutSecs());
+                configureCurrentTSOServerZNodeCache();
 
-            String tsoInfo = getCurrentTSOInfoFoundInZK();
-            // TSO info includes the new TSO host:port address and epoch
-            String[] currentTSOAndEpochArray = tsoInfo.split("#");
-            HostAndPort hp = HostAndPort.fromString(currentTSOAndEpochArray[0]);
-            setTSOAddress(hp.getHostText(), hp.getPort());
-            epoch = Long.parseLong(currentTSOAndEpochArray[1]);
-            LOG.info("\t* Current TSO host:port found in ZK: {} Epoch {}", hp, getEpoch());
-        } catch (ZKUtils.ZKException e) {
-            LOG.warn("A problem connecting to TSO was found ({}). Trying to connect directly with host:port",
-                     e.getMessage());
-            String host = conf.getString(TSO_HOST_CONFKEY, DEFAULT_TSO_HOST);
-            int port = conf.getInt(TSO_PORT_CONFKEY, DEFAULT_TSO_PORT);
-            setTSOAddress(host, port);
-            LOG.info("\t* TSO host:port {}:{} will be connected directly", host, port);
+                String tsoInfo = getCurrentTSOInfoFoundInZK();
+                // TSO info includes the new TSO host:port address and epoch
+                String[] currentTSOAndEpochArray = tsoInfo.split("#");
+                hp = HostAndPort.fromString(currentTSOAndEpochArray[0]);
+                setTSOAddress(hp.getHostText(), hp.getPort());
+                epoch = Long.parseLong(currentTSOAndEpochArray[1]);
+                LOG.info("\t* Current TSO host:port found in ZK: {} Epoch {}", hp, getEpoch());
+                break;
+            case DIRECT:
+            default:
+                hp = HostAndPort.fromString(omidConf.getConnectionString());
+                setTSOAddress(hp.getHostText(), hp.getPort());
+                LOG.info("\t* TSO host:port {} will be connected directly", hp);
+                break;
         }
 
         fsmExecutor = Executors.newSingleThreadScheduledExecutor(
@@ -951,10 +912,8 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         return tsoAddr;
     }
 
-    private void connectToZK(Configuration conf) throws ZKUtils.ZKException {
+    private void connectToZK(String zkCluster, int zkConnTimeOut) {
 
-        String zkCluster = conf.getString(TSO_ZK_CLUSTER_CONFKEY, DEFAULT_ZK_CLUSTER);
-        int zkConnTimeOut = conf.getInt(ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY, DEFAULT_ZK_CONNECTION_TIMEOUT_IN_SECS);
         try {
             zkClient = provideZookeeperClient(zkCluster);
             LOG.info("\t* Connecting to ZK cluster {}", zkClient.getState());
@@ -962,33 +921,33 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
             if (!zkClient.blockUntilConnected(zkConnTimeOut, TimeUnit.SECONDS)) {
                 String msg = "Cannot connect to ZK Cluster " + zkCluster + " after " + zkConnTimeOut + " seconds";
                 zkClient.close();
-                throw new ZKUtils.ZKException(msg);
+                throw new IllegalStateException(msg);
             }
             LOG.info("\t* Connection to ZK cluster {}", zkClient.getState());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ZKUtils.ZKException("Cannot connect to ZK Cluster " + zkCluster + " Cause: " + e.getMessage());
+            throw new IllegalStateException("Cannot connect to ZK Cluster " + zkCluster + " Cause: " + e.getMessage());
         }
     }
 
-    private void configureCurrentTSOServerZNodeCache() throws ZKUtils.ZKException {
+    private void configureCurrentTSOServerZNodeCache() {
         try {
             currentTSOZNode = new NodeCache(zkClient, CURRENT_TSO_PATH);
             currentTSOZNode.getListenable().addListener(this);
             currentTSOZNode.start(true);
         } catch (Exception e) {
-            throw new ZKUtils.ZKException("Cannot start watcher on current TSO Server ZNode: " + e.getMessage());
+            throw new IllegalStateException("Cannot start watcher on current TSO Server ZNode: " + e.getMessage());
         }
     }
 
-    private String getCurrentTSOInfoFoundInZK() throws ZKUtils.ZKException {
+    private String getCurrentTSOInfoFoundInZK() {
         ChildData currentTSOData = currentTSOZNode.getCurrentData();
         if (currentTSOData == null) {
-            throw new ZKUtils.ZKException("No data found in ZKNode " + CURRENT_TSO_PATH);
+            throw new IllegalStateException("No data found in ZKNode " + CURRENT_TSO_PATH);
         }
         byte[] currentTSOAndEpochAsBytes = currentTSOData.getData();
         if (currentTSOAndEpochAsBytes == null) {
-            throw new ZKUtils.ZKException("No data found for current TSO in ZKNode " + CURRENT_TSO_PATH);
+            throw new IllegalStateException("No data found for current TSO in ZKNode " + CURRENT_TSO_PATH);
         }
         return new String(currentTSOAndEpochAsBytes, Charsets.UTF_8);
     }

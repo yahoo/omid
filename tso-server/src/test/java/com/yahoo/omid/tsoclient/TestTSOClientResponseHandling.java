@@ -4,8 +4,6 @@ import com.yahoo.omid.tso.ProgrammableTSOServer;
 import com.yahoo.omid.tso.ProgrammableTSOServer.AbortResponse;
 import com.yahoo.omid.tso.ProgrammableTSOServer.CommitResponse;
 import com.yahoo.omid.tso.ProgrammableTSOServer.TimestampResponse;
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -13,8 +11,6 @@ import org.testng.annotations.Test;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_HOST_CONFKEY;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_PORT_CONFKEY;
 import static org.testng.Assert.assertEquals;
 
 public class TestTSOClientResponseHandling {
@@ -29,10 +25,10 @@ public class TestTSOClientResponseHandling {
 
     @BeforeClass
     public void configureAndCreateClient() {
-        Configuration clientConf = new BaseConfiguration();
-        clientConf.setProperty(TSO_HOST_CONFKEY, "localhost");
-        clientConf.setProperty(TSO_PORT_CONFKEY, TSO_PORT);
-        tsoClient = TSOClient.newBuilder().withConfiguration(clientConf).build();
+
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
+        tsoClientConf.setConnectionString("localhost:" + TSO_PORT);
+        tsoClient = TSOClient.newInstance(tsoClientConf);
     }
 
     @BeforeMethod

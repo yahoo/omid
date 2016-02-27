@@ -29,10 +29,9 @@ import com.yahoo.omid.metrics.Timer;
 import com.yahoo.omid.tools.hbase.HBaseLogin;
 import com.yahoo.omid.tso.util.DummyCellIdImpl;
 import com.yahoo.omid.tsoclient.CellId;
+import com.yahoo.omid.tsoclient.OmidClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
 import com.yahoo.omid.tsoclient.TSOFuture;
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,8 +48,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static com.codahale.metrics.MetricRegistry.name;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_HOST_CONFKEY;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_PORT_CONFKEY;
 
 public class TxRunner implements Runnable {
 
@@ -135,13 +132,10 @@ public class TxRunner implements Runnable {
         }
 
         // TSO Client initialization
-        Configuration tsoConfig = new BaseConfiguration();
-        tsoConfig.setProperty(TSO_HOST_CONFKEY, expConfig.tsoHostPort.getHostText());
-        tsoConfig.setProperty(TSO_PORT_CONFKEY, expConfig.tsoHostPort.getPortOrDefault(1234));
-        tsoConfig.setProperty("request.timeout-ms", -1); // TODO ???
         LOG.info("TxRunner-{} [ Connected to TSO in {} ]", txRunnerId, expConfig.tsoHostPort);
-
-        this.tsoClient = TSOClient.newBuilder().withConfiguration(tsoConfig).build();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
+        tsoClientConf.setConnectionString(expConfig.tsoHostPort.toString());
+        this.tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // Stat initialization
         String hostName = InetAddress.getLocalHost().getHostName();

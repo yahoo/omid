@@ -8,8 +8,6 @@ import com.yahoo.omid.TestUtils;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
-import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellUtil;
@@ -91,7 +89,6 @@ public class TestCompaction {
 
     private AggregationClient aggregationClient;
     private CommitTable commitTable;
-    private TSOClient client;
 
     @BeforeClass
     public void setupTestCompation() throws Exception {
@@ -110,13 +107,8 @@ public class TestCompaction {
         createRequiredHBaseTables();
         setupTSO();
 
-        BaseConfiguration clientConf = new BaseConfiguration();
-        clientConf.setProperty("tso.host", "localhost");
-        clientConf.setProperty("tso.port", 1234);
-
         commitTable = injector.getInstance(CommitTable.class);
 
-        client = TSOClient.newBuilder().withConfiguration(clientConf).build();
     }
 
     private void setupHBase() throws Exception {
@@ -177,10 +169,11 @@ public class TestCompaction {
     }
 
     private TransactionManager newTransactionManager() throws Exception {
-        return HBaseTransactionManager.newBuilder()
-                .withConfiguration(hbaseConf)
-                .withCommitTableClient(commitTable.getClient().get())
-                .withTSOClient(client)
+        HBaseOmidClientConfiguration hbaseOmidClientConf = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConf.setConnectionString("localhost:1234");
+        hbaseOmidClientConf.setHBaseConfiguration(hbaseConf);
+        return HBaseTransactionManager.builder(hbaseOmidClientConf)
+                .commitTableClient(commitTable.getClient().get())
                 .build();
     }
 

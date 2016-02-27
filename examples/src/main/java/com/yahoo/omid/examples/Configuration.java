@@ -21,8 +21,8 @@ import com.beust.jcommander.ParameterException;
 import com.google.common.base.Objects;
 import com.yahoo.omid.committable.hbase.CommitTableConstants;
 import com.yahoo.omid.tools.hbase.HBaseLogin;
+import com.yahoo.omid.transaction.HBaseOmidClientConfiguration;
 import com.yahoo.omid.tsoclient.TSOClient;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,10 +35,8 @@ class Configuration extends HBaseLogin.Config {
     String hbaseConfig = "N/A";
     @Parameter(names = "-hadoopConfig", description = "Path to core-site.xml. Loads from classpath if not specified")
     String hadoopConfig = "N/A";
-    @Parameter(names = "-tsoHost", description = "TSO host name")
-    String tsoHost = TSOClient.DEFAULT_TSO_HOST;
-    @Parameter(names = "-tsoPort", description = "TSO host port")
-    int tsoPort = TSOClient.DEFAULT_TSO_PORT;
+    @Parameter(names = "-tsoHostPort", description = "TSO host & port. Format: <host>:<port>")
+    String tsoHostPort = TSOClient.DEFAULT_TSO_HOST + ":" + TSOClient.DEFAULT_TSO_PORT;
     @Parameter(names = "-commitTableName", description = "CommitTable name")
     String commitTableName = CommitTableConstants.COMMIT_TABLE_DEFAULT_NAME;
     @Parameter(names = "-userTableName", description = "User table name")
@@ -87,13 +85,10 @@ class Configuration extends HBaseLogin.Config {
         return Class.forName(rawFQN.substring(0, rawFQN.lastIndexOf('.')));
     }
 
-    org.apache.hadoop.conf.Configuration toOmidConfig() {
-        org.apache.hadoop.conf.Configuration conf = HBaseConfiguration.create();
-        conf.set(TSOClient.TSO_HOST_CONFKEY, tsoHost);
-        conf.setInt(TSOClient.TSO_PORT_CONFKEY, tsoPort);
-        conf.setInt(TSOClient.ZK_CONNECTION_TIMEOUT_IN_SECS_CONFKEY, 0);
-        conf.setStrings(CommitTableConstants.COMMIT_TABLE_NAME_KEY, commitTableName);
-        return conf;
+    HBaseOmidClientConfiguration createOmidClientConfig() {
+        HBaseOmidClientConfiguration hbaseOmidClientConfig = HBaseOmidClientConfiguration.create();
+        hbaseOmidClientConfig.setConnectionString(tsoHostPort);
+        return hbaseOmidClientConfig;
     }
 
     private boolean hasHelpFlag() {
@@ -102,7 +97,7 @@ class Configuration extends HBaseLogin.Config {
 
     public String toString() {
         return Objects.toStringHelper(this)
-                .add("TSO host:port", tsoHost + ":" + tsoPort)
+                .add("TSO host:port", tsoHostPort)
                 .add("HBase conf path", hbaseConfig)
                 .add("Hadoop conf path", hadoopConfig)
                 .add("Commit Table", commitTableName)

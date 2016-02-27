@@ -7,8 +7,6 @@ import com.yahoo.omid.tso.TSOMockModule;
 import com.yahoo.omid.tso.TSOServer;
 import com.yahoo.omid.tso.TSOServerCommandLineConfig;
 import com.yahoo.statemachine.StateMachine.FsmImpl;
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
 import org.apache.curator.utils.CloseableUtils;
@@ -23,9 +21,7 @@ import org.testng.annotations.Test;
 import java.util.concurrent.ExecutionException;
 
 import static com.yahoo.omid.ZKConstants.CURRENT_TSO_PATH;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_HOST_CONFKEY;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_PORT_CONFKEY;
-import static com.yahoo.omid.tsoclient.TSOClient.TSO_ZK_CLUSTER_CONFKEY;
+import static com.yahoo.omid.tsoclient.OmidClientConfiguration.ConnType.ZK;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
@@ -87,12 +83,10 @@ public class TestTSOClientConnectionToTSO {
     @Test(timeOut = 30_000)
     public void testUnsuccessfulConnectionToTSO() throws Exception {
 
-        Configuration clientConf = new BaseConfiguration();
-
         // When no ZK node for TSOServer is found & no host:port config exists
         // we should get an exception when getting the client
         try {
-            TSOClient.newBuilder().withConfiguration(clientConf).build();
+            TSOClient.newInstance();
         } catch (IllegalArgumentException e) {
             // Expected
         }
@@ -101,10 +95,6 @@ public class TestTSOClientConnectionToTSO {
 
     @Test(timeOut = 30_000)
     public void testSuccessfulConnectionToTSOWithHostAndPort() throws Exception {
-
-        Configuration clientConf = new BaseConfiguration();
-        clientConf.setProperty(TSO_HOST_CONFKEY, TSO_HOST);
-        clientConf.setProperty(TSO_PORT_CONFKEY, tsoPortForTest);
 
         // Launch a TSO WITHOUT publishing the address in ZK...
         String[] configArgs = new String[]{"-port", Integer.toString(tsoPortForTest), "-maxItems", "1000"};
@@ -118,7 +108,9 @@ public class TestTSOClientConnectionToTSO {
 
         // When no ZK node for TSOServer is found we should get a connection
         // to the TSO through the host:port configured...
-        TSOClient tsoClient = TSOClient.newBuilder().withConfiguration(clientConf).build();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
+        tsoClientConf.setConnectionString("localhost:" + tsoPortForTest);
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... so we should get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();
@@ -137,9 +129,6 @@ public class TestTSOClientConnectionToTSO {
     @Test(timeOut = 30_000)
     public void testSuccessfulConnectionToTSOThroughZK() throws Exception {
 
-        Configuration clientConf = new BaseConfiguration();
-        clientConf.setProperty(TSO_ZK_CLUSTER_CONFKEY, zkClusterForTest);
-
         // Launch a TSO publishing the address in ZK...
         String[] configArgs = new String[]{"-port", Integer.toString(tsoPortForTest), "-maxItems", "1000"};
         TSOServerCommandLineConfig config = TSOServerCommandLineConfig.parseConfig(configArgs);
@@ -156,7 +145,10 @@ public class TestTSOClientConnectionToTSO {
         waitTillTsoRegisters(injector.getInstance(CuratorFramework.class));
 
         // When a ZK node for TSOServer is found we should get a connection
-        TSOClient tsoClient = TSOClient.newBuilder().withConfiguration(clientConf).build();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
+        tsoClientConf.setConnectionType(ZK);
+        tsoClientConf.setConnectionString(zkClusterForTest);
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... so we should get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();
@@ -191,10 +183,10 @@ public class TestTSOClientConnectionToTSO {
         waitTillTsoRegisters(injector.getInstance(CuratorFramework.class));
 
         // Then create the TSO Client under test...
-        Configuration clientConf = new BaseConfiguration();
-        clientConf.setProperty(TSO_ZK_CLUSTER_CONFKEY, zkClusterForTest);
-
-        TSOClient tsoClient = TSOClient.newBuilder().withConfiguration(clientConf).build();
+        OmidClientConfiguration tsoClientConf = OmidClientConfiguration.create();
+        tsoClientConf.setConnectionType(ZK);
+        tsoClientConf.setConnectionString(zkClusterForTest);
+        TSOClient tsoClient = TSOClient.newInstance(tsoClientConf);
 
         // ... and check that initially we get responses from the methods
         Long startTS = tsoClient.getNewStartTimestamp().get();

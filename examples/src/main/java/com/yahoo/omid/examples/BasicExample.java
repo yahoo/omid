@@ -20,6 +20,7 @@ import com.yahoo.omid.transaction.HBaseTransactionManager;
 import com.yahoo.omid.transaction.TTable;
 import com.yahoo.omid.transaction.Transaction;
 import com.yahoo.omid.transaction.TransactionManager;
+import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.slf4j.Logger;
@@ -28,7 +29,7 @@ import org.slf4j.LoggerFactory;
 /**
  * ****************************************************************************************************
  *
- * Example code demonstrated to atomic write into two different rows in HBase
+ * Example code which demonstrates an atomic write into two different rows in HBase
  *
  * ****************************************************************************************************
  *
@@ -67,7 +68,6 @@ public class BasicExample {
         LOG.info("Parsing command line arguments");
         Configuration exampleConfig = Configuration.parse(args);
 
-
         String userTableName = exampleConfig.userTableName;
         byte[] family = Bytes.toBytes(exampleConfig.cfName);
         byte[] exampleRow1 = Bytes.toBytes("EXAMPLE_ROW1");
@@ -78,13 +78,12 @@ public class BasicExample {
 
         //Logging in to Secure HBase if required
         HBaseLogin.loginIfNeeded(exampleConfig);
-        org.apache.hadoop.conf.Configuration omidConfig = exampleConfig.toOmidConfig();
 
         LOG.info("Creating HBase Transaction Manager");
-        TransactionManager tm = HBaseTransactionManager.newBuilder().withConfiguration(omidConfig).build();
+        TransactionManager tm = HBaseTransactionManager.newInstance(exampleConfig.createOmidClientConfig());
 
         LOG.info("Creating access to Transactional Table '{}'", userTableName);
-        try (TTable tt = new TTable(omidConfig, userTableName)) {
+        try (TTable tt = new TTable(HBaseConfiguration.create(), userTableName)) {
 
             Transaction tx = tm.begin();
             LOG.info("Transaction {} STARTED", tx);
