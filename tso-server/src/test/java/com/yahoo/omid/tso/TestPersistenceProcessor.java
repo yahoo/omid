@@ -200,7 +200,7 @@ public class TestPersistenceProcessor {
     }
 
     @Test
-    public void testCommitPersistenceWithHALeaseManager() throws Exception {
+    public void testCommitPersistenceWithHALeaseManagerMultiHandlers() throws Exception {
         String[] configArgs = new String[]{"-persistHandlerNum", "4"};
         TSOServerCommandLineConfig tsoConfig = TSOServerCommandLineConfig.parseConfig(configArgs);
 
@@ -208,7 +208,7 @@ public class TestPersistenceProcessor {
     }
 
     @Test
-    public void testCommitPersistenceWithHALeaseManagerMultiHandlers() throws Exception {
+    public void testCommitPersistenceWithHALeaseManager() throws Exception {
         testCommitPersistenceWithHALeaseManagerPerConfig(TSOServerCommandLineConfig.defaultConfig());
     }
 
@@ -235,7 +235,7 @@ public class TestPersistenceProcessor {
         proc.persistCommit(1, 2, null, monCtx);
         proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(true));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(true));
 
         // Configure the lease manager to always return true first and false
         // later for stillInLeasePeriod, so verify the batch sends replies as
@@ -247,7 +247,7 @@ public class TestPersistenceProcessor {
         proc.persistCommit(1, 2, null, monCtx);
         proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
 
         // Configure the lease manager to always return false for
         // stillInLeasePeriod, so verify the batch sends replies as non-master
