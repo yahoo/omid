@@ -138,6 +138,7 @@ public class TestPersistenceProcessor {
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.persistCommit(1, 2, null, monCtx);
+
         proc.persistCommit(3, 4, null, monCtx);
         proc.persistCommit(5, 6, null, monCtx);
         proc.persistCommit(7, 8, null, monCtx);
@@ -169,15 +170,14 @@ public class TestPersistenceProcessor {
 
     @Test
     public void testCommitPersistenceWithNonHALeaseManager() throws Exception {
+
+        TSOServerConfig tsoConfig = new TSOServerConfig();
+
         // Init a non-HA lease manager
         VoidLeaseManager leaseManager = spy(new VoidLeaseManager(mock(TSOChannelHandler.class),
                 mock(TSOStateManager.class)));
-
-        TSOServerConfig tsoServerConfig = new TSOServerConfig();
-        tsoServerConfig.setBatchPersistTimeoutInMs(100);
-
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoServerConfig,
+        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
                                                                  batch,
                                                                  "localhost:1234",

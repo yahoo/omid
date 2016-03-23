@@ -15,8 +15,13 @@
 # Port reserved by the Status Oracle
 port: 54758
 maxItems: 100000000
+<<<<<<< HEAD
 maxBatchSize: 25
 batchPersistTimeoutInMs: 10
+=======
+maxBatchSize: 10000
+batchPersistTimeoutMS: 100
+>>>>>>> Scaling up the TSO by parallelizing the batched writes to the commit table. The architecture mostly changed by adding batch events and creating handlers under PersistenceProcessorImpl.
 persistHandlerNum: 1
 numBuffersPerHandler: 10
 

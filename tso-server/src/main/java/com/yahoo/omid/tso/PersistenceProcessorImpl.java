@@ -345,6 +345,7 @@ class PersistenceProcessorImpl
             this.panicker = panicker;
             this.maxBatchSize = config.getMaxBatchSize() / config.getPersistHandlerNum();
 
+
             LOG.info("Creating the persist processor with batch size {}",
                     maxBatchSize);
 
