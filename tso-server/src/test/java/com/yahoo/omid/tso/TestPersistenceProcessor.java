@@ -1,12 +1,17 @@
 package com.yahoo.omid.tso;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.PersistenceProcessorImpl.Batch;
+import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -25,8 +30,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
-@SuppressWarnings({"UnusedDeclaration"})
 public class TestPersistenceProcessor {
+
+    private static final Logger LOG = LoggerFactory.getLogger(TestPersistenceProcessor.class);
 
     @Mock
     private Batch batch;
@@ -75,79 +81,186 @@ public class TestPersistenceProcessor {
     }
 
     @Test
-    public void testCommitPersistenceWithNonHALeaseManager() throws Exception {
+    public void testCommitPersistenceWithMultiHandlers() throws Exception {
 
         // Init a non-HA lease manager
         VoidLeaseManager leaseManager = spy(new VoidLeaseManager(mock(TSOChannelHandler.class),
-                                                                 mock(TSOStateManager.class)));
+                mock(TSOStateManager.class)));
+
+        TSOServerConfig tsoConfig = new TSOServerConfig();
+        tsoConfig.setPersistHandlerNum(4);
+
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
-                                                                 "localhost:1234",
                                                                  batch,
+                                                                 "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
                                                                  replyProcessor,
                                                                  retryProcessor,
                                                                  panicker);
+
+        MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
+        proc.persistCommit(3, 4, null, monCtx);
+        proc.persistFlush(true);
+        proc.persistCommit(5, 6, null, monCtx);
+        proc.persistFlush(true);
+        proc.persistCommit(7, 8, null, monCtx);
+        proc.persistFlush(true);
+        verify(batch, timeout(1000).times(4)).sendReply(any(ReplyProcessor.class),
+                                                        any(RetryProcessor.class),
+                                                        any(Long.class), eq(true));
+    }
+
+    @Test
+    public void testCommitPersistenceWithSingleHanlderInMultiHandlersEnvironment() throws Exception {
+
+        // Init a non-HA lease manager
+        VoidLeaseManager leaseManager = spy(new VoidLeaseManager(mock(TSOChannelHandler.class),
+                mock(TSOStateManager.class)));
+
+        TSOServerConfig tsoConfig = new TSOServerConfig();
+        tsoConfig.setPersistHandlerNum(4);
+
+        // Component under test
+        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
+                                                                 metrics,
+                                                                 batch,
+                                                                 "localhost:1234",
+                                                                 leaseManager,
+                                                                 commitTable,
+                                                                 replyProcessor,
+                                                                 retryProcessor,
+                                                                 panicker);
+
+        MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.persistCommit(1, 2, null, monCtx);
+        proc.persistCommit(3, 4, null, monCtx);
+        proc.persistCommit(5, 6, null, monCtx);
+        proc.persistCommit(7, 8, null, monCtx);
+        verify(batch, timeout(1000).times(0)).sendReply(any(ReplyProcessor.class),
+                any(RetryProcessor.class),
+                any(Long.class), eq(true));
+        proc.persistFlush(true);
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
+                                                        any(RetryProcessor.class),
+                                                        any(Long.class), eq(true));
+        proc.persistCommit(1, 2, null, monCtx);
+        proc.persistCommit(3, 4, null, monCtx);
+        proc.persistCommit(5, 6, null, monCtx);
+        proc.persistCommit(7, 8, null, monCtx);
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
+                any(RetryProcessor.class),
+                any(Long.class), eq(true));
+        proc.persistFlush(true);
+        verify(batch, timeout(1000).times(2)).sendReply(any(ReplyProcessor.class),
+                any(RetryProcessor.class),
+                any(Long.class), eq(true));
+
+        // Test empty flush does not trigger response
+        proc.persistFlush(true);
+        verify(batch, timeout(1000).times(2)).sendReply(any(ReplyProcessor.class),
+                any(RetryProcessor.class),
+                any(Long.class), eq(true));
+    }
+
+    @Test
+    public void testCommitPersistenceWithNonHALeaseManager() throws Exception {
+
+        // Init a non-HA lease manager
+        VoidLeaseManager leaseManager = spy(new VoidLeaseManager(mock(TSOChannelHandler.class),
+                mock(TSOStateManager.class)));
+        // Component under test
+        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+                                                                 metrics,
+                                                                 batch,
+                                                                 "localhost:1234",
+                                                                 leaseManager,
+                                                                 commitTable,
+                                                                 replyProcessor,
+                                                                 retryProcessor,
+                                                                 panicker);
+
 
         // The non-ha lease manager always return true for
         // stillInLeasePeriod(), so verify the batch sends replies as master
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch, timeout(1000).times(2)).sendRepliesAndReset(any(ReplyProcessor.class),
-                                                                  any(RetryProcessor.class),
-                                                                  eq(true));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
+                                                        any(RetryProcessor.class),
+                                                        any(Long.class), eq(true));
+    }
+
+    @Test
+    public void testCommitPersistenceWithHALeaseManagerMultiHandlers() throws Exception {
+        TSOServerConfig tsoConfig = new TSOServerConfig();
+        tsoConfig.setPersistHandlerNum(4);
+
+        testCommitPersistenceWithHALeaseManagerPerConfig(tsoConfig);
     }
 
     @Test
     public void testCommitPersistenceWithHALeaseManager() throws Exception {
+        testCommitPersistenceWithHALeaseManagerPerConfig(new TSOServerConfig());
+    }
+
+    private void testCommitPersistenceWithHALeaseManagerPerConfig (TSOServerConfig tsoConfig) throws Exception {
 
         // Init a HA lease manager
         LeaseManager leaseManager = mock(LeaseManager.class);
+
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
-                                                                 metrics,
-                                                                 "localhost:1234",
-                                                                 batch,
-                                                                 leaseManager,
-                                                                 commitTable,
-                                                                 replyProcessor,
-                                                                 retryProcessor,
-                                                                 panicker);
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
+                                                                     metrics,
+                                                                     batch,
+                                                                     "localhost:1234",
+                                                                     leaseManager,
+                                                                     commitTable,
+                                                                     replyProcessor,
+                                                                     retryProcessor,
+                                                                     panicker);
 
         // Configure the lease manager to always return true for
         // stillInLeasePeriod, so verify the batch sends replies as master
         doReturn(true).when(leaseManager).stillInLeasePeriod();
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(true));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(true));
 
         // Configure the lease manager to always return true first and false
         // later for stillInLeasePeriod, so verify the batch sends replies as
         // non-master
         reset(leaseManager);
         reset(batch);
+        proc.setBatch(batch);
         doReturn(true).doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(false));
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
 
         // Configure the lease manager to always return false for
         // stillInLeasePeriod, so verify the batch sends replies as non-master
         reset(leaseManager);
         reset(batch);
+        proc.setBatch(batch);
         doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(leaseManager, timeout(1000).times(1)).stillInLeasePeriod();
-        verify(batch).sendRepliesAndReset(any(ReplyProcessor.class), any(RetryProcessor.class), eq(false));
-
+        verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
     }
 
     @Test
     public void testCommitTableExceptionOnCommitPersistenceTakesDownDaemon() throws Exception {
+
 
         // Init lease management (doesn't matter if HA or not)
         LeaseManagement leaseManager = mock(LeaseManagement.class);
@@ -159,6 +272,7 @@ public class TestPersistenceProcessor {
                                                                  mock(ReplyProcessor.class),
                                                                  mock(RetryProcessor.class),
                                                                  panicker);
+
         MonitoringContext monCtx = new MonitoringContext(metrics);
 
         // Configure lease manager to work normally
@@ -169,8 +283,8 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
-
     }
 
     @Test
@@ -191,8 +305,8 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
+        proc.persistFlush(true);
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
-
     }
 
 }
