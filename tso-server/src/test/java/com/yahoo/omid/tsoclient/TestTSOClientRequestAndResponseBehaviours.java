@@ -58,6 +58,7 @@ public class TestTSOClientRequestAndResponseBehaviours {
         TSOServerConfig tsoConfig = new TSOServerConfig();
         tsoConfig.setMaxItems(1000);
         tsoConfig.setPort(TSO_SERVER_PORT);
+        tsoConfig.setPersistHandlerNum(50);
         Module tsoServerMockModule = new TSOMockModule(tsoConfig);
         Injector injector = Guice.createInjector(tsoServerMockModule);
 

@@ -1,5 +1,7 @@
 package com.yahoo.omid.tso;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.timestamp.storage.TimestampStorage;
@@ -24,7 +26,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
-@SuppressWarnings({"UnusedDeclaration"})
 public class TestPanicker {
 
     private static final Logger LOG = LoggerFactory.getLogger(TestPanicker.class);
@@ -105,7 +106,11 @@ public class TestPanicker {
                                                                  mock(ReplyProcessor.class),
                                                                  mock(RetryProcessor.class),
                                                                  panicker);
+
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
@@ -140,7 +145,9 @@ public class TestPanicker {
                                                                  mock(RetryProcessor.class),
                                                                  panicker);
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
-
 }

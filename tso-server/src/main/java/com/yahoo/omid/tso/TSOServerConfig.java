@@ -74,6 +74,10 @@ public class TSOServerConfig extends SecureHBaseConfig {
 
     private int batchPersistTimeoutInMs;
 
+    private int persistHandlerNum;
+
+    private int numBuffersPerHandler;
+
     private String networkIfaceName = getDefaultNetworkInterface();
 
     public int getPort() {
@@ -146,6 +150,22 @@ public class TSOServerConfig extends SecureHBaseConfig {
 
     public void setMetrics(MetricsRegistry metrics) {
         this.metrics = metrics;
+    }
+
+    public int getPersistHandlerNum() {
+        return persistHandlerNum;
+    }
+
+    public void setPersistHandlerNum(int persistHandlerNum) {
+        this.persistHandlerNum = persistHandlerNum;
+    }
+
+    public int getNumBuffersPerHandler() {
+        return numBuffersPerHandler;
+    }
+
+    public void setNumBuffersPerHandler(int numBuffersPerHandler) {
+        this.numBuffersPerHandler = numBuffersPerHandler;
     }
 
     // ----------------------------------------------------------------------------------------------------------------

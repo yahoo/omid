@@ -17,11 +17,12 @@ package com.yahoo.omid.tso;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BatchEventProcessor;
-import com.lmax.disruptor.BusySpinWaitStrategy;
 import com.lmax.disruptor.EventFactory;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.SequenceBarrier;
+import com.lmax.disruptor.TimeoutBlockingWaitStrategy;
+import com.lmax.disruptor.TimeoutHandler;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.tso.TSOStateManager.TSOState;
 import org.jboss.netty.channel.Channel;
@@ -34,10 +35,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestEvent>, RequestProcessor {
+public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestEvent>,
+                                             RequestProcessor, TimeoutHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RequestProcessorImpl.class);
+
+    static final int DEFAULT_MAX_ITEMS = 1_000_000;
 
     private final TimestampOracle timestampOracle;
     public final CommitHashMap hashmap;
@@ -48,12 +53,11 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
     private long epoch = -1L;
 
     @Inject
-    RequestProcessorImpl(TSOServerConfig config,
-                         MetricsRegistry metrics,
+    RequestProcessorImpl(MetricsRegistry metrics,
                          TimestampOracle timestampOracle,
                          PersistenceProcessor persistProc,
-                         Panicker panicker) throws IOException {
-
+                         Panicker panicker,
+                         TSOServerConfig config) throws IOException {
         this.metrics = metrics;
 
         this.persistProc = persistProc;
@@ -61,9 +65,12 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
 
         this.hashmap = new CommitHashMap(config.getMaxItems());
 
+        final TimeoutBlockingWaitStrategy timeoutStrategy
+        = new TimeoutBlockingWaitStrategy(config.getBatchPersistTimeoutInMs(), TimeUnit.MILLISECONDS);
+
         // Set up the disruptor thread
         requestRing = RingBuffer.<RequestEvent>createMultiProducer(RequestEvent.EVENT_FACTORY, 1 << 12,
-                new BusySpinWaitStrategy());
+                                                                   timeoutStrategy);
         SequenceBarrier requestSequenceBarrier = requestRing.newBarrier();
         BatchEventProcessor<RequestEvent> requestProcessor =
                 new BatchEventProcessor<RequestEvent>(requestRing,
@@ -86,10 +93,11 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
     public void update(TSOState state) throws IOException {
         LOG.info("Reseting RequestProcessor...");
         this.lowWatermark = state.getLowWatermark();
-        persistProc.persistLowWatermark(lowWatermark);
+        persistProc.persistLowWatermark(lowWatermark, new MonitoringContext(metrics));
         this.epoch = state.getEpoch();
         hashmap.reset();
-        LOG.info("RequestProcessor initialized with LWMs {} and Epoch {}", lowWatermark, epoch);
+        persistProc.reset();
+        LOG.info("RequestProcessor initialized with LWM {} and Epoch {}", lowWatermark, epoch);
     }
 
     @Override
@@ -111,6 +119,14 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
             }
         }
 
+        if (endOfBatch) {
+            persistProc.persistFlush(false);
+        }
+    }
+
+    @Override
+    public void onTimeout(long sequence) throws Exception {
+        persistProc.persistFlush(false);
     }
 
     @Override
@@ -184,7 +200,7 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
                     if (newLowWatermark != lowWatermark) {
                         LOG.trace("Setting new low Watermark to {}", newLowWatermark);
                         lowWatermark = newLowWatermark;
-                        persistProc.persistLowWatermark(newLowWatermark);
+                        persistProc.persistLowWatermark(newLowWatermark, event.getMonCtx());
                     }
                 }
                 persistProc.persistCommit(startTimestamp, commitTimestamp, c, event.getMonCtx());
@@ -296,12 +312,11 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
         }
 
         public final static EventFactory<RequestEvent> EVENT_FACTORY
-                = new EventFactory<RequestEvent>() {
+        = new EventFactory<RequestEvent>() {
             @Override
             public RequestEvent newInstance() {
                 return new RequestEvent();
             }
         };
     }
-
-}
+};
