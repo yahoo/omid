@@ -1,11 +1,9 @@
 package com.yahoo.omid.tso;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -29,6 +27,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
+
 
 public class TestPersistenceProcessor {
 
@@ -91,9 +90,9 @@ public class TestPersistenceProcessor {
         tsoConfig.setPersistHandlerNum(4);
 
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
-                                                                 batch,
+                                                                 new BatchPool(tsoConfig),
                                                                  "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
@@ -102,14 +101,18 @@ public class TestPersistenceProcessor {
                                                                  panicker);
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
+        proc.batch = batch;
         proc.persistCommit(3, 4, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
+        proc.batch = batch;
         proc.persistCommit(5, 6, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
+        proc.batch = batch;
         proc.persistCommit(7, 8, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(batch, timeout(1000).times(4)).sendReply(any(ReplyProcessor.class),
                                                         any(RetryProcessor.class),
                                                         any(Long.class), eq(true));
@@ -126,9 +129,9 @@ public class TestPersistenceProcessor {
         tsoConfig.setPersistHandlerNum(4);
 
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
-                                                                 batch,
+                                                                 new BatchPool(tsoConfig),
                                                                  "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
@@ -137,6 +140,7 @@ public class TestPersistenceProcessor {
                                                                  panicker);
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
 
         proc.persistCommit(3, 4, null, monCtx);
@@ -145,10 +149,11 @@ public class TestPersistenceProcessor {
         verify(batch, timeout(1000).times(0)).sendReply(any(ReplyProcessor.class),
                 any(RetryProcessor.class),
                 any(Long.class), eq(true));
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
                                                         any(RetryProcessor.class),
                                                         any(Long.class), eq(true));
+        proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
         proc.persistCommit(3, 4, null, monCtx);
         proc.persistCommit(5, 6, null, monCtx);
@@ -156,13 +161,14 @@ public class TestPersistenceProcessor {
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
                 any(RetryProcessor.class),
                 any(Long.class), eq(true));
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(batch, timeout(1000).times(2)).sendReply(any(ReplyProcessor.class),
                 any(RetryProcessor.class),
                 any(Long.class), eq(true));
+        proc.batch = batch;
 
         // Test empty flush does not trigger response
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(batch, timeout(1000).times(2)).sendReply(any(ReplyProcessor.class),
                 any(RetryProcessor.class),
                 any(Long.class), eq(true));
@@ -176,10 +182,11 @@ public class TestPersistenceProcessor {
         // Init a non-HA lease manager
         VoidLeaseManager leaseManager = spy(new VoidLeaseManager(mock(TSOChannelHandler.class),
                 mock(TSOStateManager.class)));
+
         // Component under test
-        PersistenceProcessor proc = new PersistenceProcessorImpl(tsoConfig,
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
-                                                                 batch,
+                                                                 new BatchPool(tsoConfig),
                                                                  "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
@@ -191,8 +198,9 @@ public class TestPersistenceProcessor {
         // The non-ha lease manager always return true for
         // stillInLeasePeriod(), so verify the batch sends replies as master
         MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class),
                                                         any(RetryProcessor.class),
@@ -220,7 +228,7 @@ public class TestPersistenceProcessor {
         // Component under test
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                      metrics,
-                                                                     batch,
+                                                                     new BatchPool(tsoConfig),
                                                                      "localhost:1234",
                                                                      leaseManager,
                                                                      commitTable,
@@ -232,8 +240,9 @@ public class TestPersistenceProcessor {
         // stillInLeasePeriod, so verify the batch sends replies as master
         doReturn(true).when(leaseManager).stillInLeasePeriod();
         MonitoringContext monCtx = new MonitoringContext(metrics);
+        proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(true));
 
@@ -242,10 +251,10 @@ public class TestPersistenceProcessor {
         // non-master
         reset(leaseManager);
         reset(batch);
-        proc.setBatch(batch);
+        proc.batch = batch;
         doReturn(true).doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(leaseManager, timeout(1000).times(2)).stillInLeasePeriod();
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
 
@@ -253,10 +262,10 @@ public class TestPersistenceProcessor {
         // stillInLeasePeriod, so verify the batch sends replies as non-master
         reset(leaseManager);
         reset(batch);
-        proc.setBatch(batch);
+        proc.batch = batch;
         doReturn(false).when(leaseManager).stillInLeasePeriod();
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(leaseManager, timeout(1000).times(1)).stillInLeasePeriod();
         verify(batch, timeout(1000).times(1)).sendReply(any(ReplyProcessor.class), any(RetryProcessor.class), any(Long.class), eq(false));
     }
@@ -264,11 +273,13 @@ public class TestPersistenceProcessor {
     @Test
     public void testCommitTableExceptionOnCommitPersistenceTakesDownDaemon() throws Exception {
 
-
         // Init lease management (doesn't matter if HA or not)
         LeaseManagement leaseManager = mock(LeaseManagement.class);
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
+                                                                 batchPool,
                                                                  "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
@@ -286,15 +297,19 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
     @Test
     public void testRuntimeExceptionOnCommitPersistenceTakesDownDaemon() throws Exception {
 
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessorImpl proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
+                                                                 batchPool,
                                                                  "localhost:1234",
                                                                  mock(LeaseManagement.class),
                                                                  commitTable,
@@ -308,7 +323,7 @@ public class TestPersistenceProcessor {
 
         // Check the panic is extended!
         proc.persistCommit(1, 2, null, monCtx);
-        proc.persistFlush(true);
+        proc.persistFlush();
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 

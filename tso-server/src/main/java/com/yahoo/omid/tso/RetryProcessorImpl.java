@@ -31,7 +31,7 @@ import com.yahoo.omid.metrics.MetricsRegistry;
 
 import org.jboss.netty.channel.Channel;
 
-import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,19 +109,11 @@ class RetryProcessorImpl
 
     }
 
-    public void addAbort(Batch batch, long startTimestamp, Channel c, MonitoringContext context) {
-        batch.addAbort(startTimestamp, true, c, context);
-    }
-
-    public void addCommit(Batch batch, long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {
-        batch.addCommit(startTimestamp, commitTimestamp, c, context);
-    }
-
     private void handleCommitRetry(RetryEvent event) throws InterruptedException, ExecutionException {
         long startTimestamp = event.getStartTimestamp();
         try {
             Optional<CommitTimestamp> commitTimestamp = commitTableClient.getCommitTimestamp(startTimestamp).get();
-            Batch batch = new Batch(1, -1);
+            Batch batch = new Batch(1);
             if(commitTimestamp.isPresent()) {
                 if (commitTimestamp.get().isValid()) {
                     LOG.trace("Valid commit TS found in Commit Table");

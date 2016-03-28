@@ -1,10 +1,9 @@
 package com.yahoo.omid.tso;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.timestamp.storage.TimestampStorage;
+
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -98,8 +97,11 @@ public class TestPanicker {
 
         LeaseManager leaseManager = mock(LeaseManager.class);
         doReturn(true).when(leaseManager).stillInLeasePeriod();
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+        PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
+                                                                 batchPool,
                                                                  "localhost:1234",
                                                                  leaseManager,
                                                                  commitTable,
@@ -136,8 +138,12 @@ public class TestPanicker {
                 return mockClient;
             }
         };
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
+                                                                 batchPool,
                                                                  "localhost:1234",
                                                                  mock(LeaseManager.class),
                                                                  commitTable,

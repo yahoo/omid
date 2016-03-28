@@ -25,6 +25,7 @@ import com.yahoo.omid.tools.hbase.SecureHBaseConfig;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 

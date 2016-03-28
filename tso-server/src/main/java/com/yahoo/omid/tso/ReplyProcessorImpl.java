@@ -26,7 +26,7 @@ import com.lmax.disruptor.SequenceBarrier;
 import com.yahoo.omid.metrics.Meter;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.proto.TSOProto;
-import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.jboss.netty.channel.Channel;
 import org.slf4j.Logger;
@@ -48,9 +48,9 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
     final Meter commitMeter;
     final Meter timestampMeter;
 
-    final int NO_ORDER = (-1);
+    public static final int NO_ORDER = (-1);
 
-    private long nextIDToHandle;
+    volatile private long nextIDToHandle;
 
     PriorityQueue<ReplyBatchEvent> futureEvents;
 
@@ -89,7 +89,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
         String name = null;
         Batch batch = event.getBatch();
         for (int i=0; i < batch.getNumEvents(); ++i) {
-            PersistenceProcessorImpl.PersistEvent localEvent = batch.events[i];
+            PersistEvent localEvent = batch.events[i];
 
             switch (localEvent.getType()) {
             case COMMIT:
