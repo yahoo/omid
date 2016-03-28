@@ -6,6 +6,8 @@ import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
 import com.yahoo.omid.committable.InMemoryCommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
+import com.yahoo.omid.tso.BatchPool.Batch;
+
 import org.jboss.netty.channel.Channel;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -20,7 +22,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.testng.AssertJUnit.assertEquals;
-import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
 
 public class TestRetryProcessor {
 

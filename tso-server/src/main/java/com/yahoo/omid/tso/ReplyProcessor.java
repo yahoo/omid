@@ -17,7 +17,7 @@ package com.yahoo.omid.tso;
 
 import org.jboss.netty.channel.Channel;
 
-import com.yahoo.omid.tso.PersistenceProcessorImpl.PersistenceProcessorHandler.Batch;
+import com.yahoo.omid.tso.BatchPool.Batch;
 
 interface ReplyProcessor
 {

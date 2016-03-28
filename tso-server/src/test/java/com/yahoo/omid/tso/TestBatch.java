@@ -2,6 +2,8 @@ package com.yahoo.omid.tso;
 
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
+import com.yahoo.omid.tso.BatchPool.Batch;
+
 import org.jboss.netty.channel.Channel;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -13,13 +15,9 @@ import org.testng.AssertJUnit;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 public class TestBatch {
@@ -37,12 +35,12 @@ public class TestBatch {
     private ReplyProcessor replyProcessor;
 
     // The batch element to test
-    private PersistenceProcessorImpl.PersistenceProcessorHandler.Batch batch;
+    private Batch batch;
 
     @BeforeMethod(alwaysRun = true, timeOut = 30_000)
     public void initMocksAndComponents() {
         MockitoAnnotations.initMocks(this);
-        batch = new PersistenceProcessorImpl.PersistenceProcessorHandler.Batch(BATCH_SIZE, -1);
+        batch = new Batch(BATCH_SIZE);
     }
 
     @Test
@@ -54,7 +52,7 @@ public class TestBatch {
         RetryProcessor retryProcessor = Mockito.mock(RetryProcessor.class);
 
         // The batch element to test
-        PersistenceProcessorImpl.PersistenceProcessorHandler.Batch batch = new PersistenceProcessorImpl.PersistenceProcessorHandler.Batch(BATCH_SIZE, -1);
+        Batch batch = new Batch(BATCH_SIZE);
 
         // Test initial state is OK
         AssertJUnit.assertFalse("Batch shouldn't be full", batch.isFull());

@@ -120,13 +120,13 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
         }
 
         if (endOfBatch) {
-            persistProc.persistFlush(false);
+            persistProc.persistFlush();
         }
     }
 
     @Override
     public void onTimeout(long sequence) throws Exception {
-        persistProc.persistFlush(false);
+        persistProc.persistFlush();
     }
 
     @Override
