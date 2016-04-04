@@ -16,9 +16,6 @@
 package com.yahoo.omid.tso;
 
 import javax.inject.Inject;
-import org.jboss.netty.channel.Channel;
-
-import com.yahoo.omid.tso.PersistEvent.Type;
 
 public class BatchPool {
     final private Batch[] batches;
@@ -45,111 +42,5 @@ public class BatchPool {
             batches[i].clear();
         }
         emptyBatch = 0;
-    }
-
-
-    public static class Batch {
-        final PersistEvent[] events;
-        final int maxBatchSize;
-        int numEvents;
-
-
-        Batch(int maxBatchSize) {
-            assert (maxBatchSize > 0);
-            this.maxBatchSize = maxBatchSize;
-            events = new PersistEvent[maxBatchSize];
-            numEvents = 0;
-            for (int i = 0; i < maxBatchSize; i++) {
-                events[i] = new PersistEvent();
-            }
-        }
-
-        boolean isFull() {
-            assert (numEvents <= maxBatchSize);
-            return numEvents == maxBatchSize;
-        }
-
-        boolean isEmpty() {
-            return numEvents == 0;
-        }
-
-        boolean isLastEmptyEntry() {
-            assert (numEvents <= maxBatchSize);
-            return numEvents == (maxBatchSize - 1);
-        }
-
-        int getNumEvents() {
-            return numEvents;
-        }
-
-        void clear() {
-            numEvents = 0;
-        }
-
-        void addCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {
-            if (isFull()) {
-                throw new IllegalStateException("batch full");
-            }
-            int index = numEvents++;
-            PersistEvent e = events[index];
-            e.makePersistCommit(startTimestamp, commitTimestamp, c, context);
-        }
-
-        void addAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext context) {
-            if (isFull()) {
-                throw new IllegalStateException("batch full");
-            }
-            int index = numEvents++;
-            PersistEvent e = events[index];
-            e.makePersistAbort(startTimestamp, isRetry, c, context);
-        }
-
-        void addUndecidedRetriedRequest(long startTimestamp, Channel c, MonitoringContext context) {
-            if (isFull()) {
-                throw new IllegalStateException("batch full");
-            }
-            int index = numEvents++;
-            PersistEvent e = events[index];
-            // We mark the event as an ABORT retry to identify the events to send
-            // to the retry processor
-            e.makePersistAbort(startTimestamp, true, c, context);
-        }
-
-        void addTimestamp(long startTimestamp, Channel c, MonitoringContext context) {
-            if (isFull()) {
-                throw new IllegalStateException("batch full");
-            }
-            int index = numEvents++;
-            PersistEvent e = events[index];
-            e.makePersistTimestamp(startTimestamp, c, context);
-        }
-
-        void addLowWatermark(long lowWatermark, MonitoringContext context) {
-            if (isFull()) {
-                throw new IllegalStateException("batch full");
-            }
-            int index = numEvents++;
-            PersistEvent e = events[index];
-            e.makePersistLowWatermark(lowWatermark, context);
-        }
-
-        void sendReply(ReplyProcessor reply, RetryProcessor retryProc, long batchID, boolean isTSOInstanceMaster) {
-            for (int i = 0; i < numEvents;) {
-                PersistEvent e = events[i];
-                if (e.getType() == Type.ABORT && e.isRetry()) {
-                    retryProc.disambiguateRetryRequestHeuristically(e.getStartTimestamp(), e.getChannel(), e.getMonCtx());
-                    events[i] = events[numEvents - 1];
-                    if (numEvents == 1) {
-                        numEvents = 0;
-                        break;
-                    }
-                    --numEvents;
-                    continue;
-                }
-                ++i;
-            }
-
-            reply.batchResponse(this, batchID, !isTSOInstanceMaster);
-        }
     }
 }

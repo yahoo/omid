@@ -3,7 +3,6 @@ package com.yahoo.omid.tso;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -89,16 +88,18 @@ public class TestPersistenceProcessor {
         TSOServerConfig tsoConfig = new TSOServerConfig();
         tsoConfig.setPersistHandlerNum(4);
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[tsoConfig.getPersistHandlerNum()];
+        for (int i = 0; i < tsoConfig.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, replyProcessor, retryProcessor, panicker, tsoConfig);
+        }
+
         // Component under test
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
                                                                  new BatchPool(tsoConfig),
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
                                                                  replyProcessor,
-                                                                 retryProcessor,
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.batch = batch;
@@ -128,16 +129,18 @@ public class TestPersistenceProcessor {
         TSOServerConfig tsoConfig = new TSOServerConfig();
         tsoConfig.setPersistHandlerNum(4);
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[tsoConfig.getPersistHandlerNum()];
+        for (int i = 0; i < tsoConfig.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, replyProcessor, retryProcessor, panicker, tsoConfig);
+        }
+
         // Component under test
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
                                                                  new BatchPool(tsoConfig),
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
                                                                  replyProcessor,
-                                                                 retryProcessor,
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.batch = batch;
@@ -182,16 +185,18 @@ public class TestPersistenceProcessor {
 
         TSOServerConfig tsoConfig = new TSOServerConfig();
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[tsoConfig.getPersistHandlerNum()];
+        for (int i = 0; i < tsoConfig.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, replyProcessor, retryProcessor, panicker, tsoConfig);
+        }
+
         // Component under test
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                  metrics,
                                                                  new BatchPool(tsoConfig),
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
                                                                  replyProcessor,
-                                                                 retryProcessor,
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
 
         // The non-ha lease manager always return true for
@@ -224,16 +229,18 @@ public class TestPersistenceProcessor {
         // Init a HA lease manager
         LeaseManager leaseManager = mock(LeaseManager.class);
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[tsoConfig.getPersistHandlerNum()];
+        for (int i = 0; i < tsoConfig.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, replyProcessor, retryProcessor, panicker, tsoConfig);
+        }
+
         // Component under test
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(tsoConfig,
                                                                      metrics,
                                                                      new BatchPool(tsoConfig),
-                                                                     "localhost:1234",
-                                                                     leaseManager,
-                                                                     commitTable,
                                                                      replyProcessor,
-                                                                     retryProcessor,
-                                                                     panicker);
+                                                                     panicker,
+                                                                     handlers);
 
         // Configure the lease manager to always return true for
         // stillInLeasePeriod, so verify the batch sends replies as master
@@ -276,15 +283,18 @@ public class TestPersistenceProcessor {
         LeaseManagement leaseManager = mock(LeaseManagement.class);
         TSOServerConfig config = new TSOServerConfig();
         BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, mock(ReplyProcessor.class), mock(RetryProcessor.class), panicker, config);
+        }
+
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
                                                                  batchPool,
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
                                                                  mock(ReplyProcessor.class),
-                                                                 mock(RetryProcessor.class),
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
         MonitoringContext monCtx = new MonitoringContext(metrics);
 
@@ -306,15 +316,17 @@ public class TestPersistenceProcessor {
         TSOServerConfig config = new TSOServerConfig();
         BatchPool batchPool = new BatchPool(config);
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", mock(LeaseManager.class), commitTable, replyProcessor, retryProcessor, panicker, config);
+        }
+
         PersistenceProcessorImpl proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
                                                                  batchPool,
-                                                                 "localhost:1234",
-                                                                 mock(LeaseManagement.class),
-                                                                 commitTable,
                                                                  replyProcessor,
-                                                                 retryProcessor,
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
         // Configure writer to explode with a runtime exception
         doThrow(new RuntimeException("Kaboom!")).when(mockWriter).addCommittedTransaction(anyLong(), anyLong());

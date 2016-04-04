@@ -6,7 +6,6 @@ import com.yahoo.omid.committable.CommitTable.CommitTimestamp;
 import com.yahoo.omid.committable.InMemoryCommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.jboss.netty.channel.Channel;
 import org.mockito.ArgumentCaptor;

@@ -2,7 +2,6 @@ package com.yahoo.omid.tso;
 
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
-import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.jboss.netty.channel.Channel;
 import org.mockito.Mock;

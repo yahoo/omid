@@ -1,6 +1,7 @@
 package com.yahoo.omid.transaction;
 
 import com.google.inject.AbstractModule;
+import com.google.inject.Provider;
 import com.google.inject.Provides;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.committable.hbase.HBaseCommitTable;
@@ -13,15 +14,18 @@ import com.yahoo.omid.tso.MockPanicker;
 import com.yahoo.omid.tso.NetworkInterfaceUtils;
 import com.yahoo.omid.tso.Panicker;
 import com.yahoo.omid.tso.PausableTimestampOracle;
+import com.yahoo.omid.tso.PersistenceProcessorHandler;
 import com.yahoo.omid.tso.TSOChannelHandler;
 import com.yahoo.omid.tso.TSOServerConfig;
 import com.yahoo.omid.tso.TSOStateManager;
 import com.yahoo.omid.tso.TSOStateManagerImpl;
 import com.yahoo.omid.tso.TimestampOracle;
+
 import org.apache.hadoop.conf.Configuration;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
@@ -76,6 +80,15 @@ class TestTSOModule extends AbstractModule {
     @Named(TSO_HOST_AND_PORT_KEY)
     String provideTSOHostAndPort() throws SocketException, UnknownHostException {
         return NetworkInterfaceUtils.getTSOHostAndPort(config);
+    }
+
+    @Provides
+    PersistenceProcessorHandler[] getPersistenceProcessorHandler(Provider<PersistenceProcessorHandler> provider) {
+        PersistenceProcessorHandler[] persistenceProcessorHandlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < persistenceProcessorHandlers.length; i++) {
+            persistenceProcessorHandlers[i] = provider.get();
+        }
+        return persistenceProcessorHandlers;
     }
 
 }

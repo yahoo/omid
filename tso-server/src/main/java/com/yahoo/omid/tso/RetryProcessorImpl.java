@@ -31,8 +31,6 @@ import com.yahoo.omid.metrics.MetricsRegistry;
 
 import org.jboss.netty.channel.Channel;
 
-import com.yahoo.omid.tso.BatchPool.Batch;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
