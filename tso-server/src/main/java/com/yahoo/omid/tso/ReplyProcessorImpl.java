@@ -26,7 +26,6 @@ import com.lmax.disruptor.SequenceBarrier;
 import com.yahoo.omid.metrics.Meter;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.proto.TSOProto;
-import com.yahoo.omid.tso.BatchPool.Batch;
 
 import org.jboss.netty.channel.Channel;
 import org.slf4j.Logger;

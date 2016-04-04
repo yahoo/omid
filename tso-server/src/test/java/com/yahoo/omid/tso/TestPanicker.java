@@ -99,15 +99,18 @@ public class TestPanicker {
         doReturn(true).when(leaseManager).stillInLeasePeriod();
         TSOServerConfig config = new TSOServerConfig();
         BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, mock(ReplyProcessor.class), mock(RetryProcessor.class), panicker, config);
+        }
+
         PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
                                                                  batchPool,
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
                                                                  mock(ReplyProcessor.class),
-                                                                 mock(RetryProcessor.class),
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
 
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
 
@@ -141,15 +144,17 @@ public class TestPanicker {
         TSOServerConfig config = new TSOServerConfig();
         BatchPool batchPool = new BatchPool(config);
 
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", mock(LeaseManager.class), commitTable, mock(ReplyProcessor.class), mock(RetryProcessor.class), panicker, config);
+        }
+
         PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
                                                                  batchPool,
-                                                                 "localhost:1234",
-                                                                 mock(LeaseManager.class),
-                                                                 commitTable,
                                                                  mock(ReplyProcessor.class),
-                                                                 mock(RetryProcessor.class),
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
 
         new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));

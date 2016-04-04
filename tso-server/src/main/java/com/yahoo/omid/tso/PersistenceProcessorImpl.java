@@ -16,7 +16,6 @@
 package com.yahoo.omid.tso;
 
 import static com.codahale.metrics.MetricRegistry.name;
-import static com.yahoo.omid.tso.TSOServer.TSO_HOST_AND_PORT_KEY;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import javax.inject.Inject;
-import javax.inject.Named;
 
 import org.jboss.netty.channel.Channel;
 
@@ -34,10 +32,8 @@ import com.lmax.disruptor.EventFactory;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.SequenceBarrier;
 import com.lmax.disruptor.WorkerPool;
-import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.Meter;
 import com.yahoo.omid.metrics.MetricsRegistry;
-import com.yahoo.omid.tso.BatchPool.Batch;
 
 
 class PersistenceProcessorImpl
@@ -47,9 +43,6 @@ class PersistenceProcessorImpl
 
     private final ReplyProcessor reply;
     private final RingBuffer<PersistBatchEvent> persistRing;
-
-    private final PersistenceProcessorHandler[] handlers;
-    private final int numHandlers;
 
     private final BatchPool batchPool;
     public Batch batch;
@@ -65,15 +58,10 @@ class PersistenceProcessorImpl
     PersistenceProcessorImpl(TSOServerConfig config,
             MetricsRegistry metrics,
             BatchPool batchPool,
-            @Named(TSO_HOST_AND_PORT_KEY) String tsoHostAndPort,
-            LeaseManagement leaseManager,
-            CommitTable commitTable,
             ReplyProcessor reply,
-            RetryProcessor retryProc,
-            Panicker panicker)
+            Panicker panicker,
+            PersistenceProcessorHandler[] handlers)
                     throws InterruptedException, ExecutionException, IOException {
-
-        this.reply = reply;
 
         batchIDCnt = 0L;
 
@@ -81,19 +69,13 @@ class PersistenceProcessorImpl
 
         this.batch = batchPool.getNextEmptyBatch();
 
+        this.reply = reply;
+
         timeoutMeter = metrics.meter(name("tso", "persist", "timeout"));
 
         persistRing = RingBuffer.<PersistBatchEvent>createSingleProducer(
                 PersistBatchEvent.EVENT_FACTORY, 1 << 20, new BusySpinWaitStrategy());
         SequenceBarrier persistSequenceBarrier = persistRing.newBarrier();
-
-        numHandlers = config.getPersistHandlerNum();
-        handlers = new PersistenceProcessorHandler[numHandlers];
-
-
-        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
-            handlers[i] = new PersistenceProcessorHandler(metrics, tsoHostAndPort, leaseManager, commitTable, reply, retryProc, panicker, config);
-        }
 
         WorkerPool<PersistBatchEvent> persistProcessor = new WorkerPool<PersistBatchEvent>(persistRing, persistSequenceBarrier,
                                                             new FatalExceptionHandler(panicker), handlers);

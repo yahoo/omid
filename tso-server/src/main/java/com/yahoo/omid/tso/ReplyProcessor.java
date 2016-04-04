@@ -17,8 +17,6 @@ package com.yahoo.omid.tso;
 
 import org.jboss.netty.channel.Channel;
 
-import com.yahoo.omid.tso.BatchPool.Batch;
-
 interface ReplyProcessor
 {
     /**
