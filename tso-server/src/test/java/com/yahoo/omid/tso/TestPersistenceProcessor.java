@@ -145,7 +145,6 @@ public class TestPersistenceProcessor {
         MonitoringContext monCtx = new MonitoringContext(metrics);
         proc.batch = batch;
         proc.persistCommit(1, 2, null, monCtx);
-
         proc.persistCommit(3, 4, null, monCtx);
         proc.persistCommit(5, 6, null, monCtx);
         proc.persistCommit(7, 8, null, monCtx);
