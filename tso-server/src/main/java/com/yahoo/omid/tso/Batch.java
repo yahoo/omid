@@ -22,8 +22,8 @@ import com.yahoo.omid.tso.PersistEvent.Type;
 public class Batch {
     final PersistEvent[] events;
     final int maxBatchSize;
-    volatile int numEvents;
-
+    int numEvents;
+    volatile boolean avaialble;
 
     Batch(int maxBatchSize) {
         assert (maxBatchSize > 0);
@@ -33,6 +33,19 @@ public class Batch {
         for (int i = 0; i < maxBatchSize; i++) {
             events[i] = new PersistEvent();
         }
+        avaialble = true;
+    }
+
+    boolean isAvailable() {
+        return avaialble;
+    }
+
+    void setNotAvailable() {
+        avaialble = false;
+    }
+
+    void setAvailable() {
+        avaialble = true;
     }
 
     boolean isFull() {
@@ -55,6 +68,7 @@ public class Batch {
 
     void clear() {
         numEvents = 0;
+        setAvailable();
     }
 
     void addCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {
@@ -109,10 +123,13 @@ public class Batch {
             PersistEvent e = events[i];
             if (e.getType() == Type.ABORT && e.isRetry()) {
                 retryProc.disambiguateRetryRequestHeuristically(e.getStartTimestamp(), e.getChannel(), e.getMonCtx());
+                PersistEvent tmp = events[i];
                 events[i] = events[numEvents - 1];
+                events[numEvents - 1] = tmp;
                 if (numEvents == 1) {
-                    numEvents = 0;
-                    break;
+                    clear();
+                    reply.batchResponse(null, batchID, !isTSOInstanceMaster);
+                    return;
                 }
                 --numEvents;
                 continue;

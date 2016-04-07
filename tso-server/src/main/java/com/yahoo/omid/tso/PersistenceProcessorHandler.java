@@ -43,8 +43,6 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
     final CommitTable.Writer writer;
     final Panicker panicker;
 
-    final int maxBatchSize;
-
     final Timer flushTimer;
     final Histogram batchSizeHistogram;
 
@@ -65,10 +63,6 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
         this.reply = reply;
         this.retryProc = retryProc;
         this.panicker = panicker;
-        this.maxBatchSize = config.getMaxBatchSize() / config.getPersistHandlerNum();
-
-        LOG.info("Creating the persist processor handler with batch size {}",
-                maxBatchSize);
 
         flushTimer = metrics.timer(name("tso", "persist", "flush"));
         batchSizeHistogram = metrics.histogram(name("tso", "persist", "batchsize"));

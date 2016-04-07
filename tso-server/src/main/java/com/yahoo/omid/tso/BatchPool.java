@@ -26,14 +26,17 @@ public class BatchPool {
     public BatchPool(TSOServerConfig config) {
         poolSize = config.getPersistHandlerNum() * config.getNumBuffersPerHandler();
         batches = new Batch[poolSize];
+        int batchSize = (config.getMaxBatchSize() / config.getPersistHandlerNum() > 0) ? (config.getMaxBatchSize() / config.getPersistHandlerNum()) : 2;
         for (int i=0; i < poolSize; ++i) {
-            batches[i] = new Batch(config.getMaxBatchSize() / config.getPersistHandlerNum());
+            batches[i] = new Batch(batchSize);
         }
         emptyBatch = 0;
     }
 
     public Batch getNextEmptyBatch() {
-        for (;batches[emptyBatch].getNumEvents() != 0; emptyBatch = (emptyBatch + 1) % (poolSize));
+        emptyBatch = (emptyBatch + 1) % (poolSize);
+        for (;! batches[emptyBatch].isAvailable(); emptyBatch = (emptyBatch + 1) % (poolSize));
+        batches[emptyBatch].setNotAvailable();
         return batches[emptyBatch];
     }
 

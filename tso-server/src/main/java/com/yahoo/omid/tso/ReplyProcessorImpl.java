@@ -87,7 +87,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
     private void handleReplyBatchEvent(ReplyBatchEvent event) {
         String name = null;
         Batch batch = event.getBatch();
-        for (int i=0; i < batch.getNumEvents(); ++i) {
+        for (int i=0; batch != null && i < batch.getNumEvents(); ++i) {
             PersistEvent localEvent = batch.events[i];
 
             switch (localEvent.getType()) {
@@ -96,7 +96,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
                 localEvent.getMonCtx().timerStart(name);
                 handleCommitResponse(localEvent.getStartTimestamp(), localEvent.getCommitTimestamp(), localEvent.getChannel(), event.getMakeHeuristicDecision());
                 localEvent.getMonCtx().timerStop(name);
-                break;
+                 break;
             case ABORT:
                 name = "abortReplyProcessor";
                 localEvent.getMonCtx().timerStart(name);
@@ -117,7 +117,9 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
             }
             localEvent.getMonCtx().publish();
         }
-        batch.clear();
+        if (batch != null) {
+            batch.clear();
+        }
     }
 
     private void processWaitingEvents() {
@@ -150,6 +152,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
         // Process events that arrived before and kept in futureEvents.
         processWaitingEvents();
+
     }
 
     @Override
