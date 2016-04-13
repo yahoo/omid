@@ -72,7 +72,7 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
     public void onEvent(PersistenceProcessorImpl.PersistBatchEvent event) throws Exception {
         Batch batch = event.getBatch();
         for (int i=0; i < batch.getNumEvents(); ++i) {
-            PersistEvent localEvent = batch.events[i];
+            PersistEvent localEvent = batch.getEvent(i);
 
             switch (localEvent.getType()) {
             case COMMIT:

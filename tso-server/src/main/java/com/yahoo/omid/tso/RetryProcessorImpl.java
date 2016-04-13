@@ -58,13 +58,14 @@ class RetryProcessorImpl
 
     final CommitTable.Client commitTableClient;
     final CommitTable.Writer writer;
+    final BatchPool batchPool;
 
     // Metrics
     final Meter retriesMeter;
 
     @Inject
     RetryProcessorImpl(MetricsRegistry metrics, CommitTable commitTable,
-                       ReplyProcessor replyProc, Panicker panicker)
+                       ReplyProcessor replyProc, Panicker panicker, BatchPool batchPool)
             throws InterruptedException, ExecutionException, IOException {
         this.commitTableClient = commitTable.getClient();
         this.writer = commitTable.getWriter();
@@ -89,6 +90,8 @@ class RetryProcessorImpl
 
         // Metrics
         retriesMeter = metrics.meter(name("tso", "retries"));
+
+        this.batchPool = batchPool;
     }
 
     @Override
@@ -111,7 +114,7 @@ class RetryProcessorImpl
         long startTimestamp = event.getStartTimestamp();
         try {
             Optional<CommitTimestamp> commitTimestamp = commitTableClient.getCommitTimestamp(startTimestamp).get();
-            Batch batch = new Batch(1);
+            Batch batch = batchPool.getNextEmptyBatch();
             if(commitTimestamp.isPresent()) {
                 if (commitTimestamp.get().isValid()) {
                     LOG.trace("Valid commit TS found in Commit Table");

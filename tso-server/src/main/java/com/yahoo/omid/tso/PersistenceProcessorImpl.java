@@ -88,7 +88,7 @@ class PersistenceProcessorImpl
     }
 
     @Override
-    public void reset() {
+    public void reset() throws InterruptedException {
         batchIDCnt = 0L;
 
         batchPool.reset();
@@ -98,7 +98,7 @@ class PersistenceProcessorImpl
     }
 
     @Override
-    public void persistFlush() {
+    public void persistFlush() throws InterruptedException {
         if (batch.isEmpty()) {
             return;
         }
@@ -112,7 +112,7 @@ class PersistenceProcessorImpl
     }
 
     @Override
-    public void persistCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx)  {
+    public void persistCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx) throws InterruptedException  {
         batch.addCommit(startTimestamp, commitTimestamp, c, monCtx);
         if (batch.isLastEmptyEntry()) {
             persistFlush();
@@ -120,7 +120,7 @@ class PersistenceProcessorImpl
     }
 
     @Override
-    public void persistAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext context)  {
+    public void persistAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext context) throws InterruptedException  {
         batch.addAbort(startTimestamp, isRetry, c, context);
         if (batch.isLastEmptyEntry()) {
             persistFlush();
@@ -128,7 +128,7 @@ class PersistenceProcessorImpl
     }
 
     @Override
-    public void persistTimestamp(long startTimestamp, Channel c, MonitoringContext context)  {
+    public void persistTimestamp(long startTimestamp, Channel c, MonitoringContext context) throws InterruptedException  {
         batch.addTimestamp(startTimestamp, c, context);
         if (batch.isLastEmptyEntry()) {
             persistFlush();

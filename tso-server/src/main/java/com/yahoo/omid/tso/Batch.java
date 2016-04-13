@@ -20,32 +20,26 @@ import org.jboss.netty.channel.Channel;
 import com.yahoo.omid.tso.PersistEvent.Type;
 
 public class Batch {
-    final PersistEvent[] events;
-    final int maxBatchSize;
-    int numEvents;
-    volatile boolean avaialble;
+    final private PersistEvent[] events;
+    final private int maxBatchSize;
+    final private BatchPool batchPool;
+    final private int id;
+    private int numEvents;
 
     Batch(int maxBatchSize) {
+        this(maxBatchSize, 0, null);
+    }
+
+    Batch(int maxBatchSize, int id, BatchPool batchPool) {
         assert (maxBatchSize > 0);
         this.maxBatchSize = maxBatchSize;
+        this.batchPool = batchPool;
         events = new PersistEvent[maxBatchSize];
+        this.id = id;
         numEvents = 0;
         for (int i = 0; i < maxBatchSize; i++) {
             events[i] = new PersistEvent();
         }
-        avaialble = true;
-    }
-
-    boolean isAvailable() {
-        return avaialble;
-    }
-
-    void setNotAvailable() {
-        avaialble = false;
-    }
-
-    void setAvailable() {
-        avaialble = true;
     }
 
     boolean isFull() {
@@ -66,9 +60,16 @@ public class Batch {
         return numEvents;
     }
 
+    PersistEvent getEvent(int i) {
+        assert (0 <= i && i < numEvents);
+        return events[i];
+    }
+
     void clear() {
         numEvents = 0;
-        setAvailable();
+        if (batchPool != null) {
+            batchPool.notifyEmptyBatch(id);
+        }
     }
 
     void addCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {

@@ -16,10 +16,12 @@
 package com.yahoo.omid.tso;
 
 import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +58,7 @@ public class TSOStateManagerImpl implements TSOStateManager {
     }
 
     @Override
-    public synchronized TSOState reset() throws IOException {
+    public synchronized TSOState reset() throws IOException, InterruptedException {
         LOG.info("Reseting the TSO Server state...");
         // The timestamp oracle dictates the new state
         timestampOracle.initialize();

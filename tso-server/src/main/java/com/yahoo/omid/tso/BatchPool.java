@@ -15,35 +15,63 @@
  */
 package com.yahoo.omid.tso;
 
+import java.util.Stack;
+
 import javax.inject.Inject;
 
 public class BatchPool {
     final private Batch[] batches;
     final private int poolSize;
-    private int emptyBatch;
+    final private Stack<Integer> availableBatches;
 
     @Inject
     public BatchPool(TSOServerConfig config) {
-        poolSize = config.getPersistHandlerNum() * config.getNumBuffersPerHandler();
+        int numBuffersPerHandler = (config.getNumBuffersPerHandler() >= 2) ? config.getNumBuffersPerHandler() : 2;
+        poolSize = config.getPersistHandlerNum() * numBuffersPerHandler;
         batches = new Batch[poolSize];
         int batchSize = (config.getMaxBatchSize() / config.getPersistHandlerNum() > 0) ? (config.getMaxBatchSize() / config.getPersistHandlerNum()) : 2;
+
         for (int i=0; i < poolSize; ++i) {
-            batches[i] = new Batch(batchSize);
+            batches[i] = new Batch(batchSize, i, this);
         }
-        emptyBatch = 0;
+
+        availableBatches = new Stack<Integer>();
+
+        for (int i=(poolSize-1); i >= 0; --i) {
+            availableBatches.push(i);
+        }
     }
 
-    public Batch getNextEmptyBatch() {
-        emptyBatch = (emptyBatch + 1) % (poolSize);
-        for (;! batches[emptyBatch].isAvailable(); emptyBatch = (emptyBatch + 1) % (poolSize));
-        batches[emptyBatch].setNotAvailable();
-        return batches[emptyBatch];
+    public Batch getNextEmptyBatch() throws InterruptedException {
+        synchronized(availableBatches) {
+            if (availableBatches.isEmpty()) {
+                availableBatches.wait();
+
+                Integer batchIdx = availableBatches.pop();
+                return batches[batchIdx];
+            }
+
+            Integer batchIdx = availableBatches.pop();
+            return batches[batchIdx];
+        }
+    }
+
+    public void notifyEmptyBatch(int id) {
+        synchronized(availableBatches) {
+            availableBatches.push(id);
+            availableBatches.notify();
+        }
     }
 
     public void reset() {
         for (int i=0; i < poolSize; ++i) {
             batches[i].clear();
         }
-        emptyBatch = 0;
+
+        availableBatches.clear();
+
+        for (int i=(poolSize-1); i >= 0; --i) {
+            availableBatches.push(i);
+        }
     }
 }

@@ -54,8 +54,10 @@ public class TestRetryProcessor {
 
         commitTable.getWriter().addCommittedTransaction(ST_TX_1, CT_TX_1);
 
+        BatchPool batchPool = new BatchPool(new TSOServerConfig());
+
         // The element to test
-        RetryProcessor retryProc = new RetryProcessorImpl(metrics, commitTable, replyProc, panicker);
+        RetryProcessor retryProc = new RetryProcessorImpl(metrics, commitTable, replyProc, panicker, batchPool);
 
         // Test we'll reply with an abort for a retry request when the start timestamp IS NOT in the commit table
         retryProc.disambiguateRetryRequestHeuristically(NON_EXISTING_ST_TX, channel, new MonitoringContext(metrics));
@@ -90,8 +92,10 @@ public class TestRetryProcessor {
         Assert.assertTrue(invalidTxMarker.isPresent());
         Assert.assertEquals(invalidTxMarker.get().getValue(), InMemoryCommitTable.INVALID_TRANSACTION_MARKER);
 
+        BatchPool batchPool = new BatchPool(new TSOServerConfig());
+
         // The element to test
-        RetryProcessor retryProc = new RetryProcessorImpl(metrics, commitTable, replyProc, panicker);
+        RetryProcessor retryProc = new RetryProcessorImpl(metrics, commitTable, replyProc, panicker, batchPool);
 
         // Test we'll reply with an abort for a retry request when the
         // transaction id IS in the commit table BUT invalidated

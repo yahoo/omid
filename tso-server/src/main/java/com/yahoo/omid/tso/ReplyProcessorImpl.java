@@ -54,7 +54,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
     PriorityQueue<ReplyBatchEvent> futureEvents;
 
     @Inject
-    ReplyProcessorImpl(MetricsRegistry metrics, Panicker panicker) {
+    ReplyProcessorImpl(MetricsRegistry metrics, Panicker panicker, BatchPool batchPool) {
         replyRing = RingBuffer.<ReplyBatchEvent>createMultiProducer(ReplyBatchEvent.EVENT_FACTORY, 1 << 12,
                                                                new BusySpinWaitStrategy());
 
@@ -88,7 +88,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
         String name = null;
         Batch batch = event.getBatch();
         for (int i=0; batch != null && i < batch.getNumEvents(); ++i) {
-            PersistEvent localEvent = batch.events[i];
+            PersistEvent localEvent = batch.getEvent(i);
 
             switch (localEvent.getType()) {
             case COMMIT:

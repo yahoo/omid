@@ -25,11 +25,13 @@ import com.lmax.disruptor.TimeoutBlockingWaitStrategy;
 import com.lmax.disruptor.TimeoutHandler;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.tso.TSOStateManager.TSOState;
+
 import org.jboss.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
@@ -88,9 +90,10 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
 
     /**
      * This should be called when the TSO gets initialized or gets leadership
+     * @throws InterruptedException
      */
     @Override
-    public void update(TSOState state) throws IOException {
+    public void update(TSOState state) throws IOException, InterruptedException {
         LOG.info("Reseting RequestProcessor...");
         this.lowWatermark = state.getLowWatermark();
         persistProc.persistLowWatermark(lowWatermark, new MonitoringContext(metrics));
@@ -145,7 +148,7 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
         requestRing.publish(seq);
     }
 
-    public void handleTimestamp(RequestEvent requestEvent) {
+    public void handleTimestamp(RequestEvent requestEvent) throws InterruptedException {
         long timestamp;
 
         try {
@@ -158,7 +161,7 @@ public class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.R
         persistProc.persistTimestamp(timestamp, requestEvent.getChannel(), requestEvent.getMonCtx());
     }
 
-    public long handleCommit(RequestEvent event) {
+    public long handleCommit(RequestEvent event) throws InterruptedException {
         long startTimestamp = event.getStartTimestamp();
         Iterable<Long> writeSet = event.writeSet();
         boolean isRetry = event.isRetry();
