@@ -44,11 +44,8 @@ public class BatchPool {
 
     public Batch getNextEmptyBatch() throws InterruptedException {
         synchronized(availableBatches) {
-            if (availableBatches.isEmpty()) {
+            while (availableBatches.isEmpty()) {
                 availableBatches.wait();
-
-                Integer batchIdx = availableBatches.pop();
-                return batches[batchIdx];
             }
 
             Integer batchIdx = availableBatches.pop();
@@ -56,9 +53,9 @@ public class BatchPool {
         }
     }
 
-    public void notifyEmptyBatch(int id) {
+    public void notifyEmptyBatch(int batchIdx) {
         synchronized(availableBatches) {
-            availableBatches.push(id);
+            availableBatches.push(batchIdx);
             availableBatches.notify();
         }
     }
