@@ -36,8 +36,9 @@ public interface LeaseManagement {
 
     /**
      * Allows to start the service implementing the lease management
+     * @throws InterruptedException
      */
-    void startService() throws LeaseManagementException;
+    void startService() throws LeaseManagementException, InterruptedException;
 
     /**
      * Allows to stop the service implementing the lease management

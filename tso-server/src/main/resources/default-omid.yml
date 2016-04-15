@@ -17,6 +17,8 @@ port: 54758
 maxItems: 100000000
 maxBatchSize: 25
 batchPersistTimeoutInMs: 10
+persistHandlerNum: 1
+numBuffersPerHandler: 10
 
 # Default module configuration (No TSO High Availability & in-memory storage for timestamp and commit tables)
 timestampStoreModule: !!com.yahoo.omid.tso.InMemoryTimestampStorageModule [ ]

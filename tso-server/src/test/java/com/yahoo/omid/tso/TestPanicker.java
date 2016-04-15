@@ -20,6 +20,7 @@ package com.yahoo.omid.tso;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.timestamp.storage.TimestampStorage;
+
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -41,7 +42,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
-@SuppressWarnings({"UnusedDeclaration"})
 public class TestPanicker {
 
     private static final Logger LOG = LoggerFactory.getLogger(TestPanicker.class);
@@ -114,15 +114,25 @@ public class TestPanicker {
 
         LeaseManager leaseManager = mock(LeaseManager.class);
         doReturn(true).when(leaseManager).stillInLeasePeriod();
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", leaseManager, commitTable, mock(ReplyProcessor.class), mock(RetryProcessor.class), panicker, config);
+        }
+
+        PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
-                                                                 "localhost:1234",
-                                                                 leaseManager,
-                                                                 commitTable,
+                                                                 batchPool,
                                                                  mock(ReplyProcessor.class),
-                                                                 mock(RetryProcessor.class),
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
+
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
 
@@ -148,16 +158,24 @@ public class TestPanicker {
                 return mockClient;
             }
         };
-        PersistenceProcessor proc = new PersistenceProcessorImpl(new TSOServerConfig(),
+        TSOServerConfig config = new TSOServerConfig();
+        BatchPool batchPool = new BatchPool(config);
+
+        PersistenceProcessorHandler[] handlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < config.getPersistHandlerNum(); i++) {
+            handlers[i] = new PersistenceProcessorHandler(metrics, "localhost:1234", mock(LeaseManager.class), commitTable, mock(ReplyProcessor.class), mock(RetryProcessor.class), panicker, config);
+        }
+
+        PersistenceProcessor proc = new PersistenceProcessorImpl(config,
                                                                  metrics,
-                                                                 "localhost:1234",
-                                                                 mock(LeaseManager.class),
-                                                                 commitTable,
+                                                                 batchPool,
                                                                  mock(ReplyProcessor.class),
-                                                                 mock(RetryProcessor.class),
-                                                                 panicker);
+                                                                 panicker,
+                                                                 handlers);
         proc.persistCommit(1, 2, null, new MonitoringContext(metrics));
+
+        new RequestProcessorImpl(metrics, mock(TimestampOracle.class), proc, panicker, mock(TSOServerConfig.class));
+
         verify(panicker, timeout(1000).atLeastOnce()).panic(anyString(), any(Throwable.class));
     }
-
 }

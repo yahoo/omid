@@ -19,6 +19,7 @@ package com.yahoo.omid.tso;
 
 import com.yahoo.omid.metrics.MetricsRegistry;
 import com.yahoo.omid.metrics.NullMetricsProvider;
+
 import org.jboss.netty.channel.Channel;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -30,13 +31,10 @@ import org.testng.AssertJUnit;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 public class TestBatch {
 
@@ -53,12 +51,12 @@ public class TestBatch {
     private ReplyProcessor replyProcessor;
 
     // The batch element to test
-    private PersistenceProcessorImpl.Batch batch;
+    private Batch batch;
 
     @BeforeMethod(alwaysRun = true, timeOut = 30_000)
     public void initMocksAndComponents() {
         MockitoAnnotations.initMocks(this);
-        batch = new PersistenceProcessorImpl.Batch(BATCH_SIZE);
+        batch = new Batch(BATCH_SIZE);
     }
 
     @Test
@@ -70,7 +68,7 @@ public class TestBatch {
         RetryProcessor retryProcessor = Mockito.mock(RetryProcessor.class);
 
         // The batch element to test
-        PersistenceProcessorImpl.Batch batch = new PersistenceProcessorImpl.Batch(BATCH_SIZE);
+        Batch batch = new Batch(BATCH_SIZE);
 
         // Test initial state is OK
         AssertJUnit.assertFalse("Batch shouldn't be full", batch.isFull());
@@ -95,8 +93,8 @@ public class TestBatch {
                 batch.addCommit(i, i + 1, channel, monCtx);
             }
         }
-        AssertJUnit.assertTrue("Batch should be full", batch.isFull());
-        AssertJUnit.assertEquals("Num events should be " + BATCH_SIZE, BATCH_SIZE, batch.getNumEvents());
+        assertTrue(batch.isFull(), "Batch should be full");
+        assertEquals(BATCH_SIZE, batch.getNumEvents(), "Num events should be " + BATCH_SIZE);
 
         // Test an exception is thrown when batch is full and a new element is going to be added
         try {
@@ -111,16 +109,12 @@ public class TestBatch {
 
         // Test that sending replies empties the batch
         final boolean MASTER_INSTANCE = true;
-        final boolean SHOULD_MAKE_HEURISTIC_DECISSION = true;
-        batch.sendRepliesAndReset(replyProcessor, retryProcessor, MASTER_INSTANCE);
-        verify(replyProcessor, timeout(100).times(BATCH_SIZE / 2))
-                .timestampResponse(anyLong(), any(Channel.class), any(MonitoringContext.class));
-        verify(replyProcessor, timeout(100).times(BATCH_SIZE / 2))
-                .commitResponse(eq(!SHOULD_MAKE_HEURISTIC_DECISSION), anyLong(), anyLong(),
-                        any(Channel.class), any(MonitoringContext.class));
-        AssertJUnit.assertFalse("Batch shouldn't be full", batch.isFull());
-        AssertJUnit.assertEquals("Num events should be 0", 0, batch.getNumEvents());
 
+        final boolean SHOULD_MAKE_HEURISTIC_DECISION = true;
+        batch.sendReply(replyProcessor, retryProcessor, (-1), MASTER_INSTANCE);
+        verify(replyProcessor, timeout(100).times(1))
+               .batchResponse(batch, (-1), !SHOULD_MAKE_HEURISTIC_DECISION);
+        assertTrue(batch.isFull(), "Batch shouldn't be empty");
     }
 
     @Test
@@ -144,15 +138,11 @@ public class TestBatch {
         // is NOT master and calls the ambiguousCommitResponse() method on the
         // reply processor
         final boolean MASTER_INSTANCE = true;
-        final boolean SHOULD_MAKE_HEURISTIC_DECISSION = true;
-        batch.sendRepliesAndReset(replyProcessor, retryProcessor, !MASTER_INSTANCE);
-        verify(replyProcessor, timeout(100).times(BATCH_SIZE / 2))
-                .timestampResponse(anyLong(), any(Channel.class), any(MonitoringContext.class));
-        verify(replyProcessor, timeout(100).times(BATCH_SIZE / 2))
-                .commitResponse(eq(SHOULD_MAKE_HEURISTIC_DECISSION), anyLong(), anyLong(), any(Channel.class), any(
-                        MonitoringContext.class));
-        assertFalse(batch.isFull(), "Batch shouldn't be full");
-        assertEquals(batch.getNumEvents(), 0, "Num events should be 0");
 
+        final boolean SHOULD_MAKE_HEURISTIC_DECISION = true;
+        batch.sendReply(replyProcessor, retryProcessor, (-1), !MASTER_INSTANCE);
+        verify(replyProcessor, timeout(100).times(1))
+               .batchResponse(batch, (-1), SHOULD_MAKE_HEURISTIC_DECISION);
+        assertTrue(batch.isFull(), "Batch should be full");
     }
 }

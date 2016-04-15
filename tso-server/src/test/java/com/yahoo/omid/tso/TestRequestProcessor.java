@@ -71,7 +71,7 @@ public class TestRequestProcessor {
         TSOServerConfig config = new TSOServerConfig();
         config.setMaxItems(CONFLICT_MAP_SIZE);
 
-        requestProc = new RequestProcessorImpl(config, metrics, timestampOracle, persist, new MockPanicker());
+        requestProc = new RequestProcessorImpl(metrics, timestampOracle, persist, new MockPanicker(), config);
 
         // Initialize the state for the experiment
         stateManager.register(requestProc);
@@ -165,7 +165,7 @@ public class TestRequestProcessor {
         final long FIRST_COMMIT_TS_EVICTED = 1L;
         final long NEXT_COMMIT_TS_THAT_SHOULD_BE_EVICTED = 2L;
 
-        // Fill the cache to provoke a cache eviction
+                // Fill the cache to provoke a cache eviction
         for (long i = 0; i < CONFLICT_MAP_SIZE + CONFLICT_MAP_ASSOCIATIVITY; i++) {
             long writeSetElementHash = i + 1; // This is to match the assigned CT: K/V in cache = WS Element Hash/CT
             List<Long> writeSet = Lists.newArrayList(writeSetElementHash);
@@ -175,11 +175,11 @@ public class TestRequestProcessor {
         Thread.currentThread().sleep(3000); // Allow the Request processor to finish the request processing
 
         // Check that first time its called is on init
-        verify(persist, timeout(100).times(1)).persistLowWatermark(0L);
+        verify(persist, timeout(100).times(1)).persistLowWatermark(eq(0L), any(MonitoringContext.class));
         // Then, check it is called when cache is full and the first element is evicted (should be a 1)
-        verify(persist, timeout(100).times(1)).persistLowWatermark(FIRST_COMMIT_TS_EVICTED);
+        verify(persist, timeout(100).times(1)).persistLowWatermark(eq(FIRST_COMMIT_TS_EVICTED), any(MonitoringContext.class));
         // Finally it should never be called with the next element
-        verify(persist, timeout(100).never()).persistLowWatermark(NEXT_COMMIT_TS_THAT_SHOULD_BE_EVICTED);
+        verify(persist, timeout(100).never()).persistLowWatermark(eq(NEXT_COMMIT_TS_THAT_SHOULD_BE_EVICTED), any(MonitoringContext.class));
 
     }
 

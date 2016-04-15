@@ -20,11 +20,12 @@ package com.yahoo.omid.tso;
 import org.jboss.netty.channel.Channel;
 
 interface PersistenceProcessor {
-    void persistCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx);
+    void persistCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx) throws InterruptedException;
 
-    void persistAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext monCtx);
+    void persistAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext monCtx) throws InterruptedException;
 
-    void persistTimestamp(long startTimestamp, Channel c, MonitoringContext monCtx);
-
-    void persistLowWatermark(long lowWatermark);
+    void persistTimestamp(long startTimestamp, Channel c, MonitoringContext monCtx) throws InterruptedException;
+    void persistLowWatermark(long lowWatermark, MonitoringContext monCtx);
+    void persistFlush() throws InterruptedException;
+    void reset() throws InterruptedException;
 }

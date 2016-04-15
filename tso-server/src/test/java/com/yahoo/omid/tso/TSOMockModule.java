@@ -18,6 +18,7 @@
 package com.yahoo.omid.tso;
 
 import com.google.inject.AbstractModule;
+import com.google.inject.Provider;
 import com.google.inject.Provides;
 import com.yahoo.omid.committable.CommitTable;
 import com.yahoo.omid.committable.InMemoryCommitTable;
@@ -28,6 +29,7 @@ import com.yahoo.omid.tso.TimestampOracleImpl.InMemoryTimestampStorage;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
@@ -73,4 +75,12 @@ public class TSOMockModule extends AbstractModule {
         return NetworkInterfaceUtils.getTSOHostAndPort(config);
     }
 
+    @Provides
+    PersistenceProcessorHandler[] getPersistenceProcessorHandler(Provider<PersistenceProcessorHandler> provider) {
+        PersistenceProcessorHandler[] persistenceProcessorHandlers = new PersistenceProcessorHandler[config.getPersistHandlerNum()];
+        for (int i = 0; i < persistenceProcessorHandlers.length; i++) {
+            persistenceProcessorHandlers[i] = provider.get();
+        }
+        return persistenceProcessorHandlers;
+    }
 }
