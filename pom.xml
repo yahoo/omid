@@ -13,7 +13,7 @@
     <artifactId>omid</artifactId>
     <packaging>pom</packaging>
     <!-- WARNING: do not update version manually, use mvn versions:set -->
-    <version>0.8.1.53-SNAPSHOT</version>
+    <version>0.8.2.0</version>
 
     <organization>
         <name>Apache Software Foundation</name>

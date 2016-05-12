@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.apache.omid</groupId>
         <artifactId>omid-shims-aggregator</artifactId>
-        <version>0.8.1.53-SNAPSHOT</version>
+        <version>0.8.2.0</version>
     </parent>
 
     <artifactId>hbase0-shims</artifactId>
