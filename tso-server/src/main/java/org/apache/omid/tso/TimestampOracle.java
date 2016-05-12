@@ -19,16 +19,26 @@ package org.apache.omid.tso;
 
 import java.io.IOException;
 
+/**
+ * Functionality of a service delivering monotonic increasing timestamps.
+ */
 public interface TimestampOracle {
 
+    /**
+     * Allows the initialization of the Timestamp Oracle service.
+     * @throws IOException
+     *          raised if a problem during initialization is shown.
+     */
     void initialize() throws IOException;
 
     /**
-     * Returns the next timestamp if available. Otherwise spins till the
-     * ts-persist thread performs the new timestamp allocation
+     * Returns the next timestamp.
      */
-    long next() throws IOException;
+    long next();
 
+    /**
+     * Returns the last timestamp assigned.
+     */
     long getLast();
 
 }

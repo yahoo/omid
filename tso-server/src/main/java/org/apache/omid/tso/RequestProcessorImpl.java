@@ -154,15 +154,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
     private void handleTimestamp(RequestEvent requestEvent) throws Exception {
 
-        long timestamp;
-
-        try {
-            timestamp = timestampOracle.next();
-        } catch (IOException e) {
-            LOG.error("Error getting timestamp", e);
-            return;
-        }
-
+        long timestamp = timestampOracle.next();
         persistProc.addTimestampToBatch(timestamp, requestEvent.getChannel(), requestEvent.getMonCtx());
 
     }
@@ -195,27 +187,25 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
         if (txCanCommit) {
             // 2. commit
-            try {
-                long commitTimestamp = timestampOracle.next();
 
-                if (numCellsInWriteset > 0) {
-                    long newLowWatermark = lowWatermark;
+            long commitTimestamp = timestampOracle.next();
 
-                    for (long r : writeSet) {
-                        long removed = hashmap.putLatestWriteForCell(r, commitTimestamp);
-                        newLowWatermark = Math.max(removed, newLowWatermark);
-                    }
+            if (numCellsInWriteset > 0) {
+                long newLowWatermark = lowWatermark;
 
-                    if (newLowWatermark != lowWatermark) {
-                        LOG.trace("Setting new low Watermark to {}", newLowWatermark);
-                        lowWatermark = newLowWatermark;
-                        persistProc.persistLowWatermark(newLowWatermark); // Async persist
-                    }
+                for (long r : writeSet) {
+                    long removed = hashmap.putLatestWriteForCell(r, commitTimestamp);
+                    newLowWatermark = Math.max(removed, newLowWatermark);
                 }
-                persistProc.addCommitToBatch(startTimestamp, commitTimestamp, c, event.getMonCtx());
-            } catch (IOException e) {
-                LOG.error("Error committing tx {}", startTimestamp, e);
+
+                if (newLowWatermark != lowWatermark) {
+                    LOG.trace("Setting new low Watermark to {}", newLowWatermark);
+                    lowWatermark = newLowWatermark;
+                    persistProc.persistLowWatermark(newLowWatermark); // Async persist
+                }
             }
+            persistProc.addCommitToBatch(startTimestamp, commitTimestamp, c, event.getMonCtx());
+
         } else { // add it to the aborted list
             persistProc.addAbortToBatch(startTimestamp, isRetry, c, event.getMonCtx());
         }

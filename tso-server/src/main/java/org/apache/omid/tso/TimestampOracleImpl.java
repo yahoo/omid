@@ -34,7 +34,7 @@ import java.util.concurrent.Executors;
 import static org.apache.omid.metrics.MetricsUtils.name;
 
 /**
- * The Timestamp Oracle that gives monotonically increasing timestamps
+ * The Timestamp Oracle that gives monotonically increasing timestamps.
  */
 @Singleton
 public class TimestampOracleImpl implements TimestampOracle {
@@ -129,12 +129,11 @@ public class TimestampOracleImpl implements TimestampOracle {
     }
 
     /**
-     * Returns the next timestamp if available. Otherwise spins till the
-     * ts-persist thread performs the new timestamp allocation
+     * Returns the next timestamp if available. Otherwise spins till the ts-persist thread allocates a new timestamp.
      */
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
-    public long next() throws IOException {
+    public long next() {
         lastTimestamp++;
 
         if (lastTimestamp == nextAllocationThreshold) {

@@ -77,12 +77,8 @@ public class TestPanicker {
         Thread allocThread = new Thread("AllocThread") {
             @Override
             public void run() {
-                try {
-                    while (true) {
-                        tso.next();
-                    }
-                } catch (IOException ioe) {
-                    LOG.error("Shouldn't occur");
+                while (true) {
+                    tso.next();
                 }
             }
         };
