@@ -31,7 +31,7 @@ public final class PersistEvent {
     private Type type = null;
     private Channel channel = null;
 
-    private boolean isRetry = false;
+    private boolean isCommitRetry = false;
     private long startTimestamp = 0L;
     private long commitTimestamp = 0L;
     private long lowWatermark = 0L;
@@ -46,11 +46,11 @@ public final class PersistEvent {
 
     }
 
-    void makePersistAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext monCtx) {
+    void makePersistAbort(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext monCtx) {
 
         this.type = Type.ABORT;
         this.startTimestamp = startTimestamp;
-        this.isRetry = isRetry;
+        this.isCommitRetry = isCommitRetry;
         this.channel = c;
         this.monCtx = monCtx;
 
@@ -83,9 +83,9 @@ public final class PersistEvent {
 
     }
 
-    boolean isRetry() {
+    boolean isCommitRetry() {
 
-        return isRetry;
+        return isCommitRetry;
 
     }
 
@@ -111,7 +111,7 @@ public final class PersistEvent {
     public String toString() {
         return Objects.toStringHelper(this)
                 .add("type", type)
-                .add("isRetry", isRetry)
+                .add("isCommitRetry", isCommitRetry)
                 .add("ST", startTimestamp)
                 .add("CT", commitTimestamp)
                 .add("LWM", lowWatermark)

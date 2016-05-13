@@ -90,42 +90,37 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
     }
 
-    private void handleReplyBatchEvent(ReplyBatchEvent event) throws Exception {
+    private void handleReplyBatchEvent(ReplyBatchEvent replyBatchEvent) throws Exception {
 
         String name;
-        Batch batch = event.getBatch();
-        for (int i = 0; batch != null && i < batch.getNumEvents(); ++i) {
-            PersistEvent localEvent = batch.get(i);
+        Batch batch = replyBatchEvent.getBatch();
+        for (int i = 0; i < batch.getNumEvents(); i++) {
+            PersistEvent event = batch.get(i);
 
-            switch (localEvent.getType()) {
+            switch (event.getType()) {
             case COMMIT:
                 name = "commitReplyProcessor";
-                localEvent.getMonCtx().timerStart(name);
-                sendCommitResponse(localEvent.getStartTimestamp(), localEvent.getCommitTimestamp(), localEvent.getChannel());
-                localEvent.getMonCtx().timerStop(name);
-                 break;
+                event.getMonCtx().timerStart(name);
+                sendCommitResponse(event.getStartTimestamp(), event.getCommitTimestamp(), event.getChannel());
+                event.getMonCtx().timerStop(name);
+                break;
             case ABORT:
                 name = "abortReplyProcessor";
-                localEvent.getMonCtx().timerStart(name);
-                sendAbortResponse(localEvent.getStartTimestamp(), localEvent.getChannel());
-                localEvent.getMonCtx().timerStop(name);
+                event.getMonCtx().timerStart(name);
+                sendAbortResponse(event.getStartTimestamp(), event.getChannel());
+                event.getMonCtx().timerStop(name);
                 break;
             case TIMESTAMP:
                 name = "timestampReplyProcessor";
-                localEvent.getMonCtx().timerStart(name);
-                sendTimestampResponse(localEvent.getStartTimestamp(), localEvent.getChannel());
-                localEvent.getMonCtx().timerStop(name);
-                break;
-            default:
-                LOG.error("Unknown event {}", localEvent.getType());
+                event.getMonCtx().timerStart(name);
+                sendTimestampResponse(event.getStartTimestamp(), event.getChannel());
+                event.getMonCtx().timerStop(name);
                 break;
             }
-            localEvent.getMonCtx().publish();
+            event.getMonCtx().publish();
         }
 
-        if (batch != null) {
-            batchPool.returnObject(batch);
-        }
+        batchPool.returnObject(batch);
 
     }
 

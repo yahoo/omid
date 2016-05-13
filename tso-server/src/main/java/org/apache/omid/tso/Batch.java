@@ -35,11 +35,11 @@ public class Batch {
     private final int id;
     private final int size;
     private int numEvents;
-    private final PersistEvent[] events;
+    private final PersistEvent[] events; // TODO Check if it's worth to have a dynamic structure for this
 
     Batch(int id, int size) {
 
-        Preconditions.checkArgument(size > 0, "Size must be positive");
+        Preconditions.checkArgument(size > 0, "Size [%s] must be positive", size);
         this.size = size;
         this.id = id;
         this.numEvents = 0;
@@ -51,9 +51,38 @@ public class Batch {
 
     }
 
+    PersistEvent get(int idx) {
+        Preconditions.checkState(numEvents > 0 && 0 <= idx && idx < numEvents,
+                                 "Accessing Events array (Size = %s) with wrong index [%s]", numEvents, idx);
+        return events[idx];
+    }
+
+    void set(int idx, PersistEvent event) {
+        Preconditions.checkState(0 <= idx && idx < numEvents);
+        events[idx] = event;
+    }
+
+    void clear() {
+
+        numEvents = 0;
+
+    }
+
+    void decreaseNumEvents() {
+        numEvents--;
+    }
+
+    int getNumEvents() {
+        return numEvents;
+    }
+
+    int getLastEventIdx() {
+        return numEvents - 1;
+    }
+
     boolean isFull() {
 
-        Preconditions.checkState(numEvents <= size, "numEvents > size");
+        Preconditions.checkState(numEvents <= size, "Batch Full: numEvents [%s] > size [%s]", numEvents, size);
         return numEvents == size;
 
     }
@@ -64,30 +93,6 @@ public class Batch {
 
     }
 
-    int getNumEvents() {
-        return numEvents;
-    }
-
-    void clear() {
-
-        numEvents = 0;
-
-    }
-
-    PersistEvent get(int idx) {
-        Preconditions.checkState(numEvents > 0 && 0 <= idx && idx < numEvents);
-        return events[idx];
-    }
-
-    void set(int idx, PersistEvent event) {
-        Preconditions.checkState(0 <= idx && idx < numEvents);
-        events[idx] = event;
-    }
-
-    void decreaseNumEvents() {
-        numEvents--;
-    }
-
     void addCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {
         Preconditions.checkState(!isFull(), "batch is full");
         int index = numEvents++;
@@ -96,11 +101,11 @@ public class Batch {
 
     }
 
-    void addAbort(long startTimestamp, boolean isRetry, Channel c, MonitoringContext context) {
+    void addAbort(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext context) {
         Preconditions.checkState(!isFull(), "batch is full");
         int index = numEvents++;
         PersistEvent e = events[index];
-        e.makePersistAbort(startTimestamp, isRetry, c, context);
+        e.makePersistAbort(startTimestamp, isCommitRetry, c, context);
 
     }
 

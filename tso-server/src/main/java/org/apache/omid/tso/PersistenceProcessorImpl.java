@@ -128,10 +128,10 @@ class PersistenceProcessorImpl implements PersistenceProcessor {
     }
 
     @Override
-    public void addAbortToBatch(long startTimestamp, boolean isRetry, Channel c, MonitoringContext context)
+    public void addAbortToBatch(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext context)
             throws Exception {
 
-        currentBatch.addAbort(startTimestamp, isRetry, c, context);
+        currentBatch.addAbort(startTimestamp, isCommitRetry, c, context);
         if (currentBatch.isFull()) {
             triggerCurrentBatchFlush();
         }
