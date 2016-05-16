@@ -205,8 +205,14 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
             }
             persistProc.addCommitToBatch(startTimestamp, commitTimestamp, c, event.getMonCtx());
 
-        } else { // add it to the aborted list
-            persistProc.addAbortToBatch(startTimestamp, isCommitRetry, c, event.getMonCtx());
+        } else {
+
+            if (isCommitRetry) { // Re-check if it was already committed but the client retried due to a lag replying
+                persistProc.addCommitRetryToBatch(startTimestamp, c, event.getMonCtx());
+            } else {
+                persistProc.addAbortToBatch(startTimestamp, c, event.getMonCtx());
+            }
+
         }
 
     }

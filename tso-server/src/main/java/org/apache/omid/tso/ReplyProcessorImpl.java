@@ -17,6 +17,7 @@
  */
 package org.apache.omid.tso;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.Inject;
 import com.lmax.disruptor.BatchEventProcessor;
@@ -50,9 +51,11 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
     private final RingBuffer<ReplyBatchEvent> replyRing;
 
-    private AtomicLong nextIDToHandle = new AtomicLong();
+    @VisibleForTesting
+    AtomicLong nextIDToHandle = new AtomicLong();
 
-    private PriorityQueue<ReplyBatchEvent> futureEvents;
+    @VisibleForTesting
+    PriorityQueue<ReplyBatchEvent> futureEvents;
 
     // Metrics
     private final Meter abortMeter;
@@ -90,7 +93,8 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
 
     }
 
-    private void handleReplyBatchEvent(ReplyBatchEvent replyBatchEvent) throws Exception {
+    @VisibleForTesting
+    void handleReplyBatchEvent(ReplyBatchEvent replyBatchEvent) throws Exception {
 
         String name;
         Batch batch = replyBatchEvent.getBatch();
@@ -116,6 +120,8 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
                 sendTimestampResponse(event.getStartTimestamp(), event.getChannel());
                 event.getMonCtx().timerStop(name);
                 break;
+            case COMMIT_RETRY:
+                throw new RuntimeException("COMMIT_RETRY events must be filtered before this step. Event: {}");
             }
             event.getMonCtx().publish();
         }

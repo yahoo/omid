@@ -70,12 +70,14 @@ public class TestBatch {
 
         // Test when filling the batch with different types of events, that becomes full
         for (int i = 0; i < BATCH_SIZE; i++) {
-            if (i % 3 == 0) {
+            if (i % 4 == 0) {
                 batch.addTimestamp(ANY_ST, channel, monCtx);
-            } else if (i % 3 == 1) {
+            } else if (i % 4 == 1) {
                 batch.addCommit(ANY_ST, ANY_CT, channel, monCtx);
+            } else if (i % 4 == 2) {
+                batch.addCommitRetry(ANY_ST, channel, monCtx);
             } else {
-                batch.addAbort(ANY_ST, false, channel, monCtx);
+                batch.addAbort(ANY_ST, channel, monCtx);
             }
         }
         assertFalse(batch.isEmpty(), "Batch should contain elements");
@@ -95,7 +97,8 @@ public class TestBatch {
         // Check the first 3 events and the last one correspond to the filling done above
         assertTrue(batch.get(0).getType().equals(PersistEvent.Type.TIMESTAMP));
         assertTrue(batch.get(1).getType().equals(PersistEvent.Type.COMMIT));
-        assertTrue(batch.get(2).getType().equals(PersistEvent.Type.ABORT));
+        assertTrue(batch.get(2).getType().equals(PersistEvent.Type.COMMIT_RETRY));
+        assertTrue(batch.get(3).getType().equals(PersistEvent.Type.ABORT));
 
         // Set a new value for last element in Batch and check we obtain the right result
         batch.decreaseNumEvents();
@@ -137,10 +140,11 @@ public class TestBatch {
         // Put some elements in the batch...
         batch.addTimestamp(ANY_ST, channel, monCtx);
         batch.addCommit(ANY_ST, ANY_CT, channel, monCtx);
-        batch.addAbort(ANY_ST, false, channel, monCtx);
+        batch.addCommitRetry(ANY_ST, channel, monCtx);
+        batch.addAbort(ANY_ST, channel, monCtx);
         assertFalse(batch.isEmpty(), "Batch should contain elements");
         assertFalse(batch.isFull(), "Batch should NOT be full");
-        assertEquals(batch.getNumEvents(), 3, "Num events should be 3");
+        assertEquals(batch.getNumEvents(), 4, "Num events should be 4");
 
         // ... and passivate the object through the factory. It should reset the state of the batch
         factory.passivateObject(pooledBatch);
