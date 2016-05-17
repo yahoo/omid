@@ -39,12 +39,13 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
     private final LeaseManagement leaseManager;
 
     private final ReplyProcessor replyProcessor;
-    private final RetryProcessor retryProc;
+    private final RetryProcessor retryProcessor;
     private final CommitTable.Writer writer;
     final Panicker panicker;
 
     private final Timer flushTimer;
     private final Histogram batchSizeHistogram;
+    private final Histogram flushedCommitEventsHistogram;
 
     @Inject
     PersistenceProcessorHandler(MetricsRegistry metrics,
@@ -52,7 +53,7 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
                                 LeaseManagement leaseManager,
                                 CommitTable commitTable,
                                 ReplyProcessor replyProcessor,
-                                RetryProcessor retryProc,
+                                RetryProcessor retryProcessor,
                                 Panicker panicker)
     throws InterruptedException, ExecutionException, IOException {
 
@@ -60,54 +61,63 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
         this.leaseManager = leaseManager;
         this.writer = commitTable.getWriter();
         this.replyProcessor = replyProcessor;
-        this.retryProc = retryProc;
+        this.retryProcessor = retryProcessor;
         this.panicker = panicker;
 
-        flushTimer = metrics.timer(name("tso", "persist", "flush"));
-        batchSizeHistogram = metrics.histogram(name("tso", "persist", "batchsize"));
+        // Metrics in this component
+        flushTimer = metrics.timer(name("tso", "persist", "flush", "latency"));
+        flushedCommitEventsHistogram = metrics.histogram(name("tso", "persist", "flushed", "commits", "size"));
+        batchSizeHistogram = metrics.histogram(name("tso", "persist", "batch", "size"));
 
     }
 
     @Override
-    public void onEvent(PersistenceProcessorImpl.PersistBatchEvent event) throws Exception {
+    public void onEvent(PersistenceProcessorImpl.PersistBatchEvent batchEvent) throws Exception {
 
-        Batch batch = event.getBatch();
-        for (int i=0; i < batch.getNumEvents(); ++i) {
-            PersistEvent localEvent = batch.get(i);
+        int commitEventsToFlush = 0;
+        Batch batch = batchEvent.getBatch();
+        int numOfBatchedEvents = batch.getNumEvents();
+        batchSizeHistogram.update(numOfBatchedEvents);
+        for (int i=0; i < numOfBatchedEvents; ++i) {
+            PersistEvent event = batch.get(i);
 
-            switch (localEvent.getType()) {
+            switch (event.getType()) {
             case COMMIT:
-                localEvent.getMonCtx().timerStart("commitPersistProcessor");
+                event.getMonCtx().timerStart("commitPersistProcessor");
                 // TODO: What happens when the IOException is thrown?
-                writer.addCommittedTransaction(localEvent.getStartTimestamp(), localEvent.getCommitTimestamp());
+                writer.addCommittedTransaction(event.getStartTimestamp(), event.getCommitTimestamp());
+                commitEventsToFlush++;
                 break;
             case ABORT:
                 break;
             case TIMESTAMP:
-                localEvent.getMonCtx().timerStart("timestampPersistProcessor");
+                event.getMonCtx().timerStart("timestampPersistProcessor");
                 break;
-            default:
-                throw new RuntimeException("Unknown event type: " + localEvent.getType().name());
             }
         }
-        if (batch.getNumEvents() > 0) {
-            flush(batch.getNumEvents());
-            sendReplies(batch, event.getBatchSequence());
-        }
+
+        // Flush and send the responses back to the client. WARNING: Before sending the responses, first we need
+        // to filter commit retries in the batch to disambiguate them.
+        flush(commitEventsToFlush);
+        filterAndDissambiguateClientRetries(batch);
+        replyProcessor.manageResponsesBatch(batchEvent.getBatchSequence(), batch);
+
     }
 
-    private void flush(int numBatchedEvents) {
+    void flush(int commitEventsToFlush) {
 
-            commitSuicideIfNotMaster();
-            try {
-                long startFlushTimeInNs = System.nanoTime();
+        commitSuicideIfNotMaster();
+        try {
+            long startFlushTimeInNs = System.nanoTime();
+            if(commitEventsToFlush > 0) {
                 writer.flush();
-                flushTimer.update(System.nanoTime() - startFlushTimeInNs);
-                batchSizeHistogram.update(numBatchedEvents);
-            } catch (IOException e) {
-                panicker.panic("Error persisting commit batch", e);
             }
-            commitSuicideIfNotMaster(); // TODO Here, we can return the client responses before committing suicide
+            flushTimer.update(System.nanoTime() - startFlushTimeInNs);
+            flushedCommitEventsHistogram.update(commitEventsToFlush);
+        } catch (IOException e) {
+            panicker.panic("Error persisting commit batch", e);
+        }
+        commitSuicideIfNotMaster();
 
     }
 
@@ -117,30 +127,33 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
         }
     }
 
-    private void sendReplies(Batch batch, long batchSequence) {
+    void filterAndDissambiguateClientRetries(Batch batch) {
 
-        int i = 0;
-        while (i < batch.getNumEvents()) {
-            PersistEvent e = batch.get(i);
-            if (e.getType() == PersistEvent.Type.ABORT && e.isRetry()) {
-                retryProc.disambiguateRetryRequestHeuristically(e.getStartTimestamp(), e.getChannel(), e.getMonCtx());
-                PersistEvent tmp = batch.get(i);
-                //TODO: why assign it?
-                batch.set(i, batch.get(batch.getNumEvents() - 1));
-                batch.set(batch.getNumEvents()  - 1, tmp);
-                if (batch.getNumEvents()  == 1) {
-                    batch.clear();
-                    replyProcessor.manageResponsesBatch(batchSequence, null);
-                    return;
-                }
+        int currentEventIdx = 0;
+        while (currentEventIdx <= batch.getLastEventIdx()) {
+            PersistEvent event = batch.get(currentEventIdx);
+            if (event.isCommitRetry()) {
+                retryProcessor.disambiguateRetryRequestHeuristically(event.getStartTimestamp(), event.getChannel(), event.getMonCtx());
+                // Swap the disambiguated event with the last batch event & decrease the # of remaining elems to process
+                swapBatchElements(batch, currentEventIdx, batch.getLastEventIdx());
                 batch.decreaseNumEvents();
-                continue;
+                if (batch.isEmpty()) {
+                    break; // We're OK to call now the reply processor
+                } else {
+                    continue; // Otherwise we continue checking for retries from the new event in the current position
+                }
+            } else {
+                currentEventIdx++; // Let's check if the next event was a retry
             }
-            i++;
         }
 
-        replyProcessor.manageResponsesBatch(batchSequence, batch);
+    }
 
+    private void swapBatchElements(Batch batch, int firstIdx, int lastIdx) {
+        PersistEvent tmpEvent = batch.get(firstIdx);
+        PersistEvent lastEventInBatch = batch.get(lastIdx);
+        batch.set(firstIdx, lastEventInBatch);
+        batch.set(lastIdx, tmpEvent);
     }
 
 }

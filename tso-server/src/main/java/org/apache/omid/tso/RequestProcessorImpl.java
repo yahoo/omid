@@ -38,7 +38,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestEvent>, RequestProcessor, TimeoutHandler {
@@ -163,7 +162,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
         long startTimestamp = event.getStartTimestamp();
         Iterable<Long> writeSet = event.writeSet();
-        boolean isRetry = event.isRetry();
+        boolean isCommitRetry = event.isCommitRetry();
         Channel c = event.getChannel();
 
         boolean txCanCommit;
@@ -207,7 +206,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
             persistProc.addCommitToBatch(startTimestamp, commitTimestamp, c, event.getMonCtx());
 
         } else { // add it to the aborted list
-            persistProc.addAbortToBatch(startTimestamp, isRetry, c, event.getMonCtx());
+            persistProc.addAbortToBatch(startTimestamp, isCommitRetry, c, event.getMonCtx());
         }
 
     }
@@ -221,7 +220,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
         private Type type = null;
         private Channel channel = null;
 
-        private boolean isRetry = false;
+        private boolean isCommitRetry = false;
         private long startTimestamp = 0;
         private MonitoringContext monCtx;
         private long numCells = 0;
@@ -246,7 +245,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
             e.type = Type.COMMIT;
             e.channel = c;
             e.startTimestamp = startTimestamp;
-            e.isRetry = isRetry;
+            e.isCommitRetry = isRetry;
             if (writeSet.size() > MAX_INLINE) {
                 e.numCells = writeSet.size();
                 e.writeSetAsCollection = writeSet;
@@ -315,8 +314,8 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
         }
 
-        boolean isRetry() {
-            return isRetry;
+        boolean isCommitRetry() {
+            return isCommitRetry;
         }
 
         final static EventFactory<RequestEvent> EVENT_FACTORY = new EventFactory<RequestEvent>() {
