@@ -39,7 +39,7 @@ public class PausableTimestampOracle extends TimestampOracleImpl {
     }
 
     @Override
-    public long next() throws IOException {
+    public long next() {
         while (tsoPaused) {
             synchronized (this) {
                 try {

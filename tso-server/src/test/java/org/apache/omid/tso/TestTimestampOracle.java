@@ -97,12 +97,8 @@ public class TestTimestampOracle {
         Thread allocThread = new Thread("AllocThread") {
             @Override
             public void run() {
-                try {
-                    while (true) {
-                        timestampOracle.next();
-                    }
-                } catch (IOException ioe) {
-                    LOG.error("Shouldn't occur");
+                while (true) {
+                    timestampOracle.next();
                 }
             }
         };
