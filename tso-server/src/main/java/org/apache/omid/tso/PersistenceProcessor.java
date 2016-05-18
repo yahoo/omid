@@ -26,12 +26,13 @@ interface PersistenceProcessor {
     void addCommitToBatch(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx)
             throws Exception;
 
-    void addAbortToBatch(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext monCtx) throws Exception;
+    void addCommitRetryToBatch(long startTimestamp, Channel c, MonitoringContext monCtx) throws Exception;
+
+    void addAbortToBatch(long startTimestamp, Channel c, MonitoringContext monCtx) throws Exception;
 
     void addTimestampToBatch(long startTimestamp, Channel c, MonitoringContext monCtx) throws Exception;
 
     void triggerCurrentBatchFlush() throws Exception;
 
     Future<Void> persistLowWatermark(long lowWatermark);
-
 }

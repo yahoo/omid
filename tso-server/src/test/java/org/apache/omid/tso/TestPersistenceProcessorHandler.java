@@ -185,11 +185,9 @@ public class TestPersistenceProcessorHandler {
     @Test(timeOut = 10_000)
     public void testProcessingOfBatchPersistEventWithASingleAbortEventNoRetry() throws Exception {
 
-        final boolean IS_RETRY = false;
-
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
-        batch.addAbort(FIRST_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addAbort(FIRST_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
         persistenceHandler.onEvent(batchEvent);
@@ -204,13 +202,11 @@ public class TestPersistenceProcessorHandler {
     }
 
     @Test(timeOut = 10_000)
-    public void testProcessingOfBatchPersistEventWithASingleAbortEventWithRetry() throws Exception {
-
-        final boolean IS_RETRY = true;
+    public void testProcessingOfBatchPersistEventWithASingleCommitRetryEvent() throws Exception {
 
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
-        batch.addAbort(FIRST_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(FIRST_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
 
@@ -226,14 +222,12 @@ public class TestPersistenceProcessorHandler {
     }
 
     @Test(timeOut = 10_000)
-    public void testProcessingOfBatchPersistEventWith2EventsCommitAndAbortWithRetry() throws Exception {
-
-        final boolean IS_RETRY = true;
+    public void testProcessingOfBatchPersistEventWith2EventsCommitAndCommitRetry() throws Exception {
 
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
         batch.addCommit(FIRST_ST, FIRST_CT, null, mock(MonitoringContext.class));
-        batch.addAbort(SECOND_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(SECOND_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
 
@@ -254,16 +248,14 @@ public class TestPersistenceProcessorHandler {
     }
 
     @Test(timeOut = 10_000)
-    public void testProcessingOfBatchPersistEventWith2EventsAbortWithRetryAndCommit() throws Exception {
+    public void testProcessingOfBatchPersistEventWith2EventsCommitRetryAndCommit() throws Exception {
         // ------------------------------------------------------------------------------------------------------------
-        // Same test as testProcessingOfBatchPersistEventWith2EventsCommitAndAbortWithRetry but swapped events
+        // Same test as testProcessingOfBatchPersistEventWith2EventsCommitAndCommitRetry but swapped events
         // ------------------------------------------------------------------------------------------------------------
-
-        final boolean IS_RETRY = true;
 
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
-        batch.addAbort(FIRST_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(FIRST_ST, null, mock(MonitoringContext.class));
         batch.addCommit(SECOND_ST, SECOND_CT, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
@@ -285,14 +277,12 @@ public class TestPersistenceProcessorHandler {
     }
 
     @Test(timeOut = 10_000)
-    public void testProcessingOfBatchPersistEventWith2AbortWithRetryEvents() throws Exception {
-
-        final boolean IS_RETRY = true;
+    public void testProcessingOfBatchPersistEventWith2CommitRetryEvents() throws Exception {
 
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
-        batch.addAbort(FIRST_ST, IS_RETRY, null, mock(MonitoringContext.class));
-        batch.addAbort(SECOND_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(FIRST_ST, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(SECOND_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
 
@@ -312,14 +302,12 @@ public class TestPersistenceProcessorHandler {
     }
 
     @Test(timeOut = 10_000)
-    public void testProcessingOfBatchPersistEventWith2NonRetryAbortEvents() throws Exception {
-
-        final boolean IS_RETRY = false;
+    public void testProcessingOfBatchPersistEventWith2AbortEvents() throws Exception {
 
         // Prepare test batch
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
-        batch.addAbort(FIRST_ST, IS_RETRY, null, mock(MonitoringContext.class));
-        batch.addAbort(SECOND_ST, IS_RETRY, null, mock(MonitoringContext.class));
+        batch.addAbort(FIRST_ST, null, mock(MonitoringContext.class));
+        batch.addAbort(SECOND_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
 
@@ -347,11 +335,11 @@ public class TestPersistenceProcessorHandler {
         Batch batch = new Batch(BATCH_ID, BATCH_SIZE);
 
         batch.addTimestamp(FIRST_ST, null, mock(MonitoringContext.class));
-        batch.addAbort(SECOND_ST, true, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(SECOND_ST, null, mock(MonitoringContext.class));
         batch.addCommit(THIRD_ST, THIRD_CT, null, mock(MonitoringContext.class));
-        batch.addAbort(FOURTH_ST, false, null, mock(MonitoringContext.class));
+        batch.addAbort(FOURTH_ST, null, mock(MonitoringContext.class));
         batch.addCommit(FIFTH_ST, FIFTH_CT, null, mock(MonitoringContext.class));
-        batch.addAbort(SIXTH_ST, true, null, mock(MonitoringContext.class));
+        batch.addCommitRetry(SIXTH_ST, null, mock(MonitoringContext.class));
         PersistBatchEvent batchEvent = new PersistBatchEvent();
         PersistBatchEvent.makePersistBatch(batchEvent, BATCH_SEQUENCE, batch);
 

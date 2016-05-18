@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static com.codahale.metrics.MetricRegistry.name;
+import static org.apache.omid.tso.PersistEvent.Type.*;
 
 public class PersistenceProcessorHandler implements WorkHandler<PersistenceProcessorImpl.PersistBatchEvent> {
 
@@ -132,7 +133,7 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
         int currentEventIdx = 0;
         while (currentEventIdx <= batch.getLastEventIdx()) {
             PersistEvent event = batch.get(currentEventIdx);
-            if (event.isCommitRetry()) {
+            if (event.getType() == COMMIT_RETRY) {
                 retryProcessor.disambiguateRetryRequestHeuristically(event.getStartTimestamp(), event.getChannel(), event.getMonCtx());
                 // Swap the disambiguated event with the last batch event & decrease the # of remaining elems to process
                 swapBatchElements(batch, currentEventIdx, batch.getLastEventIdx());

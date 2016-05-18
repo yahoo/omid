@@ -101,11 +101,20 @@ public class Batch {
 
     }
 
-    void addAbort(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext context) {
+    public void addCommitRetry(long startTimestamp, Channel c, MonitoringContext context) {
+
         Preconditions.checkState(!isFull(), "batch is full");
         int index = numEvents++;
         PersistEvent e = events[index];
-        e.makePersistAbort(startTimestamp, isCommitRetry, c, context);
+        e.makeCommitRetry(startTimestamp, c, context);
+
+    }
+
+    void addAbort(long startTimestamp, Channel c, MonitoringContext context) {
+        Preconditions.checkState(!isFull(), "batch is full");
+        int index = numEvents++;
+        PersistEvent e = events[index];
+        e.makePersistAbort(startTimestamp, c, context);
 
     }
 

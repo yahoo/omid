@@ -25,16 +25,14 @@ public final class PersistEvent {
     private MonitoringContext monCtx;
 
     enum Type {
-        TIMESTAMP, COMMIT, ABORT
+        TIMESTAMP, COMMIT, ABORT, COMMIT_RETRY
     }
 
     private Type type = null;
     private Channel channel = null;
 
-    private boolean isCommitRetry = false;
     private long startTimestamp = 0L;
     private long commitTimestamp = 0L;
-    private long lowWatermark = 0L;
 
     void makePersistCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext monCtx) {
 
@@ -46,11 +44,19 @@ public final class PersistEvent {
 
     }
 
-    void makePersistAbort(long startTimestamp, boolean isCommitRetry, Channel c, MonitoringContext monCtx) {
+    void makeCommitRetry(long startTimestamp, Channel c, MonitoringContext monCtx) {
+
+        this.type = Type.COMMIT_RETRY;
+        this.startTimestamp = startTimestamp;
+        this.channel = c;
+        this.monCtx = monCtx;
+
+    }
+
+    void makePersistAbort(long startTimestamp, Channel c, MonitoringContext monCtx) {
 
         this.type = Type.ABORT;
         this.startTimestamp = startTimestamp;
-        this.isCommitRetry = isCommitRetry;
         this.channel = c;
         this.monCtx = monCtx;
 
@@ -83,12 +89,6 @@ public final class PersistEvent {
 
     }
 
-    boolean isCommitRetry() {
-
-        return isCommitRetry;
-
-    }
-
     long getStartTimestamp() {
 
         return startTimestamp;
@@ -101,20 +101,12 @@ public final class PersistEvent {
 
     }
 
-    long getLowWatermark() {
-
-        return lowWatermark;
-
-    }
-
     @Override
     public String toString() {
         return Objects.toStringHelper(this)
                 .add("type", type)
-                .add("isCommitRetry", isCommitRetry)
                 .add("ST", startTimestamp)
                 .add("CT", commitTimestamp)
-                .add("LWM", lowWatermark)
                 .toString();
     }
 
