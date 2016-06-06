@@ -18,6 +18,11 @@ cache:
   directories:
     - "~/.m2"
 
+before_install:
+# Install protobuf to genearte TSO client-server protocol in each compilation
+- sudo apt-get -qq update
+- sudo apt-get install protobuf-compiler=2.5.0
+
 install: true
 
 before_script:
@@ -25,12 +30,6 @@ before_script:
   - umask 022
   - git config --global user.email "omid-ci@yahoo-inc.com"
   - git config --global user.name "Omid CI"
-  # Install protobuf to genearte TSO client-server protocol in each compilation
-  - cd ..
-  - wget https://protobuf.googlecode.com/files/protobuf-2.5.0.tar.gz
-  - tar -xzvf protobuf-2.5.0.tar.gz
-  - cd protobuf-2.5.0 && ./configure --prefix=/usr && make && sudo make install
-  - cd ../omid
 
 script:
   - if [ "${TRAVIS_PULL_REQUEST}" = "false" ] ; then
