@@ -53,6 +53,11 @@
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-server</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.hbase</groupId>
+            <artifactId>hbase-hadoop-compat</artifactId>
+            <version>${hbase.version}</version>
+        </dependency>
 
         <!-- end storage related -->
 

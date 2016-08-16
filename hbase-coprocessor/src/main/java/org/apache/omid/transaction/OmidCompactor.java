@@ -18,6 +18,7 @@
 package org.apache.omid.transaction;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.omid.committable.CommitTable;
 import org.apache.omid.committable.hbase.HBaseCommitTable;
 import org.apache.omid.committable.hbase.HBaseCommitTableConfig;
@@ -34,6 +35,7 @@ import org.apache.hadoop.hbase.regionserver.ScanType;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.omid.hbase.coprocessor.metrics.CompactorCoprocessorMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +72,10 @@ public class OmidCompactor extends BaseRegionObserver {
     // will be deleted anyways after a major one
     private boolean retainNonTransactionallyDeletedCells;
 
+    // Metrics
+    private CompactorCoprocessorMetrics metrics;
+    private long compactionStartTimeInMs;
+
     public OmidCompactor() {
         LOG.info("Compactor coprocessor initialized via empty constructor");
     }
@@ -86,6 +92,8 @@ public class OmidCompactor extends BaseRegionObserver {
         retainNonTransactionallyDeletedCells =
                 conf.getBoolean(HBASE_RETAIN_NON_TRANSACTIONALLY_DELETED_CELLS_KEY,
                         HBASE_RETAIN_NON_TRANSACTIONALLY_DELETED_CELLS_DEFAULT);
+        LOG.info("\tStarting coprocessor metrics...");
+        metrics = new CompactorCoprocessorMetrics();
         LOG.info("Compactor coprocessor started");
     }
 
@@ -106,12 +114,11 @@ public class OmidCompactor extends BaseRegionObserver {
                                       InternalScanner scanner,
                                       ScanType scanType,
                                       CompactionRequest request) throws IOException {
+
         HTableDescriptor desc = e.getEnvironment().getRegion().getTableDesc();
-        HColumnDescriptor famDesc
-                = desc.getFamily(Bytes.toBytes(store.getColumnFamilyName()));
+        HColumnDescriptor famDesc = desc.getFamily(Bytes.toBytes(store.getColumnFamilyName()));
         boolean omidCompactable = Boolean.valueOf(famDesc.getValue(OMID_COMPACTABLE_CF_FLAG));
-        // only column families tagged as compactable are compacted
-        // with omid compactor
+        // only column families tagged as compactable are compacted with omid compactor
         if (!omidCompactable) {
             return scanner;
         } else {
@@ -120,13 +127,29 @@ public class OmidCompactor extends BaseRegionObserver {
                 commitTableClient = initAndGetCommitTableClient();
             }
             boolean isMajorCompaction = request.isMajor();
+            if (isMajorCompaction) {
+                metrics.incrMajorCompactions();
+            } else {
+                metrics.incrMinorCompactions();
+            }
+            compactionStartTimeInMs = System.currentTimeMillis();
             return new CompactorScanner(e,
-                    scanner,
-                    commitTableClient,
-                    commitTableClientQueue,
-                    isMajorCompaction,
-                    retainNonTransactionallyDeletedCells);
+                                        scanner,
+                                        commitTableClient,
+                                        commitTableClientQueue,
+                                        isMajorCompaction,
+                                        retainNonTransactionallyDeletedCells,
+                                        metrics);
         }
+    }
+
+    @Override
+    public void postCompact(ObserverContext<RegionCoprocessorEnvironment> e,
+                            final Store store,
+                            final StoreFile resultFile) throws IOException {
+
+        metrics.updateCompactionTime(System.currentTimeMillis() - compactionStartTimeInMs);
+
     }
 
     private CommitTable.Client initAndGetCommitTableClient() throws IOException {

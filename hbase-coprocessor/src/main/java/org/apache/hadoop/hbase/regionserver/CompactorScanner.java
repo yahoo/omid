@@ -25,6 +25,7 @@ import org.apache.omid.HBaseShims;
 import org.apache.omid.committable.CommitTable;
 import org.apache.omid.committable.CommitTable.Client;
 import org.apache.omid.committable.CommitTable.CommitTimestamp;
+import org.apache.omid.hbase.coprocessor.metrics.CompactorCoprocessorMetrics;
 import org.apache.omid.transaction.CellUtils;
 import org.apache.omid.transaction.CellInfo;
 import org.apache.hadoop.hbase.Cell;
@@ -62,14 +63,20 @@ public class CompactorScanner implements InternalScanner {
     private final Region hRegion;
 
     private boolean hasMoreRows = false;
-    private List<Cell> currentRowWorthValues = new ArrayList<Cell>();
+    private List<Cell> currentRowWorthValues = new ArrayList<>();
+
+    // Metrics
+    private CompactorCoprocessorMetrics metrics;
 
     public CompactorScanner(ObserverContext<RegionCoprocessorEnvironment> e,
                             InternalScanner internalScanner,
                             Client commitTableClient,
                             Queue<CommitTable.Client> commitTableClientQueue,
                             boolean isMajorCompaction,
-                            boolean preserveNonTransactionallyDeletedCells) throws IOException {
+                            boolean preserveNonTransactionallyDeletedCells,
+                            CompactorCoprocessorMetrics metrics) throws IOException
+    {
+
         this.internalScanner = internalScanner;
         this.commitTableClient = commitTableClient;
         this.commitTableClientQueue = commitTableClientQueue;
@@ -78,6 +85,7 @@ public class CompactorScanner implements InternalScanner {
         this.lowWatermark = getLowWatermarkFromCommitTable();
         // Obtain the table in which the scanner is going to operate
         this.hRegion = HBaseShims.getRegionCoprocessorRegion(e.getEnvironment());
+        this.metrics = metrics;
         LOG.info("Scanner cleaning up uncommitted txs older than LW [{}] in region [{}]",
                 lowWatermark, hRegion.getRegionInfo());
     }
@@ -101,6 +109,9 @@ public class CompactorScanner implements InternalScanner {
             if (LOG.isTraceEnabled()) {
                 LOG.trace("Row: Result {} limit {} more rows? {}", scanResult, limit, hasMoreRows);
             }
+            if (hasMoreRows) {
+                metrics.incrScannedRows();
+            }
             // 2) Traverse result list separating normal cells from shadow
             // cells and building a map to access easily the shadow cells.
             SortedMap<Cell, Optional<Cell>> cellToSc = CellUtils.mapCellsToShadowCells(scanResult);
@@ -111,17 +122,21 @@ public class CompactorScanner implements InternalScanner {
             PeekingIterator<Map.Entry<Cell, Optional<Cell>>> iter
                     = Iterators.peekingIterator(cellToSc.entrySet().iterator());
             while (iter.hasNext()) {
+                long cellProcessingTimeStartTimeInMs = System.currentTimeMillis();
+                metrics.incrTotalCells();
                 Map.Entry<Cell, Optional<Cell>> entry = iter.next();
                 Cell cell = entry.getKey();
                 Optional<Cell> shadowCellOp = entry.getValue();
 
                 if (cell.getTimestamp() > lowWatermark) {
                     retain(currentRowWorthValues, cell, shadowCellOp);
+                    metrics.updateCellProcessingTime(System.currentTimeMillis() - cellProcessingTimeStartTimeInMs);
                     continue;
                 }
 
                 if (shouldRetainNonTransactionallyDeletedCell(cell)) {
                     retain(currentRowWorthValues, cell, shadowCellOp);
+                    metrics.updateCellProcessingTime(System.currentTimeMillis() - cellProcessingTimeStartTimeInMs);
                     continue;
                 }
 
@@ -142,6 +157,8 @@ public class CompactorScanner implements InternalScanner {
                                 skipToNextColumn(cell, iter);
                             }
                         }
+                        metrics.incrTombstoneCells();
+                        metrics.updateCellProcessingTime(System.currentTimeMillis() - cellProcessingTimeStartTimeInMs);
                         continue;
                     }
                 }
@@ -155,12 +172,16 @@ public class CompactorScanner implements InternalScanner {
                         byte[] shadowCellValue = Bytes.toBytes(commitTimestamp.get().getValue());
                         Cell shadowCell = CellUtils.buildShadowCellFromCell(cell, shadowCellValue);
                         saveLastTimestampedCell(lastTimestampedCellsInRow, cell, shadowCell);
+                        metrics.incrHealedShadowCells();
                     } else {
                         LOG.trace("Discarding cell {}", cell);
+                        metrics.incrDiscardedCells();
                     }
                 }
+                metrics.updateCellProcessingTime(System.currentTimeMillis() - cellProcessingTimeStartTimeInMs);
             }
             retainLastTimestampedCellsSaved(currentRowWorthValues, lastTimestampedCellsInRow);
+            metrics.incrRetainedCells(lastTimestampedCellsInRow.values().size());
 
             // 4) Sort the list
             Collections.sort(currentRowWorthValues, KeyValue.COMPARATOR);
@@ -229,7 +250,9 @@ public class CompactorScanner implements InternalScanner {
 
     private Optional<CommitTimestamp> queryCommitTimestamp(Cell cell) throws IOException {
         try {
+            long queryCommitTableStartTimeInMs = System.currentTimeMillis();
             Optional<CommitTimestamp> ct = commitTableClient.getCommitTimestamp(cell.getTimestamp()).get();
+            metrics.updateCommitTableQueryTime(System.currentTimeMillis() - queryCommitTableStartTimeInMs);
             if (ct.isPresent()) {
                 return Optional.of(ct.get());
             } else {
@@ -276,11 +299,16 @@ public class CompactorScanner implements InternalScanner {
     }
 
     private void skipToNextColumn(Cell cell, PeekingIterator<Map.Entry<Cell, Optional<Cell>>> iter) {
+
+        int skippedCellsCount = 0;
         while (iter.hasNext()
                 && CellUtil.matchingFamily(iter.peek().getKey(), cell)
                 && CellUtil.matchingQualifier(iter.peek().getKey(), cell)) {
             iter.next();
+            skippedCellsCount++;
         }
+        metrics.incrSkippedCells(skippedCellsCount);
+
     }
 
 }
