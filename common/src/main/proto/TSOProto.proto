@@ -64,3 +64,8 @@ message HandshakeResponse {
     optional bool clientCompatible = 1;
     optional Capabilities serverCapabilities = 2;
 }
+
+message Transaction {
+    optional int64 startTimestamp = 1;
+    optional int64 epoch = 2;
+}
