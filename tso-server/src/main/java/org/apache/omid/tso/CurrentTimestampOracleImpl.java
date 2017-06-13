@@ -68,7 +68,7 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
 
         @Override
         public void run() {
-            long newMaxTime = (System.currentTimeMillis() + 10_000) * MAX_TX_PER_MS;
+            long newMaxTime = (System.currentTimeMillis() + TIMESTAMP_INTERVAL_MS) * MAX_TX_PER_MS;
             try {
                 storage.updateMaxTimestamp(previousMaxTime, newMaxTime);
                 maxAllocatedTime = newMaxTime;
@@ -81,6 +81,7 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
 
     static final long MAX_TX_PER_MS = 1_000_000; // 1 million
     private static final long TIMESTAMP_REMAINING_THRESHOLD = 3_000 * MAX_TX_PER_MS; // max number of transactions in 3 seconds
+    private static final long TIMESTAMP_INTERVAL_MS = 10_000; // 10 seconds interval
 
     private long lastTimestamp;
     private long maxTimestamp;
@@ -123,16 +124,13 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
         // Trigger first allocation of timestamps
         executor.execute(allocateTimestampsBatchTask);
 
-        // Waiting for the current epoch to start, occurs in case of fallback when the previous TSO allocated the current time frame.
-        while (System.currentTimeMillis() < this.lastTimestamp);
-        
-        LOG.info("Initializing timestamp oracle with timestamp {}", this.lastTimestamp);
+        // Waiting for the current epoch to start. Occurs in case of fallback when the previous TSO allocated the current time frame.
+        while ((System.currentTimeMillis() * MAX_TX_PER_MS) < this.lastTimestamp);
     }
 
     /**
      * Returns the next timestamp if available. Otherwise spins till the ts-persist thread allocates a new timestamp.
      */
-    @SuppressWarnings("StatementWithEmptyBody")
     @Override
     public long next() {
 
@@ -149,9 +147,7 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
         }
 
         if (currentMsFirstTimestamp >= maxTimestamp) {
-            while (maxAllocatedTime <= currentMsFirstTimestamp) {
-                // spin
-            }
+            while (maxAllocatedTime <= currentMsFirstTimestamp);
             assert (maxAllocatedTime > maxTimestamp);
             maxTimestamp = maxAllocatedTime;
             nextAllocationThreshold = maxTimestamp - TIMESTAMP_REMAINING_THRESHOLD;
