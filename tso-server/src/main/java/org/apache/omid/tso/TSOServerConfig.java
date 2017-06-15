@@ -87,7 +87,7 @@ public class TSOServerConfig extends SecureHBaseConfig {
 
     private String networkIfaceName = NetworkUtils.getDefaultNetworkInterface();
 
-    private TIMESTAMP_TYPE timestampType;
+    private String timestampType;
 
     public int getPort() {
         return port;
@@ -137,12 +137,16 @@ public class TSOServerConfig extends SecureHBaseConfig {
         this.networkIfaceName = networkIfaceName;
     }
 
-    public TIMESTAMP_TYPE getTimestampType() {
+    public String getTimestampType() {
         return timestampType;
     }
 
-    public void setTimestampType(TIMESTAMP_TYPE type) {
+    public void setTimestampType(String type) {
         this.timestampType = type;
+    }
+
+    public TIMESTAMP_TYPE getTimestampTypeEnum() {
+        return TSOServerConfig.TIMESTAMP_TYPE.valueOf(timestampType);
     }
 
     public Module getTimestampStoreModule() {
