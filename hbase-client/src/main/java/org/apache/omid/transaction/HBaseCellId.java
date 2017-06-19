@@ -77,4 +77,11 @@ public class HBaseCellId implements CellId {
                 .hash().asLong();
     }
 
+    @Override
+    public long getRowId() {
+        return Hashing.murmur3_128().newHasher()
+                .putBytes(table.getTableName())
+                .putBytes(row)
+                .hash().asLong();
+    }
 }
