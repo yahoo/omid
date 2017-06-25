@@ -170,9 +170,13 @@ public class TSOChannelHandler extends SimpleChannelHandler implements Closeable
                 TSOProto.CommitRequest cr = request.getCommitRequest();
                 requestProcessor.commitRequest(cr.getStartTimestamp(),
                                                cr.getCellIdList(),
+                                               cr.getTableIdList(),
                                                cr.getIsRetry(),
                                                ctx.getChannel(),
                                                new MonitoringContext(metrics));
+            } else if (request.hasFenceRequest()) {
+                TSOProto.FenceRequest fr = request.getFenceRequest();
+                requestProcessor.fenceRequest(fr.getTableId(), ctx.getChannel(), new MonitoringContext(metrics));
             } else {
                 LOG.error("Invalid request {}. Closing channel {}", request, ctx.getChannel());
                 ctx.getChannel().close();

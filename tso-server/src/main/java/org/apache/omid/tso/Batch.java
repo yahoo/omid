@@ -103,6 +103,16 @@ public class Batch {
 
     }
 
+    void addFence(long tableID, long fenceTimestamp, Channel c, MonitoringContext context) {
+
+        Preconditions.checkState(!isFull(), "batch is full");
+        int index = numEvents++;
+        PersistEvent e = events[index];
+        context.timerStart("persistence.processor.fence.latency");
+        e.makePersistFence(tableID, fenceTimestamp, c, context);
+
+    }
+
     void addCommit(long startTimestamp, long commitTimestamp, Channel c, MonitoringContext context) {
 
         Preconditions.checkState(!isFull(), "batch is full");

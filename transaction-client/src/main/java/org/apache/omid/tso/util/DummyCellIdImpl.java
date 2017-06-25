@@ -32,4 +32,8 @@ public class DummyCellIdImpl implements CellId {
         return cellId;
     }
 
+    @Override
+    public long getTableId() {
+        return cellId;
+    }
 }

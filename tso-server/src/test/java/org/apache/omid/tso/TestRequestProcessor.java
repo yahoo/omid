@@ -19,6 +19,7 @@ package org.apache.omid.tso;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.omid.metrics.MetricsRegistry;
 import org.apache.omid.metrics.NullMetricsProvider;
 import org.jboss.netty.channel.Channel;
@@ -28,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -110,10 +112,10 @@ public class TestRequestProcessor {
         long firstTS = TScapture.getValue();
 
         List<Long> writeSet = Lists.newArrayList(1L, 20L, 203L);
-        requestProc.commitRequest(firstTS - 1, writeSet, false, null, new MonitoringContext(metrics));
+        requestProc.commitRequest(firstTS - 1, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         verify(persist, timeout(100).times(1)).addAbortToBatch(eq(firstTS - 1), any(Channel.class), any(MonitoringContext.class));
 
-        requestProc.commitRequest(firstTS, writeSet, false, null, new MonitoringContext(metrics));
+        requestProc.commitRequest(firstTS, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         ArgumentCaptor<Long> commitTScapture = ArgumentCaptor.forClass(Long.class);
 
         verify(persist, timeout(100).times(1)).addCommitToBatch(eq(firstTS), commitTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
@@ -132,10 +134,20 @@ public class TestRequestProcessor {
                 TScapture.capture(), any(Channel.class), any(MonitoringContext.class));
         long thirdTS = TScapture.getValue();
 
-        requestProc.commitRequest(thirdTS, writeSet, false, null, new MonitoringContext(metrics));
+        requestProc.commitRequest(thirdTS, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         verify(persist, timeout(100).times(1)).addCommitToBatch(eq(thirdTS), anyLong(), any(Channel.class), any(MonitoringContext.class));
-        requestProc.commitRequest(secondTS, writeSet, false, null, new MonitoringContext(metrics));
+        requestProc.commitRequest(secondTS, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         verify(persist, timeout(100).times(1)).addAbortToBatch(eq(secondTS), any(Channel.class), any(MonitoringContext.class));
+
+    }
+
+    @Test(timeOut = 30_000)
+    public void testFence() throws Exception {
+
+        requestProc.fenceRequest(666L, null, new MonitoringContext(metrics));
+        ArgumentCaptor<Long> firstTScapture = ArgumentCaptor.forClass(Long.class);
+        verify(persist, timeout(100).times(1)).addFenceToBatch(eq(666L),
+                firstTScapture.capture(), any(Channel.class), any(MonitoringContext.class));
 
     }
 
@@ -157,7 +169,7 @@ public class TestRequestProcessor {
         stateManager.initialize();
 
         // ...check that the transaction is aborted when trying to commit
-        requestProc.commitRequest(startTS, writeSet, false, null, new MonitoringContext(metrics));
+        requestProc.commitRequest(startTS, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         verify(persist, timeout(100).times(1)).addAbortToBatch(eq(startTS), any(Channel.class), any(MonitoringContext.class));
 
     }
@@ -173,7 +185,7 @@ public class TestRequestProcessor {
         for (long i = 0; i < CONFLICT_MAP_SIZE + CONFLICT_MAP_ASSOCIATIVITY; i++) {
             long writeSetElementHash = i + 1; // This is to match the assigned CT: K/V in cache = WS Element Hash/CT
             List<Long> writeSet = Lists.newArrayList(writeSetElementHash);
-            requestProc.commitRequest(ANY_START_TS, writeSet, false, null, new MonitoringContext(metrics));
+            requestProc.commitRequest(ANY_START_TS, writeSet, new ArrayList<Long>(0), false, null, new MonitoringContext(metrics));
         }
 
         Thread.currentThread().sleep(3000); // Allow the Request processor to finish the request processing

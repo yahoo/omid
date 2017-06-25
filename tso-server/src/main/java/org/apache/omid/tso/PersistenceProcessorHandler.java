@@ -95,6 +95,10 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
                 case ABORT:
                     event.getMonCtx().timerStop("persistence.processor.abort.latency");
                     break;
+                case FENCE:
+                    writer.addCommittedTransaction(event.getCommitTimestamp(), event.getCommitTimestamp());
+                    commitEventsToFlush++;
+                    break;
                 default:
                     throw new IllegalStateException("Event not allowed in Persistent Processor Handler: " + event);
             }
@@ -118,6 +122,10 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
                     throw new IllegalStateException("COMMIT_RETRY events must be filtered before this step: " + event);
                 case ABORT:
                     event.getMonCtx().timerStart("reply.processor.abort.latency");
+                    break;
+                case FENCE:
+                    event.getMonCtx().timerStop("persistence.processor.fence.latency");
+                    event.getMonCtx().timerStart("reply.processor.fence.latency");
                     break;
                 default:
                     throw new IllegalStateException("Event not allowed in Persistent Processor Handler: " + event);

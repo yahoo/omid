@@ -248,6 +248,8 @@ public class TestTSOChannelHandlerNetty {
         testWritingTimestampRequest(channel);
 
         testWritingCommitRequest(channel);
+
+        testWritingFenceRequest(channel);
     }
 
     private void testWritingTimestampRequest(Channel channel) throws InterruptedException {
@@ -260,7 +262,7 @@ public class TestTSOChannelHandlerNetty {
         channel.write(tsBuilder.build()).await();
         verify(requestProcessor, timeout(100).times(1)).timestampRequest(any(Channel.class), any(MonitoringContext.class));
         verify(requestProcessor, timeout(100).never())
-                .commitRequest(anyLong(), anyCollectionOf(Long.class), anyBoolean(), any(Channel.class), any(MonitoringContext.class));
+                .commitRequest(anyLong(), anyCollectionOf(Long.class), anyCollectionOf(Long.class), anyBoolean(), any(Channel.class), any(MonitoringContext.class));
     }
 
     private void testWritingCommitRequest(Channel channel) throws InterruptedException {
@@ -277,7 +279,23 @@ public class TestTSOChannelHandlerNetty {
         channel.write(commitBuilder.build()).await();
         verify(requestProcessor, timeout(100).never()).timestampRequest(any(Channel.class), any(MonitoringContext.class));
         verify(requestProcessor, timeout(100).times(1))
-                .commitRequest(eq(666L), anyCollectionOf(Long.class), eq(false), any(Channel.class), any(MonitoringContext.class));
+                .commitRequest(eq(666L), anyCollectionOf(Long.class), anyCollectionOf(Long.class), eq(false), any(Channel.class), any(MonitoringContext.class));
+    }
+
+    private void testWritingFenceRequest(Channel channel) throws InterruptedException {
+        // Reset mock
+        reset(requestProcessor);
+        TSOProto.Request.Builder fenceBuilder = TSOProto.Request.newBuilder();
+        TSOProto.FenceRequest.Builder fenceRequestBuilder = TSOProto.FenceRequest.newBuilder();
+        fenceRequestBuilder.setTableId(666);
+        fenceBuilder.setFenceRequest(fenceRequestBuilder.build());
+        TSOProto.Request r = fenceBuilder.build();
+        assertTrue(r.hasFenceRequest());
+        // Write into the channel
+        channel.write(fenceBuilder.build()).await();
+        verify(requestProcessor, timeout(100).never()).timestampRequest(any(Channel.class), any(MonitoringContext.class));
+        verify(requestProcessor, timeout(100).times(1))
+                .fenceRequest(eq(666L), any(Channel.class), any(MonitoringContext.class));
     }
 
     // ----------------------------------------------------------------------------------------------------------------

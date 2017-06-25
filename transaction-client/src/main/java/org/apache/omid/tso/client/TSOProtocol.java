@@ -17,6 +17,7 @@
  */
 package org.apache.omid.tso.client;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -46,6 +47,17 @@ public interface TSOProtocol {
      * see org.apache.omid.tso.TSOServer
      */
     TSOFuture<Long> commit(long transactionId, Set<? extends CellId> writeSet);
+
+    /**
+     * Returns a new fence timestamp assigned by on the server-side
+     * @param tableId
+     *          the table to create fence for.
+     * @return the newly assigned timestamp as a future. If an error was detected, the future will contain a
+     * corresponding protocol exception
+     * see org.apache.omid.tso.TimestampOracle
+     * see org.apache.omid.tso.TSOServer
+     */
+    TSOFuture<Long> getFence(long tableId);
 
     /**
      * Closes the communication with the TSO server

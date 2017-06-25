@@ -18,16 +18,21 @@
 package org.apache.omid.tso.client;
 
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.omid.committable.CommitTable;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 class MockTSOClient implements TSOProtocol {
     private final AtomicLong timestampGenerator = new AtomicLong();
     private static final int CONFLICT_MAP_SIZE = 1_000_000;
     private final long[] conflictMap = new long[CONFLICT_MAP_SIZE];
+    private final Map<Long, Long> fenceMap = new HashMap<Long, Long>();
     private final AtomicLong lwm = new AtomicLong();
 
     private final CommitTable.Writer commitTable;
@@ -46,6 +51,23 @@ class MockTSOClient implements TSOProtocol {
     }
 
     @Override
+    public TSOFuture<Long> getFence(long tableId) {
+        synchronized (conflictMap) {
+            SettableFuture<Long> f = SettableFuture.create();
+            long fenceTimestamp = timestampGenerator.incrementAndGet();
+            f.set(fenceTimestamp);
+            fenceMap.put(tableId, fenceTimestamp);
+            try {
+                commitTable.addCommittedTransaction(fenceTimestamp, fenceTimestamp);
+                commitTable.flush();
+            } catch (IOException ioe) {
+                f.setException(ioe);
+            }
+            return new ForwardingTSOFuture<>(f);
+        }
+    }
+
+    @Override
     public TSOFuture<Long> commit(long transactionId, Set<? extends CellId> cells) {
         synchronized (conflictMap) {
             SettableFuture<Long> f = SettableFuture.create();
@@ -54,12 +76,30 @@ class MockTSOClient implements TSOProtocol {
                 return new ForwardingTSOFuture<>(f);
             }
 
-            boolean canCommit = true;
+            Set<Long> tableIDs = new HashSet<Long>();
             for (CellId c : cells) {
-                int index = Math.abs((int) (c.getCellId() % CONFLICT_MAP_SIZE));
-                if (conflictMap[index] >= transactionId) {
+                tableIDs.add(c.getTableId());
+            }
+
+            boolean canCommit = true;
+            for (long tableId : tableIDs) {
+                Long fence = fenceMap.get(tableId);
+                if (fence != null && transactionId < fence) {
                     canCommit = false;
                     break;
+                }
+                if (fence != null && fence < lwm.get()) { // GC
+                    fenceMap.remove(tableId);
+                }
+            }
+
+            if (canCommit) {
+                for (CellId c : cells) {
+                    int index = Math.abs((int) (c.getCellId() % CONFLICT_MAP_SIZE));
+                    if (conflictMap[index] >= transactionId) {
+                        canCommit = false;
+                        break;
+                    }
                 }
             }
 

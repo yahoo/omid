@@ -146,10 +146,10 @@ class PersistenceProcessorImpl implements PersistenceProcessor {
     }
 
     @Override
-    public void addAbortToBatch(long startTimestamp, Channel c, MonitoringContext context)
+    public void addAbortToBatch(long startTimestamp, Channel c, MonitoringContext monCtx)
             throws Exception {
 
-        currentBatch.addAbort(startTimestamp, c, context);
+        currentBatch.addAbort(startTimestamp, c, monCtx);
         if (currentBatch.isFull()) {
             triggerCurrentBatchFlush();
         }
@@ -157,9 +157,19 @@ class PersistenceProcessorImpl implements PersistenceProcessor {
     }
 
     @Override
-    public void addTimestampToBatch(long startTimestamp, Channel c, MonitoringContext context) throws Exception {
+    public void addTimestampToBatch(long startTimestamp, Channel c, MonitoringContext monCtx) throws Exception {
 
-        currentBatch.addTimestamp(startTimestamp, c, context);
+        currentBatch.addTimestamp(startTimestamp, c, monCtx);
+        if (currentBatch.isFull()) {
+            triggerCurrentBatchFlush();
+        }
+
+    }
+
+    @Override
+    public void addFenceToBatch(long tableID, long fenceTimestamp, Channel c, MonitoringContext monCtx) throws Exception {
+
+        currentBatch.addFence(tableID, fenceTimestamp, c, monCtx);
         if (currentBatch.isFull()) {
             triggerCurrentBatchFlush();
         }
