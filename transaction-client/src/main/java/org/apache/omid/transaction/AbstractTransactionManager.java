@@ -163,10 +163,20 @@ public abstract class AbstractTransactionManager implements TransactionManager {
         }
     }
 
+    /**
+     * Generates hash ID for table name, this hash is later-on sent to the TSO and used for fencing
+     * @param tableName - the table name
+     * @return
+     */
+    abstract public long getHashForTable(byte[] tableName);
+
+    /**
+     * @see org.apache.omid.transaction.TransactionManager#fence()
+     */
     @Override
     public final Transaction fence(byte[] tableName) throws TransactionException {
         long fenceTimestamp;
-        long tableID = Hashing.murmur3_128().newHasher().putBytes(tableName).hash().asLong();
+        long tableID = getHashForTable(tableName); Hashing.murmur3_128().newHasher().putBytes(tableName).hash().asLong();
 
         try {
             fenceTimer.start();

@@ -96,6 +96,7 @@ public class PersistenceProcessorHandler implements WorkHandler<PersistenceProce
                     event.getMonCtx().timerStop("persistence.processor.abort.latency");
                     break;
                 case FENCE:
+                    // Persist the fence by using the fence identifier as both the start and commit timestamp.
                     writer.addCommittedTransaction(event.getCommitTimestamp(), event.getCommitTimestamp());
                     commitEventsToFlush++;
                     break;

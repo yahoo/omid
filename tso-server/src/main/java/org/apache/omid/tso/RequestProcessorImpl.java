@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -156,13 +157,13 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
     }
 
     @Override
-    public void commitRequest(long startTimestamp, Collection<Long> writeSet, Collection<Long> TableIdSet, boolean isRetry, Channel c,
+    public void commitRequest(long startTimestamp, Collection<Long> writeSet, Collection<Long> tableIdSet, boolean isRetry, Channel c,
                               MonitoringContext monCtx) {
 
         monCtx.timerStart("request.processor.commit.latency");
         long seq = requestRing.next();
         RequestEvent e = requestRing.get(seq);
-        RequestEvent.makeCommitRequest(e, startTimestamp, monCtx, writeSet, TableIdSet, isRetry, c);
+        RequestEvent.makeCommitRequest(e, startTimestamp, monCtx, writeSet, tableIdSet, isRetry, c);
         requestRing.publish(seq);
 
     }
@@ -186,6 +187,35 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
     }
 
+    // Checks whether transaction transactionId started before a fence creation of a table transactionId modified.
+    private boolean hasConflictsWithFences(long startTimestamp, Collection<Long> tableIdSet) {
+        if (!tableFences.isEmpty()) {
+            for (long tableId: tableIdSet) {
+                Long fence = tableFences.get(tableId);
+                if (fence != null && fence > startTimestamp) {
+                    return true;
+                }
+                if (fence != null && fence < lowWatermark) {
+                    tableFences.remove(tableId); // Garbage collect entries of old fences.
+                }
+            }
+        }
+
+        return false;
+    }
+
+ // Checks whether transactionId has a write-write conflict with a transaction committed after transactionId.
+    private boolean hasConflictsWithCommittedTransactions(long startTimestamp, Iterable<Long> writeSet) {
+        for (long cellId : writeSet) {
+            long value = hashmap.getLatestWriteForCell(cellId);
+            if (value != 0 && value >= startTimestamp) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void handleCommit(RequestEvent event) throws Exception {
 
         long startTimestamp = event.getStartTimestamp();
@@ -194,46 +224,19 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
         boolean isCommitRetry = event.isCommitRetry();
         Channel c = event.getChannel();
 
-        boolean txCanCommit;
+        boolean nonEmptyWriteSet = writeSet.iterator().hasNext();
 
-        int numCellsInWriteset = 0;
-        // 0. check if it should abort
-        if (startTimestamp <= lowWatermark) {
-            txCanCommit = false;
-        } else {
-            txCanCommit = true;
-            // 1. check table fences
-            if (!tableFences.isEmpty()) {
-                for (long tableId: tableIdSet) {
-                    Long fence = tableFences.get(tableId);
-                    if (fence != null && fence > startTimestamp) {
-                        txCanCommit = false;
-                        break;
-                    }
-                    if (fence != null && fence < lowWatermark) {
-                        tableFences.remove(tableId); // Garbage collect entries of old fences.
-                    }
-                }
-            }
-            // 2. check the write-write conflicts
-            if (txCanCommit) {
-                for (long cellId : writeSet) {
-                    long value = hashmap.getLatestWriteForCell(cellId);
-                    if (value != 0 && value >= startTimestamp) {
-                        txCanCommit = false;
-                        break;
-                    }
-                    numCellsInWriteset++;
-                }
-            }
-        }
-
-        if (txCanCommit) {
-            // 3. commit
+        // If the transaction started before the low watermark, or
+        // it started before a fence and modified the table the fence created for, or
+        // it has a write-write conflict with a transaction committed after it started
+        // Then it should abort. Otherwise, it can commit.
+        if (startTimestamp > lowWatermark &&
+            !hasConflictsWithFences(startTimestamp, tableIdSet) &&
+            !hasConflictsWithCommittedTransactions(startTimestamp, writeSet)) {
 
             long commitTimestamp = timestampOracle.next();
 
-            if (numCellsInWriteset > 0) {
+            if (nonEmptyWriteSet) {
                 long newLowWatermark = lowWatermark;
 
                 for (long r : writeSet) {

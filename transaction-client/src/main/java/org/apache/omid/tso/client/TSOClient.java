@@ -95,6 +95,7 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     private InetSocketAddress tsoAddr;
     private String zkCurrentTsoPath;
 
+    // Use to extract unique table identifiers from the modified cells list.
     private final Set<Long> tableIDs;
 
     // ----------------------------------------------------------------------------------------------------------------

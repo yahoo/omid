@@ -20,9 +20,11 @@ package org.apache.omid.transaction;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.collect.Maps;
+import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.omid.committable.CommitTable;
 import org.apache.omid.committable.CommitTable.CommitTimestamp;
 import org.apache.omid.committable.hbase.HBaseCommitTable;
@@ -193,6 +195,11 @@ public class HBaseTransactionManager extends AbstractTransactionManager implemen
         } catch (IOException e) {
             throw new TransactionManagerException("Exception while flushing writes", e);
         }
+    }
+
+    @Override
+    public long getHashForTable(byte[] tableName) {
+        return HBaseCellId.getHasher().putBytes(tableName).hash().asLong();
     }
 
     // ----------------------------------------------------------------------------------------------------------------
