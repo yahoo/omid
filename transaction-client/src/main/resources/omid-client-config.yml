@@ -40,4 +40,4 @@ postCommitMode: !!org.apache.omid.tso.client.OmidClientConfiguration$PostCommitM
 
 # Conflict analysis level
 # Can either be cell level or row level. Default is cell level
-conflictAnalysisLevel: !!org.apache.omid.tso.client.OmidClientConfiguration$ConflictAnalysisLevel CELL
+conflictDetectionLevel: !!org.apache.omid.tso.client.OmidClientConfiguration$ConflictDetectionLevel CELL

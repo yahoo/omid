@@ -23,7 +23,8 @@ import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.omid.proto.TSOProto;
-import org.apache.omid.tso.client.OmidClientConfiguration.ConflictAnalysisLevel;
+import org.apache.omid.transaction.TransactionException;
+import org.apache.omid.tso.client.OmidClientConfiguration.ConflictDetectionLevel;
 import org.apache.omid.zk.ZKUtils;
 import org.apache.statemachine.StateMachine;
 import org.apache.curator.framework.CuratorFramework;
@@ -96,7 +97,8 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     private InetSocketAddress tsoAddr;
     private String zkCurrentTsoPath;
 
-    private ConflictAnalysisLevel conflictAnalysisLevel;
+    // Conflict detection level of the entire system. Can either be Row or Cell level.
+    private ConflictDetectionLevel conflictDetectionLevel;
     private Set<Long> rowLevelWriteSet;
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -167,7 +169,7 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         bootstrap.setOption("reuseAddress", true);
         bootstrap.setOption("connectTimeoutMillis", 100);
 
-        conflictAnalysisLevel = omidConf.getConflictAnalysisLevel();
+        conflictDetectionLevel = omidConf.getConflictAnalysisLevel();
         rowLevelWriteSet = new HashSet<Long>();
     }
 
@@ -201,16 +203,23 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         for (CellId cell : cells) {
             long id;
 
-            if (conflictAnalysisLevel == ConflictAnalysisLevel.ROW) {
+            switch (conflictDetectionLevel) {
+            case ROW:
                 id = cell.getRowId();
                 if (rowLevelWriteSet.contains(id)) {
                     continue;
                 } else {
                     rowLevelWriteSet.add(id);
                 }
-            } else {
+                break;
+            case CELL:
                 id = cell.getCellId();
+                break;
+            default:
+                id = 0;
+                assert (false);
             }
+
             commitbuilder.addCellId(id);
         }
         builder.setCommitRequest(commitbuilder.build());

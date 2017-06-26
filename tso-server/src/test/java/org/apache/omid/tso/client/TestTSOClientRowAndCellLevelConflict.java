@@ -26,7 +26,7 @@ import org.apache.omid.TestUtils;
 import org.apache.omid.tso.TSOMockModule;
 import org.apache.omid.tso.TSOServer;
 import org.apache.omid.tso.TSOServerConfig;
-import org.apache.omid.tso.client.OmidClientConfiguration.ConflictAnalysisLevel;
+import org.apache.omid.tso.client.OmidClientConfiguration.ConflictDetectionLevel;
 import org.apache.omid.tso.util.DummyCellIdImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +91,7 @@ public class TestTSOClientRowAndCellLevelConflict {
     @Test(timeOut = 30_000)
     public void testRowLevelConflictAnalysisConflict() throws Exception {
 
-        tsoClientConf.setConflictAnalysisLevel(ConflictAnalysisLevel.ROW);
+        tsoClientConf.setConflictAnalysisLevel(ConflictDetectionLevel.ROW);
 
         TSOClient client = TSOClient.newInstance(tsoClientConf);
 
@@ -119,7 +119,7 @@ public class TestTSOClientRowAndCellLevelConflict {
     @Test(timeOut = 30_000)
     public void testRowLevelConflictAnalysisCommit() throws Exception {
 
-        tsoClientConf.setConflictAnalysisLevel(ConflictAnalysisLevel.ROW);
+        tsoClientConf.setConflictAnalysisLevel(ConflictDetectionLevel.ROW);
 
         TSOClient client = TSOClient.newInstance(tsoClientConf);
 
@@ -147,7 +147,7 @@ public class TestTSOClientRowAndCellLevelConflict {
     @Test(timeOut = 30_000)
     public void testCellLevelConflictAnalysisConflict() throws Exception {
 
-        tsoClientConf.setConflictAnalysisLevel(ConflictAnalysisLevel.CELL);
+        tsoClientConf.setConflictAnalysisLevel(ConflictDetectionLevel.CELL);
 
         TSOClient client = TSOClient.newInstance(tsoClientConf);
 
@@ -175,7 +175,7 @@ public class TestTSOClientRowAndCellLevelConflict {
     @Test(timeOut = 30_000)
     public void testCellLevelConflictAnalysisCommit() throws Exception {
 
-        tsoClientConf.setConflictAnalysisLevel(ConflictAnalysisLevel.CELL);
+        tsoClientConf.setConflictAnalysisLevel(ConflictDetectionLevel.CELL);
 
         TSOClient client = TSOClient.newInstance(tsoClientConf);
 
