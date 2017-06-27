@@ -17,7 +17,9 @@
  */
 package org.apache.omid.transaction;
 
+import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+
 import org.apache.omid.tso.client.CellId;
 import org.apache.hadoop.hbase.client.HTableInterface;
 
@@ -67,9 +69,13 @@ public class HBaseCellId implements CellId {
                 + ":" + timestamp;
     }
 
+    private Hasher getHasher() {
+        return Hashing.murmur3_128().newHasher();
+    }
+
     @Override
     public long getCellId() {
-        return Hashing.murmur3_128().newHasher()
+        return getHasher()
                 .putBytes(table.getTableName())
                 .putBytes(row)
                 .putBytes(family)
@@ -77,4 +83,11 @@ public class HBaseCellId implements CellId {
                 .hash().asLong();
     }
 
+    @Override
+    public long getRowId() {
+        return getHasher()
+                .putBytes(table.getTableName())
+                .putBytes(row)
+                .hash().asLong();
+    }
 }

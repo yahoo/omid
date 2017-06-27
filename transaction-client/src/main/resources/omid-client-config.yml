@@ -37,3 +37,7 @@ executorThreads: 3
 # Configure whether the TM performs the post-commit actions for a tx (update shadow cells and clean commit table entry)
 # before returning to the control to the client (SYNC) or in parallel (ASYNC)
 postCommitMode: !!org.apache.omid.tso.client.OmidClientConfiguration$PostCommitMode SYNC
+
+# Conflict analysis level
+# Can either be cell level or row level. Default is cell level
+conflictDetectionLevel: !!org.apache.omid.tso.client.OmidClientConfiguration$ConflictDetectionLevel CELL
