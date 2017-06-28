@@ -117,6 +117,8 @@ public class WorldClockOracleImpl implements TimestampOracle {
             }
         }
 
+        // Launch the periodic timestamp interval allocation. In this case, the timestamp interval is extended even though the TSO is idle.
+        // Because we are world time based, this guarantees that the first request after a long time does not need to wait for new interval allocation.
         scheduler.scheduleAtFixedRate(allocateTimestampsBatchTask, TIMESTAMP_ALLOCATION_INTERVAL_MS, TIMESTAMP_ALLOCATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
@@ -134,7 +136,7 @@ public class WorldClockOracleImpl implements TimestampOracle {
         }
 
         if (currentMsFirstTimestamp >= maxTimestamp) { // Intentional race to reduce synchronization overhead in every access to maxTimestamp                                                                                                                       
-            while (maxAllocatedTime <= currentMsFirstTimestamp) {
+            while (maxAllocatedTime <= currentMsFirstTimestamp) { // Waiting for the interval allocation
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
