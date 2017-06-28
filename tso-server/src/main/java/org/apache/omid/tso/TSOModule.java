@@ -48,7 +48,7 @@ class TSOModule extends AbstractModule {
         bind(TSOStateManager.class).to(TSOStateManagerImpl.class).in(Singleton.class);
 
         if (config.getTimestampTypeEnum() == TIMESTAMP_TYPE.WORLD_TIME) {
-            bind(TimestampOracle.class).to(CurrentTimestampOracleImpl.class).in(Singleton.class);
+            bind(TimestampOracle.class).to(WorldClockOracleImpl.class).in(Singleton.class);
         } else {
             bind(TimestampOracle.class).to(TimestampOracleImpl.class).in(Singleton.class);
         }

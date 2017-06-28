@@ -19,6 +19,7 @@ package org.apache.omid.tso;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.omid.metrics.Gauge;
 import org.apache.omid.metrics.MetricsRegistry;
 import org.apache.omid.timestamp.storage.TimestampStorage;
@@ -27,9 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import java.io.IOException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.apache.omid.metrics.MetricsUtils.name;
 
@@ -37,27 +40,26 @@ import static org.apache.omid.metrics.MetricsUtils.name;
  * The Timestamp Oracle that gives monotonically increasing timestamps based on world time
  */
 @Singleton
-public class CurrentTimestampOracleImpl implements TimestampOracle {
+public class WorldClockOracleImpl implements TimestampOracle {
 
-    private static final Logger LOG = LoggerFactory.getLogger(CurrentTimestampOracleImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(WorldClockOracleImpl.class);
 
-    @VisibleForTesting
-    static class InMemoryTimestampStorage implements TimestampStorage {
+    static final long MAX_TX_PER_MS = 1_000_000; // 1 million
+    static final long TIMESTAMP_INTERVAL_MS = 10_000; // 10 seconds interval
+    private static final long TIMESTAMP_ALLOCATION_INTERVAL_MS = 7_000; // 7 seconds
 
-        long maxTime = 0;
+    private long lastTimestamp;
+    private long maxTimestamp;
 
-        @Override
-        public void updateMaxTimestamp(long previousMaxTime, long nextMaxTime) {
-            maxTime = nextMaxTime;
-            LOG.info("Updating max timestamp: (previous:{}, new:{})", previousMaxTime, nextMaxTime);
-        }
+    private TimestampStorage storage;
+    private Panicker panicker;
 
-        @Override
-        public long getMaxTimestamp() {
-            return maxTime;
-        }
+    private volatile long maxAllocatedTime;
 
-    }
+    private final ScheduledExecutorService scheduler =
+            Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("ts-persist-%d").build());
+
+    private Runnable allocateTimestampsBatchTask;
 
     private class AllocateTimestampBatchTask implements Runnable {
         long previousMaxTime;
@@ -79,26 +81,8 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
         }
     }
 
-    static final long MAX_TX_PER_MS = 1_000_000; // 1 million
-    private static final long TIMESTAMP_REMAINING_THRESHOLD = 3_000 * MAX_TX_PER_MS; // max number of transactions in 3 seconds
-    private static final long TIMESTAMP_INTERVAL_MS = 10_000; // 10 seconds interval
-
-    private long lastTimestamp;
-    private long maxTimestamp;
-
-    private TimestampStorage storage;
-    private Panicker panicker;
-
-    private long nextAllocationThreshold;
-    private volatile long maxAllocatedTime;
-
-    private Executor executor = Executors.newSingleThreadExecutor(
-            new ThreadFactoryBuilder().setNameFormat("ts-persist-%d").build());
-
-    private Runnable allocateTimestampsBatchTask;
-
     @Inject
-    public CurrentTimestampOracleImpl(MetricsRegistry metrics,
+    public WorldClockOracleImpl(MetricsRegistry metrics,
                                TimestampStorage tsStorage,
                                Panicker panicker) throws IOException {
 
@@ -122,10 +106,18 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
         this.allocateTimestampsBatchTask = new AllocateTimestampBatchTask(lastTimestamp);
 
         // Trigger first allocation of timestamps
-        executor.execute(allocateTimestampsBatchTask);
+        scheduler.schedule(allocateTimestampsBatchTask, 0, TimeUnit.MILLISECONDS);
 
-        // Waiting for the current epoch to start. Occurs in case of fallback when the previous TSO allocated the current time frame.
-        while ((System.currentTimeMillis() * MAX_TX_PER_MS) < this.lastTimestamp);
+        // Waiting for the current epoch to start. Occurs in case of failover when the previous TSO allocated the current time frame.
+        while ((System.currentTimeMillis() * MAX_TX_PER_MS) < this.lastTimestamp) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+               continue;
+            }
+        }
+
+        scheduler.scheduleAtFixedRate(allocateTimestampsBatchTask, TIMESTAMP_ALLOCATION_INTERVAL_MS, TIMESTAMP_ALLOCATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -141,16 +133,16 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
             return lastTimestamp;
         }
 
-        if (currentMsFirstTimestamp >= nextAllocationThreshold) {
-                nextAllocationThreshold = Long.MAX_VALUE; // guarantees that only one will enter this branch (this is a sequential code so it should work)
-                executor.execute(allocateTimestampsBatchTask);
-        }
-
-        if (currentMsFirstTimestamp >= maxTimestamp) {
-            while (maxAllocatedTime <= currentMsFirstTimestamp);
+        if (currentMsFirstTimestamp >= maxTimestamp) { // Intentional race to reduce synchronization overhead in every access to maxTimestamp                                                                                                                       
+            while (maxAllocatedTime <= currentMsFirstTimestamp) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                   continue;
+                }
+            }
             assert (maxAllocatedTime > maxTimestamp);
             maxTimestamp = maxAllocatedTime;
-            nextAllocationThreshold = maxTimestamp - TIMESTAMP_REMAINING_THRESHOLD;
         }
 
         lastTimestamp = currentMsFirstTimestamp;
@@ -168,4 +160,21 @@ public class CurrentTimestampOracleImpl implements TimestampOracle {
         return String.format("TimestampOracle -> LastTimestamp: %d, MaxTimestamp: %d", lastTimestamp, maxTimestamp);
     }
 
+    @VisibleForTesting
+    static class InMemoryTimestampStorage implements TimestampStorage {
+
+        long maxTime = 0;
+
+        @Override
+        public void updateMaxTimestamp(long previousMaxTime, long nextMaxTime) {
+            maxTime = nextMaxTime;
+            LOG.info("Updating max timestamp: (previous:{}, new:{})", previousMaxTime, nextMaxTime);
+        }
+
+        @Override
+        public long getMaxTimestamp() {
+            return maxTime;
+        }
+
+    }
 }
