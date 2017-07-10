@@ -67,6 +67,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
     private final Meter abortMeter;
     private final Meter commitMeter;
     private final Meter timestampMeter;
+    private final Meter fenceMeter;
 
     @Inject
     ReplyProcessorImpl(@Named("ReplyStrategy") WaitStrategy strategy,
@@ -100,6 +101,7 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
         this.abortMeter = metrics.meter(name("tso", "aborts"));
         this.commitMeter = metrics.meter(name("tso", "commits"));
         this.timestampMeter = metrics.meter(name("tso", "timestampAllocation"));
+        this.fenceMeter = metrics.meter(name("tso", "fences"));
 
         LOG.info("ReplyProcessor initialized");
 
@@ -127,6 +129,11 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
                     sendTimestampResponse(event.getStartTimestamp(), event.getChannel());
                     event.getMonCtx().timerStop("reply.processor.timestamp.latency");
                     timestampMeter.mark();
+                    break;
+                case FENCE:
+                    sendFenceResponse(event.getStartTimestamp(), event.getCommitTimestamp(), event.getChannel());
+                    event.getMonCtx().timerStop("reply.processor.fence.latency");
+                    fenceMeter.mark();
                     break;
                 case COMMIT_RETRY:
                     throw new IllegalStateException("COMMIT_RETRY events must be filtered before this step: " + event);
@@ -213,6 +220,18 @@ class ReplyProcessorImpl implements EventHandler<ReplyProcessorImpl.ReplyBatchEv
         TSOProto.TimestampResponse.Builder respBuilder = TSOProto.TimestampResponse.newBuilder();
         respBuilder.setStartTimestamp(startTimestamp);
         builder.setTimestampResponse(respBuilder.build());
+        c.write(builder.build());
+
+    }
+
+    @Override
+    public void sendFenceResponse(long tableID, long fenceTimestamp, Channel c) {
+
+        TSOProto.Response.Builder builder = TSOProto.Response.newBuilder();
+        TSOProto.FenceResponse.Builder fenceBuilder = TSOProto.FenceResponse.newBuilder();
+        fenceBuilder.setTableId(tableID);
+        fenceBuilder.setFenceId(fenceTimestamp);
+        builder.setFenceResponse(fenceBuilder.build());
         c.write(builder.build());
 
     }

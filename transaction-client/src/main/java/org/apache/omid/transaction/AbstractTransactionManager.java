@@ -19,7 +19,9 @@ package org.apache.omid.transaction;
 
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
+import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.Futures;
+
 import org.apache.omid.committable.CommitTable;
 import org.apache.omid.committable.CommitTable.CommitTimestamp;
 import org.apache.omid.metrics.Counter;
@@ -70,6 +72,7 @@ public abstract class AbstractTransactionManager implements TransactionManager {
     // Metrics
     private final Timer startTimestampTimer;
     private final Timer commitTimer;
+    private final Timer fenceTimer;
     private final Counter committedTxsCounter;
     private final Counter rolledbackTxsCounter;
     private final Counter errorTxsCounter;
@@ -104,6 +107,7 @@ public abstract class AbstractTransactionManager implements TransactionManager {
         // Metrics configuration
         this.startTimestampTimer = metrics.timer(name("omid", "tm", "hbase", "startTimestamp", "latency"));
         this.commitTimer = metrics.timer(name("omid", "tm", "hbase", "commit", "latency"));
+        this.fenceTimer = metrics.timer(name("omid", "tm", "hbase", "fence", "latency"));
         this.committedTxsCounter = metrics.counter(name("omid", "tm", "hbase", "committedTxs"));
         this.rolledbackTxsCounter = metrics.counter(name("omid", "tm", "hbase", "rolledbackTxs"));
         this.errorTxsCounter = metrics.counter(name("omid", "tm", "hbase", "erroredTxs"));
@@ -156,6 +160,40 @@ public abstract class AbstractTransactionManager implements TransactionManager {
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new TransactionException("Interrupted getting timestamp", ie);
+        }
+    }
+
+    /**
+     * Generates hash ID for table name, this hash is later-on sent to the TSO and used for fencing
+     * @param tableName - the table name
+     * @return
+     */
+    abstract public long getHashForTable(byte[] tableName);
+
+    /**
+     * @see org.apache.omid.transaction.TransactionManager#fence()
+     */
+    @Override
+    public final Transaction fence(byte[] tableName) throws TransactionException {
+        long fenceTimestamp;
+        long tableID = getHashForTable(tableName); Hashing.murmur3_128().newHasher().putBytes(tableName).hash().asLong();
+
+        try {
+            fenceTimer.start();
+            try {
+                fenceTimestamp = tsoClient.getFence(tableID).get();
+            } finally {
+                fenceTimer.stop();
+            }
+
+            AbstractTransaction<? extends CellId> tx = transactionFactory.createTransaction(fenceTimestamp, fenceTimestamp, this);
+
+            return tx;
+        } catch (ExecutionException e) {
+            throw new TransactionException("Could not get fence", e);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new TransactionException("Interrupted creating a fence", ie);
         }
     }
 

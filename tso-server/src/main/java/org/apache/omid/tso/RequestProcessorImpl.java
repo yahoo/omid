@@ -24,6 +24,7 @@ import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.TimeoutBlockingWaitStrategy;
 import com.lmax.disruptor.TimeoutHandler;
 import com.lmax.disruptor.dsl.Disruptor;
+
 import org.apache.omid.metrics.MetricsRegistry;
 import org.apache.omid.tso.TSOStateManager.TSOState;
 import org.jboss.netty.channel.Channel;
@@ -31,10 +32,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -55,6 +60,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
     private final TimestampOracle timestampOracle;
     private final CommitHashMap hashmap;
+    private final Map<Long, Long> tableFences;
     private final MetricsRegistry metrics;
     private final PersistenceProcessor persistProc;
 
@@ -90,6 +96,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
         this.persistProc = persistProc;
         this.timestampOracle = timestampOracle;
         this.hashmap = new CommitHashMap(config.getConflictMapSize());
+        this.tableFences = new HashMap<Long, Long>();
 
         LOG.info("RequestProcessor initialized");
 
@@ -115,6 +122,9 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
                 break;
             case COMMIT:
                 handleCommit(event);
+                break;
+            case FENCE:
+                handleFence(event);
                 break;
             default:
                 throw new IllegalStateException("Event not allowed in Request Processor: " + event);
@@ -147,13 +157,24 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
     }
 
     @Override
-    public void commitRequest(long startTimestamp, Collection<Long> writeSet, boolean isRetry, Channel c,
+    public void commitRequest(long startTimestamp, Collection<Long> writeSet, Collection<Long> tableIdSet, boolean isRetry, Channel c,
                               MonitoringContext monCtx) {
 
         monCtx.timerStart("request.processor.commit.latency");
         long seq = requestRing.next();
         RequestEvent e = requestRing.get(seq);
-        RequestEvent.makeCommitRequest(e, startTimestamp, monCtx, writeSet, isRetry, c);
+        RequestEvent.makeCommitRequest(e, startTimestamp, monCtx, writeSet, tableIdSet, isRetry, c);
+        requestRing.publish(seq);
+
+    }
+
+    @Override
+    public void fenceRequest(long tableID, Channel c, MonitoringContext monCtx) {
+
+        monCtx.timerStart("request.processor.fence.latency");
+        long seq = requestRing.next();
+        RequestEvent e = requestRing.get(seq);
+        RequestEvent.makeFenceRequest(e, tableID, c, monCtx);
         requestRing.publish(seq);
 
     }
@@ -166,38 +187,56 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
     }
 
+    // Checks whether transaction transactionId started before a fence creation of a table transactionId modified.
+    private boolean hasConflictsWithFences(long startTimestamp, Collection<Long> tableIdSet) {
+        if (!tableFences.isEmpty()) {
+            for (long tableId: tableIdSet) {
+                Long fence = tableFences.get(tableId);
+                if (fence != null && fence > startTimestamp) {
+                    return true;
+                }
+                if (fence != null && fence < lowWatermark) {
+                    tableFences.remove(tableId); // Garbage collect entries of old fences.
+                }
+            }
+        }
+
+        return false;
+    }
+
+ // Checks whether transactionId has a write-write conflict with a transaction committed after transactionId.
+    private boolean hasConflictsWithCommittedTransactions(long startTimestamp, Iterable<Long> writeSet) {
+        for (long cellId : writeSet) {
+            long value = hashmap.getLatestWriteForCell(cellId);
+            if (value != 0 && value >= startTimestamp) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void handleCommit(RequestEvent event) throws Exception {
 
         long startTimestamp = event.getStartTimestamp();
         Iterable<Long> writeSet = event.writeSet();
+        Collection<Long> tableIdSet = event.getTableIdSet();
         boolean isCommitRetry = event.isCommitRetry();
         Channel c = event.getChannel();
 
-        boolean txCanCommit;
+        boolean nonEmptyWriteSet = writeSet.iterator().hasNext();
 
-        int numCellsInWriteset = 0;
-        // 0. check if it should abort
-        if (startTimestamp <= lowWatermark) {
-            txCanCommit = false;
-        } else {
-            // 1. check the write-write conflicts
-            txCanCommit = true;
-            for (long cellId : writeSet) {
-                long value = hashmap.getLatestWriteForCell(cellId);
-                if (value != 0 && value >= startTimestamp) {
-                    txCanCommit = false;
-                    break;
-                }
-                numCellsInWriteset++;
-            }
-        }
-
-        if (txCanCommit) {
-            // 2. commit
+        // If the transaction started before the low watermark, or
+        // it started before a fence and modified the table the fence created for, or
+        // it has a write-write conflict with a transaction committed after it started
+        // Then it should abort. Otherwise, it can commit.
+        if (startTimestamp > lowWatermark &&
+            !hasConflictsWithFences(startTimestamp, tableIdSet) &&
+            !hasConflictsWithCommittedTransactions(startTimestamp, writeSet)) {
 
             long commitTimestamp = timestampOracle.next();
 
-            if (numCellsInWriteset > 0) {
+            if (nonEmptyWriteSet) {
                 long newLowWatermark = lowWatermark;
 
                 for (long r : writeSet) {
@@ -227,6 +266,16 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
     }
 
+    private void handleFence(RequestEvent event) throws Exception {
+        long tableID = event.getTableId();
+        Channel c = event.getChannel();
+
+        long fenceTimestamp = timestampOracle.next();
+
+        tableFences.put(tableID, fenceTimestamp);
+        persistProc.addFenceToBatch(tableID, fenceTimestamp, c, event.getMonCtx());
+    }
+
     @Override
     public void close() throws IOException {
 
@@ -249,7 +298,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
     final static class RequestEvent implements Iterable<Long> {
 
         enum Type {
-            TIMESTAMP, COMMIT
+            TIMESTAMP, COMMIT, FENCE
         }
 
         private Type type = null;
@@ -264,6 +313,9 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
         private Long writeSet[] = new Long[MAX_INLINE];
         private Collection<Long> writeSetAsCollection = null; // for the case where there's more than MAX_INLINE
 
+        private Collection<Long> tableIdSet = null;
+        private long tableID = 0;
+
         static void makeTimestampRequest(RequestEvent e, Channel c, MonitoringContext monCtx) {
             e.type = Type.TIMESTAMP;
             e.channel = c;
@@ -274,6 +326,7 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
                                       long startTimestamp,
                                       MonitoringContext monCtx,
                                       Collection<Long> writeSet,
+                                      Collection<Long> TableIdSet,
                                       boolean isRetry,
                                       Channel c) {
             e.monCtx = monCtx;
@@ -290,10 +343,20 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
                 int i = 0;
                 for (Long cellId : writeSet) {
                     e.writeSet[i] = cellId;
-                    i++;
+                    ++i;
                 }
             }
+            e.tableIdSet = TableIdSet;
+        }
 
+        static void makeFenceRequest(RequestEvent e,
+                                     long tableID,
+                                     Channel c,
+                                     MonitoringContext monCtx) {
+            e.type = Type.FENCE;
+            e.channel = c;
+            e.monCtx = monCtx;
+            e.tableID = tableID;
         }
 
         MonitoringContext getMonCtx() {
@@ -310,6 +373,14 @@ class RequestProcessorImpl implements EventHandler<RequestProcessorImpl.RequestE
 
         Channel getChannel() {
             return channel;
+        }
+
+        Collection<Long> getTableIdSet() {
+            return tableIdSet;
+        }
+
+        long getTableId() {
+            return tableID;
         }
 
         @Override

@@ -18,16 +18,21 @@
 package org.apache.omid.tso.client;
 
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.omid.committable.CommitTable;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 class MockTSOClient implements TSOProtocol {
     private final AtomicLong timestampGenerator = new AtomicLong();
     private static final int CONFLICT_MAP_SIZE = 1_000_000;
     private final long[] conflictMap = new long[CONFLICT_MAP_SIZE];
+    private final Map<Long, Long> fenceMap = new HashMap<Long, Long>();
     private final AtomicLong lwm = new AtomicLong();
 
     private final CommitTable.Writer commitTable;
@@ -46,6 +51,58 @@ class MockTSOClient implements TSOProtocol {
     }
 
     @Override
+    public TSOFuture<Long> getFence(long tableId) {
+        synchronized (conflictMap) {
+            SettableFuture<Long> f = SettableFuture.create();
+            long fenceTimestamp = timestampGenerator.incrementAndGet();
+            f.set(fenceTimestamp);
+            fenceMap.put(tableId, fenceTimestamp);
+            try {
+                // Persist the fence by using the fence identifier as both the start and commit timestamp.
+                commitTable.addCommittedTransaction(fenceTimestamp, fenceTimestamp);
+                commitTable.flush();
+            } catch (IOException ioe) {
+                f.setException(ioe);
+            }
+            return new ForwardingTSOFuture<>(f);
+        }
+    }
+
+    // Checks whether transaction transactionId started before a fence creation of a table transactionId modified.
+    private boolean hasConflictsWithFences(long transactionId, Set<? extends CellId> cells) {
+        Set<Long> tableIDs = new HashSet<Long>();
+        for (CellId c : cells) {
+            tableIDs.add(c.getTableId());
+        }
+
+        if (! fenceMap.isEmpty()) {
+            for (long tableId : tableIDs) {
+                Long fence = fenceMap.get(tableId);
+                if (fence != null && transactionId < fence) {
+                    return true;
+                }
+                if (fence != null && fence < lwm.get()) { // GC
+                    fenceMap.remove(tableId);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Checks whether transactionId has a write-write conflict with a transaction committed after transactionId.
+    private boolean hasConflictsWithCommittedTransactions(long transactionId, Set<? extends CellId> cells) {
+        for (CellId c : cells) {
+            int index = Math.abs((int) (c.getCellId() % CONFLICT_MAP_SIZE));
+            if (conflictMap[index] >= transactionId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
     public TSOFuture<Long> commit(long transactionId, Set<? extends CellId> cells) {
         synchronized (conflictMap) {
             SettableFuture<Long> f = SettableFuture.create();
@@ -54,16 +111,9 @@ class MockTSOClient implements TSOProtocol {
                 return new ForwardingTSOFuture<>(f);
             }
 
-            boolean canCommit = true;
-            for (CellId c : cells) {
-                int index = Math.abs((int) (c.getCellId() % CONFLICT_MAP_SIZE));
-                if (conflictMap[index] >= transactionId) {
-                    canCommit = false;
-                    break;
-                }
-            }
+            if (!hasConflictsWithFences(transactionId, cells) &&
+                !hasConflictsWithCommittedTransactions(transactionId, cells)) {
 
-            if (canCommit) {
                 long commitTimestamp = timestampGenerator.incrementAndGet();
                 for (CellId c : cells) {
                     int index = Math.abs((int) (c.getCellId() % CONFLICT_MAP_SIZE));

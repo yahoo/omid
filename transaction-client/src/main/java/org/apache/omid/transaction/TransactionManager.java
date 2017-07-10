@@ -58,4 +58,15 @@ public interface TransactionManager extends Closeable {
      */
     void rollback(Transaction tx) throws TransactionException;
 
+    /**
+    * Creates a fence
+    *
+    * Creates a fence and returns a {@link Transaction} interface implementation that contains the fence information.
+    *
+    * @param tableName name of the table that requires a fence
+    * @return transaction representation contains the fence timestamp as the TransactionId.
+    * @throws TransactionException in case of any issues
+    */
+    Transaction fence(byte[] tableName) throws TransactionException;
+
 }

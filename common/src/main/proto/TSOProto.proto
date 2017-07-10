@@ -24,6 +24,7 @@ message Request {
     optional TimestampRequest timestampRequest = 1;
     optional CommitRequest commitRequest = 2;
     optional HandshakeRequest handshakeRequest = 3;
+    optional FenceRequest fenceRequest = 4;
 }
 
 message TimestampRequest {
@@ -33,16 +34,27 @@ message CommitRequest {
     optional int64 startTimestamp = 1;
     optional bool isRetry = 2 [default = false];
     repeated int64 cellId = 3;
+    repeated int64 TableId = 4;
+}
+
+message FenceRequest {
+    optional int64 TableId = 1;
 }
 
 message Response {
     optional TimestampResponse timestampResponse = 1;
     optional CommitResponse commitResponse = 2;
     optional HandshakeResponse handshakeResponse = 3;
+    optional FenceResponse fenceResponse = 4;
 }
 
 message TimestampResponse {
     optional int64 startTimestamp = 1;
+}
+
+message FenceResponse {
+    optional int64 TableId = 1;
+    optional int64 FenceId = 2;
 }
 
 message CommitResponse {
@@ -64,3 +76,4 @@ message HandshakeResponse {
     optional bool clientCompatible = 1;
     optional Capabilities serverCapabilities = 2;
 }
+

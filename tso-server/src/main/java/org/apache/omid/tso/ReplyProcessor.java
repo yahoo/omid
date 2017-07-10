@@ -67,5 +67,18 @@ interface ReplyProcessor extends Closeable {
 
     void sendTimestampResponse(long startTimestamp, Channel channel);
 
+    /**
+     * Allow to send a fence response back to the client.
+     *
+     * @param tableID
+     *            the table we are creating the fence for
+     * @param fenceTimestamp
+     *            the fence timestamp to return
+     * @param channel
+     *            the channel used to send the response back to the client
+     */
+
+    void sendFenceResponse(long tableID, long fenceTimestamp, Channel c);
+
 }
 

@@ -210,6 +210,50 @@ public class TestIntegrationOfTSOClientServerBasicFunctionality {
     }
 
     @Test(timeOut = 30_000)
+    public void testTransactionStartedBeforeFenceAborts() throws Exception {
+
+        long startTsTx1 = tsoClient.getNewStartTimestamp().get();
+
+        long fenceID = tsoClient.getFence(c1.getTableId()).get();
+
+        assertTrue(fenceID > startTsTx1, "Fence ID should be higher thank Tx1ID");
+
+        try {
+            tsoClient.commit(startTsTx1, Sets.newHashSet(c1, c2)).get();
+            Assert.fail("TX should fail on commit");
+        } catch (ExecutionException ee) {
+            assertEquals(AbortException.class, ee.getCause().getClass(), "Should have aborted");
+        }
+    }
+
+    @Test(timeOut = 30_000)
+    public void testTransactionStartedBeforeNonOverlapFenceCommits() throws Exception {
+
+        long startTsTx1 = tsoClient.getNewStartTimestamp().get();
+
+        tsoClient.getFence(7).get();
+
+        try {
+            tsoClient.commit(startTsTx1, Sets.newHashSet(c1, c2)).get();
+        } catch (ExecutionException ee) {
+            Assert.fail("TX should successfully commit");        }
+    }
+
+    @Test(timeOut = 30_000)
+    public void testTransactionStartedAfterFenceCommits() throws Exception {
+
+        tsoClient.getFence(c1.getTableId()).get();
+
+        long startTsTx1 = tsoClient.getNewStartTimestamp().get();
+
+        try {
+            tsoClient.commit(startTsTx1, Sets.newHashSet(c1, c2)).get();
+        } catch (ExecutionException ee) {
+            Assert.fail("TX should successfully commit");
+        }
+    }
+
+    @Test(timeOut = 30_000)
     public void testConflictsAndMonotonicallyTimestampGrowthWithTwoDifferentTSOClients() throws Exception {
         long startTsTx1Client1 = tsoClient.getNewStartTimestamp().get();
         long startTsTx2Client1 = tsoClient.getNewStartTimestamp().get();

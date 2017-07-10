@@ -22,9 +22,15 @@ import org.apache.omid.tso.client.CellId;
 public class DummyCellIdImpl implements CellId {
 
     private final long cellId;
+    private final long rowId;
 
     public DummyCellIdImpl(long cellId) {
+        this(cellId, cellId);
+    }
+
+    public DummyCellIdImpl(long cellId, long rowId) {
         this.cellId = cellId;
+        this.rowId = rowId;
     }
 
     @Override
@@ -32,4 +38,13 @@ public class DummyCellIdImpl implements CellId {
         return cellId;
     }
 
+    @Override
+    public long getTableId() {
+        return cellId;
+    }
+
+    @Override
+    public long getRowId() {
+        return rowId;
+    }
 }

@@ -27,6 +27,7 @@ public interface RequestProcessor extends TSOStateManager.StateObserver, Closeab
 
     void timestampRequest(Channel c, MonitoringContext monCtx);
 
-    void commitRequest(long startTimestamp, Collection<Long> writeSet, boolean isRetry, Channel c, MonitoringContext monCtx);
+    void commitRequest(long startTimestamp, Collection<Long> writeSet, Collection<Long> tableIdSet, boolean isRetry, Channel c, MonitoringContext monCtx);
 
+    void fenceRequest(long tableID, Channel c, MonitoringContext monCtx);
 }
