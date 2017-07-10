@@ -44,6 +44,11 @@ public class TSOServerConfig extends SecureHBaseConfig {
         LOW_CPU
     };
 
+    public static enum TIMESTAMP_TYPE {
+      INCREMENTAL,
+      WORLD_TIME
+    };
+
     // ----------------------------------------------------------------------------------------------------------------
     // Instantiation
     // ----------------------------------------------------------------------------------------------------------------
@@ -81,6 +86,8 @@ public class TSOServerConfig extends SecureHBaseConfig {
     private String waitStrategy;
 
     private String networkIfaceName = NetworkUtils.getDefaultNetworkInterface();
+
+    private String timestampType;
 
     public int getPort() {
         return port;
@@ -128,6 +135,18 @@ public class TSOServerConfig extends SecureHBaseConfig {
 
     public void setNetworkIfaceName(String networkIfaceName) {
         this.networkIfaceName = networkIfaceName;
+    }
+
+    public String getTimestampType() {
+        return timestampType;
+    }
+
+    public void setTimestampType(String type) {
+        this.timestampType = type;
+    }
+
+    public TIMESTAMP_TYPE getTimestampTypeEnum() {
+        return TSOServerConfig.TIMESTAMP_TYPE.valueOf(timestampType);
     }
 
     public Module getTimestampStoreModule() {

@@ -20,6 +20,8 @@ package org.apache.omid.tso.client;
 public interface CellId {
 
     long getCellId();
+
     long getTableId();
 
+    long getRowId();
 }
