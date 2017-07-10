@@ -21,7 +21,10 @@ import com.google.common.base.Charsets;
 import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.omid.proto.TSOProto;
+import org.apache.omid.transaction.TransactionException;
+import org.apache.omid.tso.client.OmidClientConfiguration.ConflictDetectionLevel;
 import org.apache.omid.zk.ZKUtils;
 import org.apache.statemachine.StateMachine;
 import org.apache.curator.framework.CuratorFramework;
@@ -54,6 +57,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
@@ -62,6 +66,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
 
 /**
  * Describes the abstract methods to communicate to the TSO server
@@ -91,6 +96,10 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
     private final int tsoReconnectionDelayInSecs;
     private InetSocketAddress tsoAddr;
     private String zkCurrentTsoPath;
+
+    // Conflict detection level of the entire system. Can either be Row or Cell level.
+    private ConflictDetectionLevel conflictDetectionLevel;
+    private Set<Long> rowLevelWriteSet;
 
     // ----------------------------------------------------------------------------------------------------------------
     // Construction
@@ -159,6 +168,9 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         bootstrap.setOption("keepAlive", true);
         bootstrap.setOption("reuseAddress", true);
         bootstrap.setOption("connectTimeoutMillis", 100);
+
+        conflictDetectionLevel = omidConf.getConflictAnalysisLevel();
+        rowLevelWriteSet = new HashSet<Long>();
     }
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -186,8 +198,29 @@ public class TSOClient implements TSOProtocol, NodeCacheListener {
         TSOProto.Request.Builder builder = TSOProto.Request.newBuilder();
         TSOProto.CommitRequest.Builder commitbuilder = TSOProto.CommitRequest.newBuilder();
         commitbuilder.setStartTimestamp(transactionId);
+
+        rowLevelWriteSet.clear();
         for (CellId cell : cells) {
-            commitbuilder.addCellId(cell.getCellId());
+            long id;
+
+            switch (conflictDetectionLevel) {
+            case ROW:
+                id = cell.getRowId();
+                if (rowLevelWriteSet.contains(id)) {
+                    continue;
+                } else {
+                    rowLevelWriteSet.add(id);
+                }
+                break;
+            case CELL:
+                id = cell.getCellId();
+                break;
+            default:
+                id = 0;
+                assert (false);
+            }
+
+            commitbuilder.addCellId(id);
         }
         builder.setCommitRequest(commitbuilder.build());
         RequestEvent request = new RequestEvent(builder.build(), requestMaxRetries);
