@@ -19,6 +19,8 @@ package org.apache.omid.tso.client;
 
 import java.util.Set;
 
+import org.apache.omid.tso.client.OmidClientConfiguration.ConflictDetectionLevel;
+
 /**
  * Defines the protocol used on the client side to abstract communication to the TSO server
  */

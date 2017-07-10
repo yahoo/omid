@@ -24,6 +24,9 @@ import com.google.inject.Provides;
 
 import javax.inject.Named;
 import javax.inject.Singleton;
+
+import org.apache.omid.tso.TSOServerConfig.TIMESTAMP_TYPE;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
@@ -43,7 +46,13 @@ class TSOModule extends AbstractModule {
 
         bind(TSOChannelHandler.class).in(Singleton.class);
         bind(TSOStateManager.class).to(TSOStateManagerImpl.class).in(Singleton.class);
-        bind(TimestampOracle.class).to(TimestampOracleImpl.class).in(Singleton.class);
+
+        if (config.getTimestampTypeEnum() == TIMESTAMP_TYPE.WORLD_TIME) {
+            bind(TimestampOracle.class).to(WorldClockOracleImpl.class).in(Singleton.class);
+        } else {
+            bind(TimestampOracle.class).to(TimestampOracleImpl.class).in(Singleton.class);
+        }
+
         bind(Panicker.class).to(SystemExitPanicker.class).in(Singleton.class);
 
         install(new BatchPoolModule(config));

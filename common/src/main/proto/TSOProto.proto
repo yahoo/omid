@@ -64,3 +64,4 @@ message HandshakeResponse {
     optional bool clientCompatible = 1;
     optional Capabilities serverCapabilities = 2;
 }
+
